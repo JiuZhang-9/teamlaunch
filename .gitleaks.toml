@@ -1,0 +1,9 @@
+# Gitleaks 配置：默认规则 + 排除构建产物（压缩代码与依赖内置示例 token 会误报）
+[extend]
+useDefault = true
+
+[allowlist]
+  paths = [
+    '''dist/''',
+    '''node_modules/''',
+  ]
