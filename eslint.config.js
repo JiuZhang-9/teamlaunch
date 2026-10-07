@@ -80,4 +80,13 @@ export default tseslint.config(
       'no-restricted-imports': 'off',
     },
   },
+  {
+    // 主进程探针脚本：直调 electron API（app.getFileIcon 等）做行为取证的开发工具，
+    // 与 src/main 同性质，同样豁免。CDP 类探针（cdp-*.mjs）走 HTTP/WS，仍受禁令约束。
+    files: ['scripts/probe-*.mjs'],
+    languageOptions: { globals: { ...globals.node } },
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
 );
