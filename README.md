@@ -1,131 +1,77 @@
 # TeamLaunch
 
-团队统一入口工具：管理员维护一份入口清单，员工端自动同步，双击即可打开
+**团队统一入口工具** —— 管理员维护一份入口清单，员工端自动同步，双击即可打开
 （桌面应用 / 文件夹 / 内网网页），不再靠群聊里复制路径。
 
-- 安装与试点分发说明：见 [`docs/DELIVERY.md`](docs/DELIVERY.md)
-- 架构：见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- 需求：见 [`docs/PRD.md`](docs/PRD.md)
-- 契约：见 [`docs/SPEC.md`](docs/SPEC.md)
+> **English**: TeamLaunch is a Windows desktop launcher for small teams. The admin
+> maintains one shared list of entries (apps, folders, intranet pages); everyone
+> else gets it synced automatically over the LAN and launches with a double click.
+> No server to deploy — the admin's installed app **is** the server.
 
-本文只讲**开发侧怎么把界面跑起来并自检**。
+![TeamLaunch 主界面](docs/images/app-personal.png)
 
----
+## 功能
 
-## 1. 浏览器预览（渲染层）
+- **团队入口 · 自动同步**：管理员编辑并发布，员工端开机即得；内嵌同步服务随管理员
+  应用启动（端口 17890–17899 自动发现），员工机零配置、零部署。
+- **跨机路径分层解析**：入口路径在本机不存在时，按"重新定位缓存 → App Paths 注册表 →
+  开始菜单索引"自动找到真实程序启动，员工机盘符不同也能打开。
+- **图标自动提取**：桌面应用/文件夹自动提取 Windows 图标；路径失效自动重新解析；
+  网页入口可用内置表情选择器（57 个）手工配图。
+- **多选连锁启动**：勾选多个入口按顺序启动（间隔可调），晨会开一套环境只需一次点击。
+- **主页**：管理员发布的公告轮播（Markdown 渲染）+ 个人收藏汇总。
+- **个人入口**：每个员工自己的私有入口清单，导入/导出随需。
+- **可自定义快捷键**：应用内全部键位可改，冲突拒绝；全局快捷搜索窗口随叫随到。
+- **应用内自动更新**：更新源即管理员机，员工端自动发现、后台下载、一键重启升级。
+- **明暗双主题 + 主题色**：中性灰画布，8 预设主题色点缀；界面缩放 90–150%。
 
-渲染层不 import electron，可以在纯浏览器里完整运行。没有 Electron preload 时
-`window.tl` 会自动回落到内存 mock（`src/renderer/bridge/mockApi.ts`），
-功能与界面状态一致，只有 Electron 专有能力（窗口控制、原生文件对话框、
-本机图标提取、开始菜单扫描、全局热键）会如实提示"预览模式未接入 X"。
+## 安装
 
-预览地址固定为 **http://127.0.0.1:5180**。
+1. 从 [Releases](../../releases/latest) 下载 `TeamLaunch-Setup-x.y.z.exe`。
+2. Windows SmartScreen 会提示"已保护你的电脑"（安装包未做代码签名）：点
+   **"更多信息" → "仍要运行"**。
+3. **管理员机请右键"以管理员身份运行"**——防火墙入站规则必须在提权安装阶段创建，
+   普通双击安装员工端将连不上。
+4. 安装后打开 设置 → 管理员模式，设置口令即可开始添加入口。
 
-### 最省事：双击 `start-preview.bat`
+详见 [`docs/DELIVERY.md`](docs/DELIVERY.md)（分发与安装、防火墙自检）。
 
-项目根目录的 `start-preview.bat` 是最稳的启动方式，会开一个独立窗口常驻，
-关掉窗口即停止。推荐所有人优先用这个。
+## 角色速览
 
-### 命令行
-
-```bash
-npm run dev:detached     # 等价：npx vite --port 5180 --strictPort
-npm run dev              # 同上（vite.config.ts 已锁 strictPort）
-```
-
----
-
-## 2. 启动预览的三个坑（都真实发生过）
-
-### 坑 1：`nohup ... &` 起的服务会被回收
-
-```bash
-# 会起来，也会打印 ready，第一次 curl 也返回 200 ——
-# 但工具调用结束后进程被回收，下一次请求就是 502。
-nohup npm run dev > vite-dev.log 2>&1 &
-```
-
-要长驻，请用后台任务方式启动，或者用上面那个 bat。
-判定方法：换一个工具调用再 `curl`，而不是在同一个命令里连着验。
-
-### 坑 2：不要接管道
-
-```bash
-npm run dev | head -40   # head 读满 40 行后关闭管道，Vite 写日志时收到 SIGPIPE 被杀
-```
-
-表现是活了一段时间后突然消失，日志里没有任何崩溃信息，很容易误判成代码问题。
-
-### 坑 3：起之前先确认端口
-
-`vite.config.ts` 已设 `strictPort: true`：端口被占用时**直接报错退出**，
-而不是静默漂到 5181。
-
-之所以要这么设：漂移会造成"汇报的地址是 5180、实际服务在 5181"——
-两个实例都是活的、都返回 200，但被汇报的那个未必服务当前代码，极难发现。
-
-```bash
-netstat -ano | grep ":5180" | grep LISTENING   # 起之前先看有没有残留
-```
-
-### 坑 4：验收请用本机启动，不要把预览链接当验收入口
-
-预览实例随时会被回收（坑 1），**回收后链接就是 502**。
-如果把它写进验收单、交付单或给用户的说明里，对方点开是一片 502，
-体验比"没有链接"更差——他会以为产品坏了，而不是某个临时实例没了。
-
-所以：
-- **验收**：在自己机器上按第 1 节起服务，或双击 `start-preview.bat`。
-- **汇报**：可以给地址，但必须附上"链接可能失效，重启方式见第 1 节"。
-- 不要假定上一轮留下的实例还活着——**每次要演示前先 curl 一次**。
-
----
-
-## 3. 验证改动是否真的在服务中生效
-
-**磁盘上的代码和正在服务的代码是两回事。** 改完请穿透到服务内部确认，
-不要只测首页 200：
-
-```bash
-curl -s http://127.0.0.1:5180/src/renderer/App.tsx | grep -o "transformOrigin"
-```
-
----
-
-## 4. 自检
-
-单项：
-
-```bash
-npm run typecheck        # tsc --noEmit
-npm run lint             # eslint . --max-warnings=0
-npm run verify:render    # 10 视图渲染 + 同步 8 态 + 反馈 4 态语义
-npm run verify:p0        # 设计系统 P0 反模式扫描
-npm run verify:tokens    # 设计 Token 校验
-```
-
-全量：
-
-```bash
-npm run verify:all       # 含 server / schema / openapi / deps / wiring
-npm run verify:qa        # QA 专项门禁
-```
-
-> `verify:render` 是渲染层的硬门禁：它用 Vite 的 SSR 装载器把组件树真正渲染一遍，
-> 覆盖 10 个视图 + 同步 8 态 + 离线 4 因 + 反馈 4 态语义。
-> **编译通过不等于界面能渲染**，这条门禁就是挡"编译过但白屏"的。
-
----
-
-## 5. 目录约定
-
-| 目录 | 归属 | 说明 |
+| | 管理员（分发者） | 员工 |
 |---|---|---|
-| `src/renderer/**` | 渲染层 | **不得 import electron**（有 eslint 规则拦） |
-| `src/main/**`、`src/preload/**` | 主进程 / 预加载 | Electron 侧 |
-| `src/server/**` | 同步服务 | 内嵌 HTTP 服务 |
-| `src/shared/**` | 共用 | 纯逻辑与 schema，渲染层与 Node 侧都能 import |
+| 安装 | 管理员身份安装（建防火墙规则） | 正常安装 |
+| 日常 | 编辑入口 → 发布；保持应用运行（托盘常驻） | 双击团队入口直接打开 |
+| 网络 | 无需固定 IP，端口自动发现 | 无需知道管理员 IP |
 
-`src/shared/**` 放纯函数的意义：只在主进程侧实现的逻辑拉不进 smoke
-（依赖 electron），等于"只过了类型检查和代码审阅、从未被执行过"。
-判定类逻辑优先放这里，让 smoke 真能跑到它。
+## 从源码构建 / 开发
+
+```bash
+npm install          # postinstall 会自动给 electron-builder 打本机兼容补丁
+npm run dist:win     # 构建渲染层/主进程 + 打 NSIS 安装包
+npm run verify:all   # 全量门禁（渲染/架构/同步/打包依赖）
+```
+
+浏览器预览渲染层、自检门禁、目录约定的完整说明见 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)；
+参与贡献请读 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [`docs/PRD.md`](docs/PRD.md) | 产品需求（P0-01~12） |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 架构与服务发现/同步协议 |
+| [`docs/SPEC.md`](docs/SPEC.md) | 契约（端口/存储/更新） |
+| [`docs/UIUX.md`](docs/UIUX.md) | 交互与视觉规格 |
+| [`docs/DELIVERY.md`](docs/DELIVERY.md) | 分发、安装与现场排障 |
+| [`docs/decisions/`](docs/decisions/) | 8 份架构决策记录（ADR） |
+
+## 安全说明
+
+当前分发形态为**未签名安装包**（SmartScreen 提示属预期）与**局域网明文 HTTP + HMAC
+签名**的同步协议，适用与不适用场景见 [`SECURITY.md`](SECURITY.md) 与
+`docs/decisions/OPEN-DECISIONS.md`。
+
+## License
+
+[MIT](LICENSE)
