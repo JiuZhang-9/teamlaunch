@@ -1,0 +1,1110 @@
+# =============================================================================
+# TeamLaunch 同步服务 API 契约（终版 / Phase 2 审定）
+#
+# 状态：FINAL。已由架构师审定，与 Spec §5 的 13 个端点编号一一对应。
+# 来源约定：本文件的 Schema 与 src/shared/schema.ts（zod 4.6.5）同源。
+#   - 运行时校验以 schema.ts 为准（@fastify/swagger 9.9.0 由它生成/核对本文件）
+#   - 手改本文件是「先改契约再改实现」的正确流程，但必须同步回 schema.ts
+# 基址：http://<管理员主机>:<17890..17899>/api/v1
+# 容量硬约束：≤8 组、≤200 入口、请求体 ≤1 MB（服务端强制，不依赖客户端提示）
+# =============================================================================
+openapi: 3.0.3
+info:
+  title: TeamLaunch Sync API
+  version: 1.0.0
+  description: |
+    团队统一入口工具的局域网同步服务 API。服务内嵌在管理员客户端进程内（ADR-004）。
+
+    安全：明文 HTTP 运行在局域网（无 PKI）。写操作必须由 `Bearer` 令牌 + HMAC 请求签名
+    双重保护（ADR-006），该机制已由用户于 2026-09-29 确认，作为 PRD §14「TLS + JWT 或
+    经架构师确认的等价机制」条款的正式替代；TLS（自签证书 + TOFU）保留为 P1 升级路径。
+
+    信封：所有 JSON 响应统一 `{code, data, message}`，`code = 0` 表示成功。
+    失败时 `code` 为非 0 整数，并附带 `error`（ERR_* 机器码）与 `diagnosticId`。
+    错误文案不得泄露口令规则、端口、堆栈或内部路径。
+
+    限流：受限端点在响应中返回 `X-RateLimit-*`，超限返回 429 与 `Retry-After`。
+  contact:
+    name: TeamLaunch 架构
+  license:
+    name: 内部项目
+
+servers:
+  - url: http://{host}:{port}/api/v1
+    description: 局域网同步端点（端口由 UDP 17891 信标广播，可能漂移）
+    variables:
+      host:
+        default: 192.168.1.10
+      port:
+        default: "17890"
+
+security:
+  - bearerAndSignature: []
+  - {}
+
+tags:
+  - name: health
+    description: 存活探测
+  - name: sync
+    description: 团队配置条件拉取与变更记录
+  - name: assets
+    description: 不可变资源
+  - name: auth
+    description: 挑战应答式管理员鉴权
+  - name: publish
+    description: 发布与版本管理（需令牌 + 签名）
+  - name: feedback
+    description: 失效反馈上报与聚合
+  - name: telemetry
+    description: 匿名埋点批量上报
+  - name: diagnostics
+    description: 服务自检与巡检
+
+paths:
+  # ── 1 ────────────────────────────────────────────────────────────────────
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: 存活探测（无副作用，不需鉴权）
+      description: 服务发现之后的端口确认手段。
+      security: [{}]
+      responses:
+        '200':
+          description: 服务存活
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/HealthInfo' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 2（GET）与 7（PUT）───────────────────────────────────────────────────
+  /config:
+    get:
+      operationId: getConfig
+      tags: [sync]
+      summary: 拉取团队配置（条件请求）
+      description: |
+        携带 `If-None-Match`（格式 `<revision>-<contentHash前16位>`）。
+        版本一致返回 304 且无正文，客户端**不得重绘**；版本不同返回 200 全文。
+      security: [{}]
+      parameters:
+        - $ref: '#/components/parameters/IfNoneMatch'
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: 返回完整团队配置
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-TL-Revision: { $ref: '#/components/headers/Revision' }
+            X-TL-Published-At: { $ref: '#/components/headers/PublishedAt' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TeamConfig' }
+        '304':
+          description: 版本未变化，无正文。客户端不得替换列表、不得改变焦点、不得提示。
+        '404':
+          description: |
+            服务可达，但**尚未发布任何团队配置**（ERR_NOT_FOUND）。
+            这是服务端的一次成功应答，不是连通性失败：
+            客户端必须按"空状态 / 管理员还没发布"渲染，offlineReason 置 null，
+            不得显示"离线"或"同步失败"，不得弹错误 Toast；轮询照常继续。
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { type: 'null' }
+        '500': { $ref: '#/components/responses/Internal' }
+    put: # Spec §5 编号 7
+      operationId: publishConfig
+      tags: [publish]
+      summary: 发布新版本
+      description: |
+        `baseRevision` 必须与服务端当前 revision 一致，否则 409 并附当前版本，
+        客户端必须展示差异后重新确认（禁止静默覆盖，PRD §13 发布冲突）。
+      security: [{ bearerAndSignature: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublishRequest' }
+            example:
+              baseRevision: 128
+              summary: 新增 2 项、修改 1 项、删除 0 项
+              config:
+                schemaVersion: 1
+                instanceId: 0f7a2c94-3d51-4f0a-9b17-6e8c1a2d4f30
+                groups: []
+      responses:
+        '200':
+          description: 发布成功
+          headers:
+            X-TL-Revision: { $ref: '#/components/headers/Revision' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PublishResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: 版本冲突（ERR_REVISION_CONFLICT）或实例不匹配（ERR_INSTANCE_MISMATCH）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ConflictDetail' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 3 ────────────────────────────────────────────────────────────────────
+  /changes:
+    get:
+      operationId: listChanges
+      tags: [sync]
+      summary: 变更记录增量
+      security: [{}]
+      parameters:
+        - $ref: '#/components/parameters/Since'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 变更记录（从旧到新）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ChangeList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 4 ────────────────────────────────────────────────────────────────────
+  /assets/{hash}:
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: 获取不可变资源（favicon / 管理员上传图标）
+      description: hash 寻址，内容不可变，可安全永久缓存。
+      security: [{}]
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          description: 资源内容的 SHA-256
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: 资源二进制
+          headers:
+            Cache-Control:
+              description: 固定为 public, max-age=31536000, immutable
+              schema: { type: string }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/x-icon: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 5 ────────────────────────────────────────────────────────────────────
+  /auth/challenge:
+    post:
+      operationId: createChallenge
+      tags: [auth]
+      summary: 申请鉴权挑战
+      security: [{}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChallengeRequest' }
+      responses:
+        '200':
+          description: 返回挑战、盐值与 KDF 参数
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+            X-RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ChallengeInfo' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/RoleMismatch' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 6 ────────────────────────────────────────────────────────────────────
+  /auth/verify:
+    post:
+      operationId: verifyChallenge
+      tags: [auth]
+      summary: 用 proof 换取短时令牌
+      description: |
+        口令明文永不上网：
+        `proof = HMAC-SHA256(key=scrypt(password, salt, 32),
+          msg = challengeId + ":" + challenge + ":" + deviceId + ":" + serverId)`。
+        5 分钟内失败超过 10 次，该设备锁定 15 分钟。
+      security: [{}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyRequest' }
+      responses:
+        '200':
+          description: 认证通过
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+            X-RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TokenInfo' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 8 ────────────────────────────────────────────────────────────────────
+  /revisions:
+    get:
+      operationId: listRevisions
+      tags: [publish]
+      summary: 发布历史（含操作设备）
+      security: [{ bearerAndSignature: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 发布历史，从新到旧
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/RevisionList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 9 ────────────────────────────────────────────────────────────────────
+  /revisions/{revision}/restore:
+    post:
+      operationId: restoreRevision
+      tags: [publish]
+      summary: 以指定历史版本的内容生成新的更高版本
+      description: |
+        不做版本回退：回滚本身也产生一个新的、更大的 revision，
+        保证版本序列单调递增，客户端无需任何回退分支。
+      security: [{ bearerAndSignature: [] }]
+      parameters:
+        - name: revision
+          in: path
+          required: true
+          description: 要还原到的历史 revision
+          schema: { type: integer, format: int64, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RestoreRequest' }
+            example:
+              baseRevision: 131
+      responses:
+        '200':
+          description: 已生成新版本
+          headers:
+            X-TL-Revision: { $ref: '#/components/headers/Revision' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/PublishResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: 版本冲突或实例不匹配
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/ConflictDetail' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 10 ───────────────────────────────────────────────────────────────────
+  /feedback:
+    post:
+      operationId: submitFeedback
+      tags: [feedback]
+      summary: 上报失效反馈（员工可用，支持离线排队后补发）
+      description: |
+        仅 reasonCode，**不含任何自由文本**。20 条/设备/小时；
+        同一 (entryId, reasonCode) 24 小时内去重。
+        返回 200 仅代表服务端已确认接收；客户端不得在写入本地队列时就提示"已提交成功"。
+      security: [{}]
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FeedbackBatch' }
+      responses:
+        '200':
+          description: 接收结果
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+            X-RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/FeedbackAcceptResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 11 ───────────────────────────────────────────────────────────────────
+  /feedback/summary:
+    get:
+      operationId: getFeedbackSummary
+      tags: [feedback]
+      summary: 按入口聚合的失效反馈（管理员视图）
+      description: 每个入口聚合出设备数与最近时间，不展开单条消息（防反馈洪峰）。
+      security: [{ bearerAndSignature: [] }]
+      parameters:
+        - name: since
+          in: query
+          required: false
+          description: 只统计该时间之后的反馈
+          schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 聚合结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/FeedbackSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 12 ───────────────────────────────────────────────────────────────────
+  /telemetry:
+    post:
+      operationId: submitTelemetry
+      tags: [telemetry]
+      summary: 匿名埋点批量上报
+      description: |
+        上报内容不包含 IP、原始搜索词、完整路径、URL 查询串、硬件序列号。
+        服务端不得记录任何请求来源 IP（含访问日志）。1 批/设备/分钟。
+        客户端仅在隐私说明已确认（`telemetryNoticeAckedAt != null`）后才记录与上报。
+      security: [{}]
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TelemetryBatch' }
+      responses:
+        '200':
+          description: 接收成功
+          headers:
+            X-RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+            X-RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TelemetryAcceptResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+  # ── 13 ───────────────────────────────────────────────────────────────────
+  /diagnostics:
+    get:
+      operationId: getDiagnostics
+      tags: [diagnostics]
+      summary: 服务巡检（面向自用管理员的一屏定位）
+      description: |
+        一次返回可判定结论：`topIssue` 直接给出最可能的根因，`checks[]` 给出逐项证据。
+        覆盖 K-01（公用网络配置文件）、端口漂移、防火墙规则缺失、服务未监听。
+        注意 K-02：本机自连自身 IP 的自检不可信，真实连通必须由第二台机器验证。
+      security: [{ bearerAndSignature: [] }]
+      responses:
+        '200':
+          description: 巡检结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/DiagnosticInfo' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/Internal' }
+
+components:
+  securitySchemes:
+    bearerAndSignature:
+      type: http
+      scheme: bearer
+      description: |
+        Bearer 令牌 + 请求签名（ADR-006）。写请求必须同时携带：
+          Authorization: Bearer <token>
+          X-TL-Timestamp: <unix ms，服务端容许 ±120s>
+          X-TL-Nonce:     <随机串，服务端 5 分钟内去重>
+          X-TL-Signature: base64(HMAC-SHA256(
+            key = scrypt(password, salt, 32),
+            msg = token + "\n" + method + "\n" + path + "\n" + timestamp + "\n" + nonce + "\n" + sha256(rawBody)))
+        缺少任一头部或校验不过即 401 ERR_SIGNATURE_INVALID / ERR_TOKEN_INVALID。
+
+  parameters:
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: 强校验器，格式 `<revision>-<contentHash前16位>`
+      schema: { type: string }
+      example: '"128-9f2c1a7b3d5e0f11"'
+    DeviceId:
+      name: X-TL-Device-Id
+      in: header
+      required: false
+      description: 本地生成的匿名设备标识，仅用于限流与去重，非硬件信息。
+      schema: { type: string, maxLength: 64 }
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: 单页条数上限
+      schema: { type: integer, minimum: 1, maximum: 20, default: 20 }
+    Since:
+      name: since
+      in: query
+      required: false
+      description: 只返回大于该 revision 的记录
+      schema: { type: integer, format: int64, minimum: 0 }
+
+  headers:
+    ETag:
+      description: 强校验器 `<revision>-<contentHash前16位>`
+      schema: { type: string }
+    Revision:
+      description: 当前配置版本号
+      schema: { type: integer, format: int64 }
+    PublishedAt:
+      description: |
+        服务端发布时间。客户端展示"数据时间"必须用这个值，不得用本机时钟推算
+        （PRD §13 时钟不准）。
+      schema: { type: string, format: date-time }
+    RateLimitLimit:
+      description: 当前窗口允许的请求数
+      schema: { type: integer }
+    RateLimitRemaining:
+      description: 当前窗口剩余请求数
+      schema: { type: integer }
+    RateLimitReset:
+      description: 窗口重置的 Unix 秒时间戳
+      schema: { type: integer }
+    RetryAfter:
+      description: 建议重试等待秒数（429 时返回）
+      schema: { type: integer }
+
+  schemas:
+    Envelope:
+      type: object
+      required: [code, data, message]
+      properties:
+        code:
+          type: integer
+          description: 0 表示成功；非 0 见 error 字段的 ERR_* 机器码
+          example: 0
+        data:
+          description: 业务数据；失败时为 null
+          nullable: true
+        message:
+          type: string
+          description: 人类可读描述。错误文案不得泄露口令规则、端口、堆栈或内部路径
+        error:
+          $ref: '#/components/schemas/ErrorCode'
+        details:
+          type: object
+          description: 422 时附字段路径；其他错误可省略
+          additionalProperties: true
+        diagnosticId:
+          type: string
+          description: 错误诊断 ID，用于复制诊断与日志定位
+
+    ErrorCode:
+      type: string
+      enum:
+        - ERR_BAD_REQUEST
+        - ERR_AUTH_REQUIRED
+        - ERR_BAD_PROOF
+        - ERR_CHALLENGE_EXPIRED
+        - ERR_TOKEN_INVALID
+        - ERR_SIGNATURE_INVALID
+        - ERR_ROLE_MISMATCH
+        - ERR_REVISION_CONFLICT
+        - ERR_INSTANCE_MISMATCH
+        - ERR_PAYLOAD_TOO_LARGE
+        - ERR_VALIDATION_FAILED
+        - ERR_RATE_LIMITED
+        - ERR_NOT_FOUND
+        - ERR_INTERNAL
+
+    IconRef:
+      type: object
+      required: [kind]
+      description: |
+        资源哈希统一放在入口层的 iconAssetHash，
+        避免同一事实存在两处写入点（K 类静默错误的经典来源）。
+      properties:
+        kind:
+          type: string
+          enum: [local, asset, fallback, emoji]
+          description: |
+            local    —— 每台客户端按自己的 target 本地提取，不跨网同步
+            asset    —— 由入口的 iconAssetHash 指向同步资源（favicon / 管理员上传）
+            fallback —— 本地生成的首字单体图
+            emoji    —— 用户挑选的扁平表情字符，客户端按文本渲染，不跨网同步
+        char:
+          type: string
+          maxLength: 8
+          description: kind=emoji 时的表情字符；其余 kind 不携带。
+
+    EntryBase:
+      type: object
+      required: [id, type, name, sort, icon, updatedAt]
+      properties:
+        id: { type: string, maxLength: 64 }
+        type: { type: string, enum: [app, folder, web] }
+        name: { type: string, minLength: 1, maxLength: 40 }
+        description: { type: [string, 'null'], maxLength: 80 }
+        keywords:
+          type: array
+          maxItems: 10
+          items: { type: string, maxLength: 20 }
+        sort: { type: integer }
+        icon: { $ref: '#/components/schemas/IconRef' }
+        iconAssetHash: { type: [string, 'null'], pattern: '^[a-f0-9]{64}$' }
+        updatedAt: { type: string, format: date-time }
+
+    AppEntry:
+      description: 软件入口（必须有 target）
+      allOf:
+        - $ref: '#/components/schemas/EntryBase'
+        - type: object
+          required: [target]
+          properties:
+            type: { type: string, enum: [app] }
+            target:
+              type: string
+              description: 可执行文件路径，可含白名单环境变量（%LOCALAPPDATA% 等）
+            sourcePath:
+              type: [string, 'null']
+              description: 原始快捷方式路径，用于重新解析；UWP 应用走该路径打开
+            args: { type: [string, 'null'] }
+            cwd: { type: [string, 'null'] }
+            expandEnv: { type: boolean, default: false }
+
+    FolderEntry:
+      description: 文件夹入口（必须有 target）
+      allOf:
+        - $ref: '#/components/schemas/EntryBase'
+        - type: object
+          required: [target]
+          properties:
+            type: { type: string, enum: [folder] }
+            target: { type: string, description: 本地目录或 UNC 共享路径 }
+
+    WebEntry:
+      description: 网页入口（必须有 url）
+      allOf:
+        - $ref: '#/components/schemas/EntryBase'
+        - type: object
+          required: [url]
+          properties:
+            type: { type: string, enum: [web] }
+            url: { type: string, maxLength: 2048, description: 仅 http / https }
+
+    Entry:
+      description: 三类入口联合类型，按 type 判别
+      oneOf:
+        - $ref: '#/components/schemas/AppEntry'
+        - $ref: '#/components/schemas/FolderEntry'
+        - $ref: '#/components/schemas/WebEntry'
+      discriminator:
+        propertyName: type
+        mapping:
+          app: '#/components/schemas/AppEntry'
+          folder: '#/components/schemas/FolderEntry'
+          web: '#/components/schemas/WebEntry'
+
+    Group:
+      type: object
+      required: [id, name, sort, entries]
+      properties:
+        id: { type: string, maxLength: 64 }
+        name: { type: string, minLength: 1, maxLength: 40 }
+        sort: { type: integer }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/Entry' }
+
+    TeamConfig:
+      type: object
+      required: [schemaVersion, instanceId, revision, contentHash, publishedAt, groups]
+      properties:
+        schemaVersion: { type: integer, enum: [1] }
+        instanceId:
+          type: string
+          format: uuid
+          description: 团队数据源 UUID，用于识别"连错实例"
+        revision:
+          type: integer
+          format: int64
+          description: 单调递增，永不复用、永不回退（回滚也产生新的更高版本）
+        contentHash:
+          type: string
+          description: 规范 JSON 的 SHA-256（排除 revision / contentHash 自身后计算）
+        publishedAt: { type: string, format: date-time }
+        groups:
+          type: array
+          maxItems: 8
+          items: { $ref: '#/components/schemas/Group' }
+
+    PublishRequest:
+      type: object
+      required: [baseRevision, config, summary]
+      properties:
+        baseRevision: { type: integer, format: int64, description: 用于乐观并发，必须与服务端一致 }
+        summary: { type: string, maxLength: 200 }
+        config:
+          allOf:
+            - $ref: '#/components/schemas/TeamConfig'
+          description: 不含 revision / contentHash / publishedAt，由服务端生成
+
+    PublishResult:
+      type: object
+      required: [revision, contentHash, publishedAt]
+      properties:
+        revision: { type: integer, format: int64 }
+        contentHash: { type: string }
+        publishedAt: { type: string, format: date-time }
+
+    RestoreRequest:
+      type: object
+      required: [baseRevision]
+      description: |
+        还原同样走乐观并发：baseRevision 必须是客户端打开还原对话框时看到的版本。
+        否则 409，禁止静默覆盖他人在此期间发布的内容。
+      properties:
+        baseRevision: { type: integer, format: int64, description: 客户端已知的当前版本，用于乐观并发 }
+
+    ConflictDetail:
+      type: object
+      properties:
+        currentRevision: { type: integer, format: int64 }
+        currentContentHash: { type: string }
+
+    ChangeRecord:
+      type: object
+      required: [revision, publishedAt, summary, diff]
+      properties:
+        revision: { type: integer, format: int64 }
+        publishedAt: { type: string, format: date-time }
+        operatorDeviceId:
+          type: [string, 'null']
+          description: 匿名设备标识，非硬件信息
+        summary: { type: string, maxLength: 200 }
+        diff:
+          type: object
+          properties:
+            added: { type: integer }
+            updated: { type: integer }
+            removed: { type: integer }
+
+    ChangeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ChangeRecord' }
+        latestRevision: { type: integer, format: int64 }
+
+    RevisionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ChangeRecord' }
+
+    ChallengeRequest:
+      type: object
+      required: [deviceId]
+      properties:
+        deviceId: { type: string, maxLength: 64 }
+
+    ChallengeInfo:
+      type: object
+      required: [challengeId, challenge, salt, kdf, expiresAt, serverId]
+      properties:
+        challengeId: { type: string }
+        challenge: { type: string, format: byte, description: 32 字节随机，base64 }
+        salt: { type: string, format: byte }
+        kdf:
+          type: object
+          properties:
+            name: { type: string, enum: [scrypt] }
+            N: { type: integer }
+            r: { type: integer }
+            p: { type: integer }
+            keylen: { type: integer }
+        expiresAt: { type: string, format: date-time, description: 60 秒后过期 }
+        serverId: { type: string, format: uuid }
+
+    VerifyRequest:
+      type: object
+      required: [challengeId, deviceId, proof]
+      properties:
+        challengeId: { type: string }
+        deviceId: { type: string }
+        proof:
+          type: string
+          format: byte
+          description: HMAC-SHA256(verifier, challengeId:challenge:deviceId:serverId)
+
+    TokenInfo:
+      type: object
+      required: [token, expiresAt]
+      properties:
+        token: { type: string }
+        expiresAt: { type: string, format: date-time, description: 8 小时后过期，仅内存不落盘 }
+
+    FeedbackItem:
+      type: object
+      required: [entryId, reasonCode, occurredAt]
+      properties:
+        entryId: { type: string, maxLength: 64 }
+        entryRevision: { type: integer, format: int64 }
+        reasonCode:
+          type: string
+          enum: [not_installed, path_missing, permission_denied, link_unavailable, network_unreachable, other]
+        occurredAt: { type: string, format: date-time }
+
+    FeedbackBatch:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/FeedbackItem' }
+
+    FeedbackAcceptResult:
+      type: object
+      required: [accepted, duplicated]
+      properties:
+        accepted: { type: integer }
+        duplicated: { type: integer }
+
+    FeedbackSummary:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/FeedbackAggregate' }
+
+    FeedbackAggregate:
+      type: object
+      required: [entryId, deviceCount, latestAt, reasonCounts]
+      properties:
+        entryId: { type: string }
+        deviceCount: { type: integer }
+        latestAt: { type: string, format: date-time }
+        reasonCounts:
+          type: object
+          additionalProperties: { type: integer }
+
+    TelemetryItem:
+      type: object
+      required: [name, ts, props]
+      properties:
+        name:
+          type: string
+          enum:
+            - page_view
+            - sign_up_complete
+            - first_core_action
+            - entry_open_attempted
+            - entry_open_dispatched
+            - entry_open_failed
+            - team_sync_completed
+            - offline_cache_rendered
+            - entry_feedback_submitted
+            - team_publish_completed
+            - session_start
+            - session_duration
+            - error_occurred
+        ts: { type: string, format: date-time }
+        props:
+          type: object
+          additionalProperties: true
+          description: 不得包含 IP、原始搜索词、完整路径、URL 查询串、硬件序列号
+
+    TelemetryBatch:
+      type: object
+      required: [items, clientStats]
+      properties:
+        clientStats:
+          type: object
+          description: |
+            遥测完整度自证计数器快照（PRD 数据完整度指标：事件丢失率 < 20%）。
+            丢失率 = (droppedByEviction + droppedByRetention) / recorded。
+          required: [recorded, uploaded, droppedByEviction, droppedByRetention]
+          properties:
+            recorded: { type: integer, description: 本机累计记录事件数 }
+            uploaded: { type: integer, description: 累计已成功上报数 }
+            droppedByEviction: { type: integer, description: 超 5000 条缓冲被挤出且未上传 }
+            droppedByRetention: { type: integer, description: 超 14 天保留期被淘汰且未上传 }
+        items:
+          type: array
+          maxItems: 200
+          items: { $ref: '#/components/schemas/TelemetryItem' }
+
+    TelemetryAcceptResult:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: { type: integer }
+
+    HealthInfo:
+      type: object
+      required: [status, role, serviceId, instanceId, revision, httpPort, serverTime]
+      properties:
+        status: { type: string, enum: [ok] }
+        role: { type: string, enum: [admin, member] }
+        serviceId: { type: string, format: uuid }
+        instanceId: { type: string, format: uuid }
+        revision: { type: integer, format: int64 }
+        httpPort: { type: integer, description: 实际监听端口（可能漂移） }
+        serverTime: { type: string, format: date-time }
+
+    DiagnosticCheck:
+      type: object
+      required: [id, title, passed, detail]
+      properties:
+        id:
+          type: string
+          enum:
+            - SERVICE_LISTENING
+            - PORT_RANGE
+            - FIREWALL_RULES
+            - NETWORK_PROFILE
+            - LAN_ADDRESSES
+            - DATA_INTEGRITY
+          description: 巡检项标识，与诊断页展示顺序一致
+        title: { type: string, description: 人可读标题 }
+        passed: { type: boolean }
+        detail: { type: string, description: 证据，不含端口/堆栈等内部细节 }
+        hint: { type: string, description: 未通过时的可执行建议 }
+
+    DiagnosticInfo:
+      type: object
+      required: [topIssue, checks]
+      properties:
+        topIssue:
+          type: string
+          enum:
+            - NONE
+            - PUBLIC_NETWORK_PROFILE
+            - FIREWALL_RULE_MISSING
+            - SERVICE_NOT_LISTENING
+            - PORT_DRIFTED
+            - DATA_INTEGRITY_FAILED
+            - PEER_UNVERIFIED
+          description: |
+            最可能的根因，诊断页首行直接展示，让自用管理员一眼定位。
+            优先级：SERVICE_NOT_LISTENING > PUBLIC_NETWORK_PROFILE >
+            FIREWALL_RULE_MISSING > PORT_DRIFTED > DATA_INTEGRITY_FAILED >
+            PEER_UNVERIFIED > NONE。
+
+            重要：SERVICE_NOT_LISTENING **不会由服务端自己返回**——能收到本响应
+            就说明服务正在监听，服务端对自身的这项检查恒为 true。
+            它只在**客户端拿不到任何应答**时由客户端自行判定并覆盖展示
+            （渲染层传入 serviceListening=false）。前端不要等服务端下发这个值。
+        checks:
+          type: array
+          items: { $ref: '#/components/schemas/DiagnosticCheck' }
+        listening:
+          type: object
+          properties:
+            address: { type: string }
+            port: { type: integer }
+        expectedPortRange: { type: string, example: '17890-17899' }
+        portDrifted: { type: boolean }
+        instanceId: { type: string }
+        revision: { type: integer, format: int64 }
+        uptimeSec: { type: integer }
+        firewallRules:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              exists: { type: boolean }
+              enabled: { type: boolean }
+              profiles: { type: array, items: { type: string } }
+        activeNetworkProfile:
+          type: string
+          enum: [Domain, Private, Public]
+          description: 公用（Public）配置文件下规则不生效，是 K-01 最高频现场故障
+        lanAddresses:
+          type: array
+          items: { type: string }
+          description: 本机局域网 IPv4，供人工核对员工端是否同网段
+        knownClientCount:
+          type: integer
+          description: 近期拉取过配置的匿名设备数（粗粒度，不给明细）
+        telemetryCompleteness:
+          type: object
+          description: |
+            遥测样本可判定性（PRD §16.3 Go/No-Go）。
+            只有 lossRate < 0.2 且 deviceCoverage >= 0.7 时，入口健康类硬判定才启用。
+            分子分母均只用客户端上报的匿名设备 ID 去重，服务端不记录来源 IP。
+          properties:
+            eventsRecorded: { type: integer }
+            eventsUploaded: { type: integer }
+            eventsDropped: { type: integer }
+            lossRate: { type: number }
+            configDeviceCount: { type: integer }
+            telemetryDeviceCount: { type: integer }
+            deviceCoverage: { type: number }
+            sampleJudgable: { type: boolean }
+        peerCheckHint:
+          type: string
+          description: |
+            K-02：本机自连自身 LAN IP 的连通性测试不可信（回环不入站规则），
+            真实连通必须由第二台机器验证。
+
+  responses:
+    BadRequest:
+      description: 请求结构非法（ERR_BAD_REQUEST）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+    Unauthorized:
+      description: |
+        鉴权失败：ERR_AUTH_REQUIRED / ERR_TOKEN_INVALID / ERR_SIGNATURE_INVALID /
+        ERR_CHALLENGE_EXPIRED / ERR_BAD_PROOF
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+    RoleMismatch:
+      description: 目标不是管理员实例（ERR_ROLE_MISMATCH）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+    NotFound:
+      description: 资源不存在（ERR_NOT_FOUND）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+    PayloadTooLarge:
+      description: 超过 1 MB 请求体上限，或超过 8 组 / 200 入口容量上限（ERR_PAYLOAD_TOO_LARGE）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+    ValidationFailed:
+      description: Schema 校验失败（ERR_VALIDATION_FAILED），details 附字段路径
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+    RateLimited:
+      description: 触发限流或设备被锁定（ERR_RATE_LIMITED）
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+        X-RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+        X-RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+        X-RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }
+    Internal:
+      description: 未预期错误（ERR_INTERNAL），附 diagnosticId 供复制诊断
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Envelope' }

@@ -1,0 +1,1167 @@
+{
+  "$schema": "https://design-tokens.org/",
+  "name": "TeamLaunch Design Tokens",
+  "version": "1.1.0",
+  "source": "docs/UIUX.md",
+  "specAnchor": "docs/SPEC.md §8",
+  "meta": {
+    "axes": {
+      "variance": 5,
+      "motion": 4,
+      "density": 6
+    },
+    "defaultTheme": "system",
+    "fallbackTheme": "dark",
+    "themeStrategy": "nativeTheme.themeSource='system'，读取失败兜底 dark",
+    "iconLibrary": {
+      "name": "Lucide",
+      "package": "lucide-react",
+      "version": "1.48.0",
+      "license": "ISC",
+      "grid": 24,
+      "strokeWidth": 2,
+      "exportNameCase": "PascalCase（kebab-case 图标名逐段首字母大写）",
+      "verified": true,
+      "verifiedAt": "2026-09-29",
+      "verifiedMethod": "下载 lucide-react@1.48.0 tarball，对 dist/lucide-react.d.ts 的 `declare const X: LucideIcon` 与 dist/esm/lucide-react.mjs 的 export 集合做双向比对",
+      "verifiedResult": "55/55 通过，0 项需要 Tabler 例外"
+    },
+    "window": {
+      "default": [
+        1040,
+        720
+      ],
+      "min": [
+        704,
+        480
+      ]
+    }
+  },
+  "primitive": {
+    "color": {
+      "neutral": {
+        "000": {
+          "value": "#FFFFFF",
+          "type": "color"
+        },
+        "025": {
+          "value": "#F7F8FA",
+          "type": "color"
+        },
+        "050": {
+          "value": "#EFF1F5",
+          "type": "color"
+        },
+        "100": {
+          "value": "#E2E6EB",
+          "type": "color"
+        },
+        "200": {
+          "value": "#D1D6DE",
+          "type": "color"
+        },
+        "300": {
+          "value": "#B1B8C2",
+          "type": "color"
+        },
+        "400": {
+          "value": "#8C94A0",
+          "type": "color"
+        },
+        "500": {
+          "value": "#6A727D",
+          "type": "color"
+        },
+        "600": {
+          "value": "#545C66",
+          "type": "color"
+        },
+        "700": {
+          "value": "#3F464F",
+          "type": "color"
+        },
+        "800": {
+          "value": "#2A2F36",
+          "type": "color"
+        },
+        "850": {
+          "value": "#1F242A",
+          "type": "color"
+        },
+        "900": {
+          "value": "#1A1E23",
+          "type": "color"
+        },
+        "950": {
+          "value": "#14171A",
+          "type": "color"
+        },
+        "980": {
+          "value": "#0F1114",
+          "type": "color"
+        }
+      },
+      "signal": {
+        "50": {
+          "value": "#EAF4FB",
+          "type": "color"
+        },
+        "100": {
+          "value": "#CFE8F6",
+          "type": "color"
+        },
+        "200": {
+          "value": "#A2D0EC",
+          "type": "color"
+        },
+        "300": {
+          "value": "#68B1DE",
+          "type": "color"
+        },
+        "400": {
+          "value": "#3890CE",
+          "type": "color"
+        },
+        "450": {
+          "value": "#4FA8DC",
+          "type": "color",
+          "note": "深色主题强调文本用，确保 ≥4.5:1"
+        },
+        "500": {
+          "value": "#1780BC",
+          "type": "color"
+        },
+        "600": {
+          "value": "#106696",
+          "type": "color"
+        },
+        "700": {
+          "value": "#0D5278",
+          "type": "color"
+        },
+        "800": {
+          "value": "#0C4363",
+          "type": "color"
+        },
+        "900": {
+          "value": "#0B3650",
+          "type": "color"
+        }
+      },
+      "clayAlt": {
+        "description": "方向B备选强调色，仅在 UIUX.md 方向B被选中时启用，禁止与 signal 混用",
+        "50": {
+          "value": "#FBEDE6",
+          "type": "color"
+        },
+        "400": {
+          "value": "#E08556",
+          "type": "color"
+        },
+        "600": {
+          "value": "#B4471F",
+          "type": "color"
+        },
+        "700": {
+          "value": "#8F3818",
+          "type": "color"
+        }
+      }
+    },
+    "font": {
+      "family": {
+        "sans": {
+          "value": "Inter Variable, Inter, system-ui, Segoe UI Variable Text, Segoe UI, sans-serif",
+          "type": "fontFamily"
+        },
+        "cjk": {
+          "value": "Noto Sans SC, Source Han Sans SC, HarmonyOS Sans SC, MiSans, Microsoft YaHei UI, sans-serif",
+          "type": "fontFamily"
+        },
+        "mono": {
+          "value": "JetBrains Mono, Cascadia Mono, Consolas, monospace",
+          "type": "fontFamily"
+        }
+      },
+      "weight": {
+        "read": {
+          "value": 400,
+          "type": "fontWeight"
+        },
+        "emphasize": {
+          "value": 510,
+          "type": "fontWeight"
+        },
+        "announce": {
+          "value": 590,
+          "type": "fontWeight"
+        }
+      },
+      "size": {
+        "2xs": {
+          "value": "11px",
+          "type": "dimension"
+        },
+        "xs": {
+          "value": "12px",
+          "type": "dimension"
+        },
+        "sm": {
+          "value": "13px",
+          "type": "dimension"
+        },
+        "base": {
+          "value": "14px",
+          "type": "dimension"
+        },
+        "md": {
+          "value": "15px",
+          "type": "dimension"
+        },
+        "lg": {
+          "value": "17px",
+          "type": "dimension"
+        },
+        "xl": {
+          "value": "21px",
+          "type": "dimension"
+        },
+        "2xl": {
+          "value": "28px",
+          "type": "dimension"
+        }
+      },
+      "lineHeight": {
+        "2xs": {
+          "value": "16px",
+          "type": "dimension"
+        },
+        "xs": {
+          "value": "18px",
+          "type": "dimension"
+        },
+        "sm": {
+          "value": "20px",
+          "type": "dimension"
+        },
+        "base": {
+          "value": "22px",
+          "type": "dimension"
+        },
+        "md": {
+          "value": "22px",
+          "type": "dimension"
+        },
+        "lg": {
+          "value": "26px",
+          "type": "dimension"
+        },
+        "xl": {
+          "value": "30px",
+          "type": "dimension"
+        },
+        "2xl": {
+          "value": "36px",
+          "type": "dimension"
+        }
+      },
+      "letterSpacing": {
+        "caps": {
+          "value": "0.06em",
+          "type": "dimension"
+        },
+        "tight": {
+          "value": "-0.01em",
+          "type": "dimension"
+        },
+        "tighter": {
+          "value": "-0.02em",
+          "type": "dimension"
+        },
+        "micro": {
+          "value": "0.01em",
+          "type": "dimension"
+        },
+        "normal": {
+          "value": "0em",
+          "type": "dimension"
+        }
+      }
+    },
+    "space": {
+      "half": {
+        "value": "2px",
+        "type": "dimension",
+        "note": "仅用于图标光学对齐，禁止用于布局间距"
+      },
+      "1": {
+        "value": "4px",
+        "type": "dimension"
+      },
+      "2": {
+        "value": "8px",
+        "type": "dimension"
+      },
+      "3": {
+        "value": "12px",
+        "type": "dimension"
+      },
+      "4": {
+        "value": "16px",
+        "type": "dimension"
+      },
+      "5": {
+        "value": "20px",
+        "type": "dimension"
+      },
+      "6": {
+        "value": "24px",
+        "type": "dimension"
+      },
+      "8": {
+        "value": "32px",
+        "type": "dimension"
+      },
+      "10": {
+        "value": "40px",
+        "type": "dimension"
+      },
+      "12": {
+        "value": "48px",
+        "type": "dimension"
+      },
+      "16": {
+        "value": "64px",
+        "type": "dimension"
+      }
+    },
+    "radius": {
+      "sm": {
+        "value": "6px",
+        "type": "dimension"
+      },
+      "md": {
+        "value": "8px",
+        "type": "dimension"
+      },
+      "lg": {
+        "value": "12px",
+        "type": "dimension"
+      },
+      "xl": {
+        "value": "16px",
+        "type": "dimension",
+        "note": "上限，任何元素不得超过 16px"
+      },
+      "pill": {
+        "value": "9999px",
+        "type": "dimension"
+      }
+    },
+    "size": {
+      "winWDefault": {
+        "value": "1040px",
+        "type": "dimension"
+      },
+      "winHDefault": {
+        "value": "720px",
+        "type": "dimension"
+      },
+      "winWMin": {
+        "value": "704px",
+        "type": "dimension"
+      },
+      "winHMin": {
+        "value": "480px",
+        "type": "dimension"
+      },
+      "winTitlebarH": {
+        "value": "40px",
+        "type": "dimension"
+      },
+      "winToolbarH": {
+        "value": "56px",
+        "type": "dimension"
+      },
+      "bannerH": {
+        "value": "40px",
+        "type": "dimension"
+      },
+      "editbarH": {
+        "value": "64px",
+        "type": "dimension"
+      },
+      "cardW": {
+        "value": "152px",
+        "type": "dimension"
+      },
+      "cardWMin": {
+        "value": "140px",
+        "type": "dimension"
+      },
+      "cardWMax": {
+        "value": "176px",
+        "type": "dimension"
+      },
+      "cardH": {
+        "value": "132px",
+        "type": "dimension"
+      },
+      "gridGap": {
+        "value": "16px",
+        "type": "dimension"
+      },
+      "iconBox": {
+        "value": "40px",
+        "type": "dimension"
+      },
+      "iconApp": {
+        "value": "32px",
+        "type": "dimension"
+      },
+      "paletteW": {
+        "value": "560px",
+        "type": "dimension"
+      },
+      "paletteH": {
+        "value": "420px",
+        "type": "dimension"
+      },
+      "rowH": {
+        "value": "44px",
+        "type": "dimension"
+      },
+      "controlSm": {
+        "value": "28px",
+        "type": "dimension"
+      },
+      "controlMd": {
+        "value": "32px",
+        "type": "dimension"
+      },
+      "controlLg": {
+        "value": "40px",
+        "type": "dimension"
+      },
+      "dialogW": {
+        "value": "480px",
+        "type": "dimension"
+      },
+      "dialogWWide": {
+        "value": "600px",
+        "type": "dimension",
+        "note": "诊断页等需要等宽值换行的对话框"
+      },
+      "gateW": {
+        "value": "440px",
+        "type": "dimension",
+        "note": "隐私说明门宽度"
+      },
+      "gateIconBox": {
+        "value": "48px",
+        "type": "dimension"
+      },
+      "scrollbarSize": {
+        "value": "10px",
+        "type": "dimension",
+        "note": "覆盖式滚动条，绝不占位；占位会把 6 列挤成 5 列"
+      },
+      "icon12": {
+        "value": "12px",
+        "type": "dimension"
+      },
+      "icon16": {
+        "value": "16px",
+        "type": "dimension"
+      },
+      "icon20": {
+        "value": "20px",
+        "type": "dimension"
+      },
+      "icon24": {
+        "value": "24px",
+        "type": "dimension"
+      }
+    },
+    "motion": {
+      "duration": {
+        "instant": {
+          "value": "80ms",
+          "type": "duration"
+        },
+        "fast": {
+          "value": "120ms",
+          "type": "duration"
+        },
+        "base": {
+          "value": "160ms",
+          "type": "duration",
+          "note": "全项目收敛值"
+        },
+        "slow": {
+          "value": "240ms",
+          "type": "duration"
+        },
+        "loop": {
+          "value": "1200ms",
+          "type": "duration"
+        },
+        "breathe": {
+          "value": "2400ms",
+          "type": "duration",
+          "note": "仅用于离线状态点呼吸，需在 reduced-motion 下停为静态"
+        }
+      },
+      "easing": {
+        "standard": {
+          "value": "cubic-bezier(0.2, 0, 0, 1)",
+          "type": "cubicBezier"
+        },
+        "exit": {
+          "value": "cubic-bezier(0.4, 0, 1, 1)",
+          "type": "cubicBezier"
+        },
+        "emphasis": {
+          "value": "cubic-bezier(0.32, 0.72, 0, 1)",
+          "type": "cubicBezier"
+        },
+        "linear": {
+          "value": "linear",
+          "type": "cubicBezier"
+        }
+      }
+    },
+    "zIndex": {
+      "base": {
+        "value": 0,
+        "type": "number"
+      },
+      "sticky": {
+        "value": 10,
+        "type": "number"
+      },
+      "banner": {
+        "value": 15,
+        "type": "number"
+      },
+      "toolbar": {
+        "value": 20,
+        "type": "number"
+      },
+      "drag": {
+        "value": 30,
+        "type": "number"
+      },
+      "dropdown": {
+        "value": 100,
+        "type": "number"
+      },
+      "toast": {
+        "value": 200,
+        "type": "number"
+      },
+      "dialogBackdrop": {
+        "value": 300,
+        "type": "number"
+      },
+      "dialog": {
+        "value": 310,
+        "type": "number"
+      }
+    }
+  },
+  "semantic": {
+    "light": {
+      "bg": {
+        "canvas": {
+          "value": "{primitive.color.neutral.025}",
+          "type": "color"
+        },
+        "surface": {
+          "value": "{primitive.color.neutral.000}",
+          "type": "color"
+        },
+        "surface2": {
+          "value": "{primitive.color.neutral.050}",
+          "type": "color"
+        },
+        "surfaceHover": {
+          "value": "{primitive.color.neutral.050}",
+          "type": "color"
+        },
+        "surfaceActive": {
+          "value": "{primitive.color.neutral.100}",
+          "type": "color"
+        },
+        "overlay": {
+          "value": "{primitive.color.neutral.000}",
+          "type": "color"
+        },
+        "editing": {
+          "value": "#F4F8FB",
+          "type": "color"
+        }
+      },
+      "border": {
+        "subtle": {
+          "value": "{primitive.color.neutral.100}",
+          "type": "color"
+        },
+        "default": {
+          "value": "{primitive.color.neutral.200}",
+          "type": "color"
+        },
+        "strong": {
+          "value": "{primitive.color.neutral.300}",
+          "type": "color"
+        }
+      },
+      "fg": {
+        "default": {
+          "value": "{primitive.color.neutral.800}",
+          "type": "color",
+          "contrastOnSurface": "13.5:1"
+        },
+        "secondary": {
+          "value": "{primitive.color.neutral.600}",
+          "type": "color",
+          "contrastOnSurface": "6.6:1"
+        },
+        "muted": {
+          "value": "{primitive.color.neutral.500}",
+          "type": "color",
+          "contrastOnSurface": "4.87:1"
+        },
+        "meta": {
+          "value": "{primitive.color.neutral.400}",
+          "type": "color",
+          "contrastOnSurface": "3.0:1",
+          "note": "仅禁用/极次要，禁用于正文"
+        },
+        "disabled": {
+          "value": "{primitive.color.neutral.400}",
+          "type": "color"
+        },
+        "accent": {
+          "value": "{primitive.color.signal.700}",
+          "type": "color",
+          "contrastOnSurface": "8.41:1"
+        }
+      },
+      "accent": {
+        "default": {
+          "value": "{primitive.color.signal.600}",
+          "type": "color",
+          "contrastWithWhite": "6.24:1"
+        },
+        "hover": {
+          "value": "{primitive.color.signal.700}",
+          "type": "color"
+        },
+        "active": {
+          "value": "{primitive.color.signal.800}",
+          "type": "color"
+        },
+        "on": {
+          "value": "#FFFFFF",
+          "type": "color"
+        },
+        "tint": {
+          "value": "{primitive.color.signal.50}",
+          "type": "color"
+        },
+        "tintHover": {
+          "value": "{primitive.color.signal.100}",
+          "type": "color"
+        },
+        "border": {
+          "value": "{primitive.color.signal.200}",
+          "type": "color"
+        },
+        "focusRing": {
+          "value": "{primitive.color.signal.600}",
+          "type": "color"
+        }
+      },
+      "success": {
+        "bg": "#E7F5EC",
+        "fg": "#18633A",
+        "solid": "#1E7A45"
+      },
+      "warn": {
+        "bg": "#FDF3E3",
+        "fg": "#8A5310",
+        "solid": "#A96510"
+      },
+      "danger": {
+        "bg": "#FCEDEC",
+        "fg": "#91271E",
+        "solid": "#B22E22"
+      },
+      "info": {
+        "bg": "{primitive.color.signal.50}",
+        "fg": "{primitive.color.signal.700}",
+        "solid": "{primitive.color.signal.600}"
+      },
+      "typeTint": {
+        "app": {
+          "value": "#FFFFFF",
+          "type": "color"
+        },
+        "folder": {
+          "value": "#FCF6E9",
+          "type": "color"
+        },
+        "link": {
+          "value": "#E7F4F4",
+          "type": "color"
+        }
+      },
+      "elevation": {
+        "0": {
+          "value": "none",
+          "type": "boxShadow"
+        },
+        "1": {
+          "value": "0 1px 2px rgba(16,19,22,0.06)",
+          "type": "boxShadow"
+        },
+        "2": {
+          "value": "0 4px 12px rgba(16,19,22,0.10), 0 1px 2px rgba(16,19,22,0.06)",
+          "type": "boxShadow"
+        },
+        "3": {
+          "value": "0 16px 40px rgba(16,19,22,0.18), 0 2px 6px rgba(16,19,22,0.10), 0 0 0 1px rgba(16,19,22,0.06)",
+          "type": "boxShadow"
+        },
+        "drag": {
+          "value": "0 12px 28px rgba(16,19,22,0.22)",
+          "type": "boxShadow"
+        }
+      }
+    },
+    "dark": {
+      "bg": {
+        "canvas": {
+          "value": "{primitive.color.neutral.950}",
+          "type": "color"
+        },
+        "surface": {
+          "value": "{primitive.color.neutral.900}",
+          "type": "color"
+        },
+        "surface2": {
+          "value": "{primitive.color.neutral.850}",
+          "type": "color"
+        },
+        "surfaceHover": {
+          "value": "{primitive.color.neutral.850}",
+          "type": "color"
+        },
+        "surfaceActive": {
+          "value": "{primitive.color.neutral.800}",
+          "type": "color"
+        },
+        "overlay": {
+          "value": "{primitive.color.neutral.980}",
+          "type": "color"
+        },
+        "editing": {
+          "value": "#151A1F",
+          "type": "color"
+        }
+      },
+      "border": {
+        "subtle": {
+          "value": "{primitive.color.neutral.850}",
+          "type": "color"
+        },
+        "default": {
+          "value": "{primitive.color.neutral.800}",
+          "type": "color"
+        },
+        "strong": {
+          "value": "{primitive.color.neutral.700}",
+          "type": "color"
+        }
+      },
+      "fg": {
+        "default": {
+          "value": "{primitive.color.neutral.050}",
+          "type": "color",
+          "contrastOnCanvas": "15.9:1"
+        },
+        "secondary": {
+          "value": "{primitive.color.neutral.300}",
+          "type": "color",
+          "contrastOnCanvas": "9.0:1"
+        },
+        "muted": {
+          "value": "{primitive.color.neutral.400}",
+          "type": "color",
+          "contrastOnCanvas": "5.87:1"
+        },
+        "meta": {
+          "value": "{primitive.color.neutral.500}",
+          "type": "color"
+        },
+        "disabled": {
+          "value": "{primitive.color.neutral.500}",
+          "type": "color"
+        },
+        "accent": {
+          "value": "{primitive.color.signal.450}",
+          "type": "color",
+          "contrastOnSurface": "6.35:1"
+        }
+      },
+      "accent": {
+        "default": {
+          "value": "{primitive.color.signal.400}",
+          "type": "color"
+        },
+        "hover": {
+          "value": "{primitive.color.signal.500}",
+          "type": "color"
+        },
+        "active": {
+          "value": "{primitive.color.signal.300}",
+          "type": "color"
+        },
+        "on": {
+          "value": "{primitive.color.neutral.980}",
+          "type": "color"
+        },
+        "tint": {
+          "value": "#12222E",
+          "type": "color"
+        },
+        "tintHover": {
+          "value": "#172B38",
+          "type": "color"
+        },
+        "border": {
+          "value": "#1E3A4B",
+          "type": "color"
+        },
+        "focusRing": {
+          "value": "{primitive.color.signal.500}",
+          "type": "color"
+        }
+      },
+      "success": {
+        "bg": "#14261B",
+        "fg": "#5CC48A",
+        "solid": "#2E9E60"
+      },
+      "warn": {
+        "bg": "#2C2111",
+        "fg": "#E0AE52",
+        "solid": "#C98A2E"
+      },
+      "danger": {
+        "bg": "#2C1715",
+        "fg": "#EE7A6C",
+        "solid": "#D2493B"
+      },
+      "info": {
+        "bg": "#111F2B",
+        "fg": "{primitive.color.signal.450}",
+        "solid": "{primitive.color.signal.400}"
+      },
+      "typeTint": {
+        "app": {
+          "value": "{primitive.color.neutral.850}",
+          "type": "color"
+        },
+        "folder": {
+          "value": "#241F16",
+          "type": "color"
+        },
+        "link": {
+          "value": "#152324",
+          "type": "color"
+        }
+      },
+      "elevation": {
+        "0": {
+          "value": "none",
+          "type": "boxShadow"
+        },
+        "1": {
+          "value": "none",
+          "type": "boxShadow",
+          "note": "深色层级靠表面亮度递进，不用阴影"
+        },
+        "2": {
+          "value": "0 4px 12px rgba(0,0,0,0.50), 0 1px 2px rgba(0,0,0,0.40)",
+          "type": "boxShadow"
+        },
+        "3": {
+          "value": "0 16px 40px rgba(0,0,0,0.62), 0 2px 6px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.06)",
+          "type": "boxShadow"
+        },
+        "drag": {
+          "value": "0 12px 28px rgba(0,0,0,0.72)",
+          "type": "boxShadow"
+        }
+      }
+    }
+  },
+  "component": {
+    "button": {
+      "primary": {
+        "bg": "{semantic.accent.default}",
+        "fg": "{semantic.accent.on}",
+        "bgHover": "{semantic.accent.hover}",
+        "bgActive": "{semantic.accent.active}",
+        "heightMd": "{primitive.size.controlMd}",
+        "heightLg": "{primitive.size.controlLg}",
+        "radius": "{primitive.radius.md}",
+        "paddingX": "{primitive.space.4}"
+      },
+      "secondary": {
+        "bg": "transparent",
+        "fg": "{semantic.fg.accent}",
+        "border": "{semantic.accent.border}",
+        "bgHover": "{semantic.accent.tint}",
+        "radius": "{primitive.radius.md}"
+      },
+      "ghost": {
+        "bg": "transparent",
+        "fg": "{semantic.fg.secondary}",
+        "bgHover": "{semantic.bg.surfaceHover}",
+        "radius": "{primitive.radius.md}"
+      },
+      "destructive": {
+        "bg": "{semantic.danger.solid}",
+        "fg": "#FFFFFF",
+        "textOnly": "{semantic.danger.fg}",
+        "radius": "{primitive.radius.md}"
+      }
+    },
+    "input": {
+      "bg": "{semantic.bg.surface}",
+      "border": "{semantic.border.default}",
+      "fg": "{semantic.fg.default}",
+      "placeholder": "{semantic.fg.meta}",
+      "borderFocus": "{semantic.accent.default}",
+      "borderError": "{semantic.danger.solid}",
+      "height": "{primitive.size.controlMd}",
+      "radius": "{primitive.radius.md}"
+    },
+    "card": {
+      "width": "{primitive.size.cardW}",
+      "widthMin": "{primitive.size.cardWMin}",
+      "widthMax": "{primitive.size.cardWMax}",
+      "height": "{primitive.size.cardH}",
+      "padding": "{primitive.space.3}",
+      "gap": "{primitive.size.gridGap}",
+      "radius": "{primitive.radius.lg}",
+      "bg": "{semantic.bg.surface}",
+      "border": "{semantic.border.default}",
+      "bgHover": "{semantic.bg.surfaceHover}",
+      "bgActive": "{semantic.bg.surfaceActive}",
+      "elevation": "{semantic.elevation.1}",
+      "elevationHover": "{semantic.elevation.2}",
+      "titleSize": "{primitive.font.size.sm}",
+      "titleWeight": "{primitive.font.weight.emphasize}",
+      "subtitleSize": "{primitive.font.size.xs}",
+      "titleClampLines": 2
+    },
+    "tab": {
+      "trackBg": "{semantic.bg.surface2}",
+      "bgSelected": "{semantic.bg.surface}",
+      "fg": "{semantic.fg.secondary}",
+      "fgSelected": "{semantic.fg.default}",
+      "indicator": "{semantic.accent.default}",
+      "height": "{primitive.size.controlMd}",
+      "radius": "{primitive.radius.md}"
+    },
+    "row": {
+      "height": "{primitive.size.rowH}",
+      "bgHover": "{semantic.bg.surface2}",
+      "bgSelected": "{semantic.bg.surface2}",
+      "indicator": "{semantic.accent.default}"
+    },
+    "palette": {
+      "width": "{primitive.size.paletteW}",
+      "height": "{primitive.size.paletteH}",
+      "radius": "{primitive.radius.xl}",
+      "bg": "{semantic.bg.overlay}",
+      "elevation": "{semantic.elevation.3}",
+      "inputHeight": "{primitive.size.controlLg}",
+      "appearDelayTargetMs": 80
+    },
+    "skeleton": {
+      "base": "{semantic.bg.surface2}",
+      "shine": "{semantic.bg.surfaceHover}",
+      "loop": "{primitive.motion.duration.loop}"
+    },
+    "banner": {
+      "height": "{primitive.size.bannerH}",
+      "radius": "{primitive.radius.lg}",
+      "z": "{primitive.zIndex.banner}"
+    },
+    "editBar": {
+      "height": "{primitive.size.editbarH}",
+      "bg": "{semantic.bg.overlay}",
+      "radiusTop": "{primitive.radius.lg}"
+    },
+    "menu": {
+      "bg": "{semantic.bg.overlay}",
+      "elevation": "{semantic.elevation.3}",
+      "radius": "{primitive.radius.md}",
+      "itemHeight": "{primitive.size.controlMd}",
+      "separator": "{semantic.border.subtle}",
+      "minWidth": "200px"
+    },
+    "dialog": {
+      "width": "{primitive.size.dialogW}",
+      "radius": "{primitive.radius.xl}",
+      "bg": "{semantic.bg.overlay}",
+      "elevation": "{semantic.elevation.3}"
+    },
+    "toast": {
+      "bg": "{semantic.bg.overlay}",
+      "elevation": "{semantic.elevation.2}",
+      "radius": "{primitive.radius.lg}",
+      "height": "{primitive.size.bannerH}",
+      "autoDismissMs": 3000,
+      "maxStack": 3
+    },
+    "syncIndicator": {
+      "dotSize": "{primitive.size.icon12}",
+      "line1Size": "{primitive.font.size.xs}",
+      "line2Size": "{primitive.font.size.2xs}",
+      "breatheDuration": "{primitive.motion.duration.breathe}",
+      "dot": {
+        "neutral": "{semantic.border.strong}",
+        "busy": "{semantic.accent.default}",
+        "ok": "{semantic.success.solid}",
+        "warn": "{semantic.warn.solid}",
+        "danger": "{semantic.danger.solid}"
+      },
+      "fg": {
+        "neutral": "{semantic.fg.secondary}",
+        "busy": "{semantic.fg.accent}",
+        "ok": "{semantic.success.fg}",
+        "warn": "{semantic.warn.fg}",
+        "danger": "{semantic.danger.fg}"
+      },
+      "note": "8 态映射见 docs/UIUX.md §3.2.1；形状（空心/实心/旋转/呼吸）是非颜色通道，forced-colors 下仍可辨。四个 offlineReason（SERVICE_NOT_FOUND / NETWORK_UNREACHABLE / UNKNOWN / CONNECTION_BLOCKED，按频率降序）视觉权重必须完全一致，均渲染为第二行 11px"
+    },
+    "feedbackStatus": {
+      "PENDING": {
+        "bg": "{semantic.warn.bg}",
+        "fg": "{semantic.warn.fg}",
+        "icon": "clock"
+      },
+      "SENT": {
+        "bg": "{semantic.success.bg}",
+        "fg": "{semantic.success.fg}",
+        "icon": "circle-check"
+      },
+      "DROPPED": {
+        "bg": "{semantic.danger.bg}",
+        "fg": "{semantic.danger.fg}",
+        "icon": "triangle-alert"
+      },
+      "note": "SENT 仅在服务端确认后置位；DROPPED 必须常驻可见并给出原因与重新提交入口"
+    },
+    "emptyBlock": {
+      "maxWidth": "360px",
+      "iconSize": "{primitive.size.icon24}",
+      "iconFg": "{semantic.fg.meta}",
+      "titleFg": "{semantic.fg.default}",
+      "descFg": "{semantic.fg.muted}"
+    },
+    "diagnostics": {
+      "keyFg": "{semantic.fg.muted}",
+      "valueFg": "{semantic.fg.default}",
+      "valueFont": "{primitive.font.family.mono}",
+      "rowMinHeight": "{primitive.size.rowH}",
+      "okFg": "{semantic.success.fg}",
+      "badFg": "{semantic.danger.fg}"
+    },
+    "scrollbar": {
+      "size": "{primitive.size.scrollbarSize}",
+      "thumb": "{semantic.border.strong}",
+      "thumbHover": "{semantic.fg.meta}",
+      "track": "transparent",
+      "overlay": true,
+      "note": "Electron 必须开启覆盖式滚动条，否则 1040px 宽下 6 列会掉成 5 列（SPEC §11 同类坑）"
+    }
+  },
+  "a11y": {
+    "minTouchTarget": "32px",
+    "minRowHeight": "44px",
+    "focusRingComposite": "0 0 0 2px {semantic.bg.surface}, 0 0 0 4px {semantic.accent.focusRing}",
+    "supportedScale": [
+      "100%",
+      "125%",
+      "150%"
+    ],
+    "target": "WCAG 2.1 AA",
+    "reducedMotion": {
+      "query": "prefers-reduced-motion: reduce",
+      "rules": [
+        "所有 transition / animation 时长降为 0.01ms",
+        "循环类动画（--motion-loop / --motion-breathe）必须停止，不是变快",
+        "[data-motion=\"loop\"] 直接 animation: none，改用静态替代形态",
+        "scroll-behavior 强制为 auto"
+      ],
+      "tokenOverrides": {
+        "motion.instant": "0ms",
+        "motion.fast": "0ms",
+        "motion.base": "0ms",
+        "motion.slow": "0ms",
+        "motion.loop": "0ms",
+        "motion.breathe": "0ms"
+      }
+    },
+    "forcedColors": {
+      "query": "forced-colors: active",
+      "rules": [
+        "表面统一为 Canvas，文本统一为 CanvasText",
+        "强调色映射 Highlight / HighlightText，链接色 LinkText",
+        "焦点环改为 3px Highlight",
+        "全部 box-shadow 置 none，层级改用 1px CanvasText 边框",
+        "同步 8 态、反馈 3 态、入口类型不得只靠颜色：点形态 + 图标 + 文案三重通道保留",
+        "禁止对图标使用 forced-color-adjust: none"
+      ],
+      "tokenOverrides": {
+        "bg.canvas": "Canvas",
+        "bg.surface": "Canvas",
+        "fg.default": "CanvasText",
+        "fg.secondary": "CanvasText",
+        "fg.muted": "CanvasText",
+        "fg.disabled": "GrayText",
+        "border.default": "CanvasText",
+        "accent.default": "Highlight",
+        "accent.on": "HighlightText",
+        "accent.text": "LinkText",
+        "accent.focusRing": "Highlight",
+        "elevation.1": "none",
+        "elevation.2": "none",
+        "elevation.3": "none"
+      }
+    }
+  },
+  "icons": {
+    "library": "Lucide",
+    "license": "ISC",
+    "grid": 24,
+    "strokeWidth": 2,
+    "capJoin": "round",
+    "colorStrategy": "currentColor",
+    "sizes": [
+      12,
+      16,
+      20,
+      24
+    ],
+    "fallbackLibrary": "Tabler Icons（仅限 Lucide 缺失概念，需在 UIUX.md 图标清单登记）",
+    "noEmoji": true
+  }
+}

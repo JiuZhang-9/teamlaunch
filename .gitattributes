@@ -1,0 +1,7 @@
+# 行尾与二进制纪律（Windows 仓库）
+* text=auto
+*.bat text eol=crlf
+*.ico -text
+*.png -text
+*.jpg -text
+*.exe -text

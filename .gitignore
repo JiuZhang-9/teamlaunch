@@ -1,0 +1,14 @@
+# ===== 依赖与构建产物 =====
+node_modules/
+dist/
+
+# ===== 个人工具 / 平台本地文件（不随仓库分发）=====
+.workbuddy/
+.zcode/
+.zcodeignore
+.wbapp_*.genie
+
+# ===== 日志与临时截图 =====
+*.log
+.smoke-shot.png
+qa-*.png

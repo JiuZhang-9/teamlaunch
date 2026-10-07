@@ -1,0 +1,43 @@
+# TeamLaunch 打包配置 —— electron-builder 26.15.3 + NSIS
+#
+# 选 electron-builder 而非 Forge 的决定性理由（ADR-004）：
+# 防火墙入站规则必须在**提权安装阶段**创建，NSIS 有 RequestExecutionLevel admin，
+# Forge 的 Squirrel 安装器非提权，建不了规则。
+appId: com.teamlaunch.app
+productName: TeamLaunch
+copyright: Copyright © 2026
+directories:
+  output: dist/installer
+  buildResources: build
+files:
+  - dist/renderer/**/*
+  - dist/preload/**/*
+  - dist/main/**/*
+  - package.json
+# 托盘图标：托盘代码从 resources/tray.ico 读取（src/main/tray.ts）。
+extraResources:
+  - from: build/tray.ico
+    to: tray.ico
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: TeamLaunch-Setup-${version}.${ext}
+  # 防火墙规则必须限定 -RemoteAddress LocalSubnet，且只作用于 Domain/Private 配置文件。
+  # 公用网络配置文件下规则不生效（K-01），诊断页会检测并引导切换。
+nsis:
+  oneClick: false
+  perMachine: true
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: TeamLaunch
+  include: build/installer.nsh
+  # 安装阶段（已提权）创建入站规则；卸载时移除
+  guid: 7f3a92c1-4b81-9f2e-0c8a5d1e7b30
+mac:
+  target: []
+linux:
+  target: []

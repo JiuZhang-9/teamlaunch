@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noEmit": true
+  },
+  "include": [
+    "src/server/**/*.ts",
+    "src/services/**/*.ts",
+    "src/repositories/**/*.ts",
+    "src/discovery/**/*.ts",
+    "src/platform/**/*.ts",
+    "src/shared/**/*.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.mts"
+  ]
+}

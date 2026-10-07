@@ -1,0 +1,265 @@
+/* 渲染层样式入口。Token 的唯一来源是 docs/design-system/design-tokens.css（终版，186 leaf）。 */
+@import '../../../docs/design-system/design-tokens.css';
+@import 'tailwindcss';
+
+@theme {
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-surface-2: var(--bg-surface-2);
+  --color-surface-hover: var(--bg-surface-hover);
+  --color-surface-active: var(--bg-surface-active);
+  --color-overlay: var(--bg-overlay);
+  --color-editing: var(--surface-editing);
+
+  --color-line: var(--border-subtle);
+  --color-line-default: var(--border-default);
+  --color-line-strong: var(--border-strong);
+
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-muted: var(--muted);
+  --color-meta: var(--meta);
+  --color-disabled-fg: var(--disabled-fg);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-accent-on: var(--accent-on);
+  --color-accent-text: var(--accent-text);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-border: var(--accent-border);
+
+  --color-success-solid: var(--success-solid);
+  --color-warn-solid: var(--warn-solid);
+  --color-danger-solid: var(--danger-solid);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    line-height: var(--lh-base);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* 键盘焦点环统一入口：只有 :focus-visible 才出现，鼠标点击不出现。
+     input/textarea 不在此列：文本域的焦点指示 = 组件包装层的 accent 边框
+     （focus-within），再叠 ring 会画出第二个错位的框（2026-10-03 用户报告）。 */
+  :where(button, [role='tab'], [role='option'], [role='radio'], a, [tabindex]) {
+    outline: none;
+  }
+  /* 只给焦点环，不改圆角——圆角一律由组件的 Token 决定，避免聚焦瞬间形状跳变 */
+  :where(button, [role='tab'], [role='option'], [role='radio'], a, [tabindex]):focus-visible {
+    box-shadow: var(--ring-focus);
+  }
+}
+
+@layer utilities {
+  /* ---- 排版：三级字重 + 8 级字号，全部取自 Token ---- */
+  .t-display {
+    font-size: var(--text-2xl);
+    line-height: var(--lh-2xl);
+    letter-spacing: var(--ls-2xl);
+  }
+  .t-title {
+    font-size: var(--text-lg);
+    line-height: var(--lh-lg);
+    letter-spacing: var(--ls-lg);
+    font-weight: var(--weight-announce);
+  }
+  .t-base {
+    font-size: var(--text-base);
+    line-height: var(--lh-base);
+  }
+  .t-md {
+    font-size: var(--text-md);
+    line-height: var(--lh-md);
+  }
+  .t-sm {
+    font-size: var(--text-sm);
+    line-height: var(--lh-sm);
+  }
+  .t-xs {
+    font-size: var(--text-xs);
+    line-height: var(--lh-xs);
+    letter-spacing: var(--ls-xs);
+  }
+  .t-2xs {
+    font-size: var(--text-2xs);
+    line-height: var(--lh-2xs);
+    letter-spacing: var(--ls-2xs);
+  }
+  .t-mono {
+    font-family: var(--font-mono);
+    font-feature-settings: var(--font-numeric-features);
+  }
+  .w-read {
+    font-weight: var(--weight-read);
+  }
+  .w-emph {
+    font-weight: var(--weight-emphasize);
+  }
+  .w-ann {
+    font-weight: var(--weight-announce);
+  }
+  .ltr-wide {
+    letter-spacing: var(--ls-caps);
+  }
+
+  /* ---- 覆盖式滚动条：原生条宽归零，绝不占布局宽度（K-A） ---- */
+  .tl-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .tl-scroll::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  /* ---- 公告 Markdown（主页）—— 渲染端转义重建，这里只管排版 ---- */
+  .md-body { line-height: 1.65; }
+  .md-body .md-p { margin: 0 0 8px; }
+  .md-body .md-p:last-child { margin-bottom: 0; }
+  .md-body .md-h1 { font-size: var(--text-xl); font-weight: var(--weight-emphasize); margin: 6px 0 10px; }
+  .md-body .md-h2 { font-size: var(--text-lg); font-weight: var(--weight-emphasize); margin: 6px 0 8px; }
+  .md-body .md-h3 { font-size: var(--text-md); font-weight: var(--weight-emphasize); margin: 4px 0 8px; }
+  .md-body .md-hr { border: 0; border-top: 1px solid rgba(127, 127, 127, 0.35); margin: 12px 0; }
+  .md-body .md-quote {
+    margin: 8px 0;
+    padding: 6px 12px;
+    border-left: 3px solid var(--accent);
+    background: rgba(127, 127, 127, 0.12);
+    border-radius: 0 6px 6px 0;
+  }
+  .md-body .md-ul { margin: 0 0 8px; padding-left: 20px; list-style: disc; }
+  .md-body .md-ul li { margin: 2px 0; }
+  .md-body .md-link { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+  .md-body .md-code {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9em;
+    background: rgba(127, 127, 127, 0.18);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .md-body .md-img { max-width: 100%; max-height: 160px; border-radius: 6px; }
+
+  /* ---- 文本截断 ---- */
+  .truncate-1 {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .clamp-2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+}
+
+/* ---- 循环动效：呼吸点与旋转必须受 reduced-motion 完全停止的约束（K-D） ---- */
+@keyframes tl-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes tl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes tl-shine {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ---- S1 定稿（2026-10-02）：一次性入场动效。时长/缓动走令牌，reduced-motion 下自动归零 ---- */
+@keyframes riseup {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+@keyframes tl-popin {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+
+[data-motion='breathe'] {
+  animation: tl-breathe var(--motion-breathe) var(--ease-standard) infinite;
+}
+[data-motion='loop'] {
+  animation: tl-spin var(--motion-loop) var(--ease-linear) infinite;
+}
+
+/* 骨架屏微光：只动 background-position，不触发重排 */
+[data-motion='shine'] {
+  background-image: linear-gradient(
+    90deg,
+    var(--skeleton-base) 0%,
+    var(--skeleton-shine) 50%,
+    var(--skeleton-base) 100%
+  );
+  background-size: 200% 100%;
+  animation: tl-shine var(--motion-loop) var(--ease-linear) infinite;
+}
+
+/* K-D：reduced-motion 下循环动画必须完全停止，不是变慢 */
+@media (prefers-reduced-motion: reduce) {
+  [data-motion='breathe'],
+  [data-motion='loop'],
+  [data-motion='shine'] {
+    animation: none !important;
+  }
+}
+
+/* K-A 覆盖式滚动条：原生条宽度归零（不占任何布局宽度），
+   可见滑块由 atoms/ScrollArea 用一个绝对定位的浮层自己画。
+   用 ::-webkit-scrollbar 给宽度或 scrollbar-width: thin 都会占位，
+   992px 会变成 982px，6 列瞬间掉成 5 列——这是本项目最容易埋进去的坑。 */
+.tl-scroll-area {
+  position: relative;
+  min-height: 0;
+}
+.tl-scroll-thumb {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--scrollbar-size);
+  border-radius: var(--radius-pill);
+  background: var(--scrollbar-thumb);
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+  pointer-events: auto;
+  z-index: var(--z-sticky);
+}
+/* 滚动时才显示滑块（用户反馈：悬停常显太吵）；拖拽滑块与键盘聚焦时保持可见。 */
+.tl-scroll-area[data-scrolling='true'] .tl-scroll-thumb,
+.tl-scroll-thumb[data-dragging='true'],
+.tl-scroll-thumb:focus-visible {
+  opacity: 1;
+}
+.tl-scroll-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}

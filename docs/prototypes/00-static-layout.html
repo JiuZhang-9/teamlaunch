@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-page-node-id="grtxkhHa4ddjof74uJi8LS">
+<head data-page-node-id="4HaVqiIul3KXM38MlviqxT">
+<meta charset="utf-8" data-page-node-id="2MiubXxtvyZ7otWF9pcW8E" />
+<title>TeamLaunch · 侧栏布局预览（静态示意）</title>
+<style>
+/* ============================================================================
+   TeamLaunch Design Tokens v1.1.0
+   来源：docs/UIUX.md（唯一视觉契约，修改前先改 UIUX.md）
+   规格锚定：docs/SPEC.md §8（方向 A 石墨工具台 / 主题跟随系统 / lucide-react 1.48.0）
+   三轴：Variance 5 / Motion 4 / Density 6
+   分层：primitive（A1）→ semantic（A2/B-slot）→ component（C-extension）
+   使用：import './design-tokens.css'，主题由 <html data-theme="light|dark"> 切换
+   ========================================================================= */
+
+/* ---------------------------------------------------------------------------
+   1. PRIMITIVE — A1 identity / structure（不随主题变化，禁止组件直接引用）
+   ------------------------------------------------------------------------ */
+:root {
+  /* Neutral Graphite（色相 ~215°，极低彩度） */
+  --n-000: #ffffff;
+  --n-025: #f7f8fa;
+  --n-050: #eff1f5;
+  --n-100: #e2e6eb;
+  --n-200: #d1d6de;
+  --n-300: #b1b8c2;
+  --n-400: #8c94a0;
+  --n-500: #6a727d;
+  --n-600: #545c66;
+  --n-700: #3f464f;
+  --n-800: #2a2f36;
+  --n-850: #1f242a;
+  --n-900: #1a1e23;
+  --n-950: #14171a;
+  --n-980: #0f1114;
+
+  /* Signal Cyan-Blue（色相 ~205°，刻意避开 Indigo #6366F1 与常见 #3B82F6）——本行为避开说明，扫描豁免 */
+  --sig-50:  #eaf4fb;
+  --sig-100: #cfe8f6;
+  --sig-200: #a2d0ec;
+  --sig-300: #68b1de;
+  --sig-400: #3890ce;
+  --sig-450: #4fa8dc;
+  --sig-500: #1780bc;
+  --sig-600: #106696;
+  --sig-700: #0d5278;
+  --sig-800: #0c4363;
+  --sig-900: #0b3650;
+
+  /* 方向 B 备选强调色（陶土橙）——仅在 UIUX.md 方向 B 被选中时启用，禁止与 A 混用 */
+  --clay-50:  #fbede6;
+  --sig-alt-400: #e08556;
+  --sig-alt-600: #b4471f;
+  --sig-alt-700: #8f3818;
+
+  /* Typography — families（Noto Sans SC 随包内置，不依赖网络字体） */
+  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --font-cjk: "Noto Sans SC", "Source Han Sans SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font-body: var(--font-sans), var(--font-cjk);
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --font-numeric-features: "tnum" 1, "cv05" 1;
+
+  /* Typography — scale（px / line-height / letter-spacing） */
+  --text-2xs:  11px; --lh-2xs:  16px; --ls-2xs:  0.01em;
+  --text-xs:   12px; --lh-xs:   18px; --ls-xs:   0.01em;
+  --text-sm:   13px; --lh-sm:   20px; --ls-sm:   0em;
+  --text-base: 14px; --lh-base: 22px; --ls-base:  0em;
+  --text-md:   15px; --lh-md:   22px; --ls-md:   0em;
+  --text-lg:   17px; --lh-lg:   26px; --ls-lg:   -0.01em;
+  --text-xl:   21px; --lh-xl:   30px; --ls-xl:   -0.01em;
+  --text-2xl:  28px; --lh-2xl:  36px; --ls-2xl:  -0.02em;
+  --ls-caps: 0.06em;
+
+  /* Typography — weights（三级，不允许第四级） */
+  --weight-read: 400;
+  --weight-emphasize: 510;
+  --weight-announce: 590;
+
+  /* Spacing — 4px grid（--space-half 仅用于图标光学对齐） */
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius（上限 16px，禁止 ≥24px 的过度圆滑） */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  /* Size tokens */
+  --win-w-default: 1040px;
+  --win-h-default: 720px;
+  /* 侧栏布局：左侧栏 240 + 内容区左右各 24。
+     最小宽度 704 时内容区只剩 416px（2 列），故上调到 880：880 − 240 − 48 = 592（3–4 列）。 */
+  --win-w-min: 880px;
+  --win-h-min: 480px;
+  --win-titlebar-h: 40px;
+  --content-header-h: 48px;
+  --sidebar-w: 240px;
+  --sidebar-pad: 12px;
+  --sidebar-nav-h: 36px;
+  --sidebar-action-h: 32px;
+  --sidebar-indicator-w: 3px;
+  --card-w: 152px;
+  --card-w-min: 140px;
+  --card-w-max: 176px;
+  --card-h: 132px;
+  --grid-gap: 16px;
+  --icon-box: 40px;
+  --icon-app: 32px;
+  --palette-w: 560px;
+  --palette-h: 420px;
+  --row-h: 44px;
+  --control-h-sm: 28px;
+  --control-h-md: 32px;
+  --control-h-lg: 40px;
+  --dialog-w: 480px;
+  --dialog-w-wide: 600px;
+  --banner-h: 40px;
+  --editbar-h: 64px;
+  --gate-w: 440px;
+  --gate-icon-box: 48px;
+  --scrollbar-size: 10px;
+
+  /* Motion — durations */
+  --motion-instant: 80ms;
+  --motion-fast: 120ms;
+  --motion-base: 160ms;
+  --motion-slow: 240ms;
+  --motion-loop: 1200ms;
+  --motion-breathe: 2400ms;
+
+  /* Motion — easings（禁用任何带负控制点的弹性缓动） */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-emphasis: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-linear: linear;
+
+  /* Elevation — z-index */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-banner: 15;
+  --z-toolbar: 20;
+  --z-drag: 30;
+  --z-dropdown: 100;
+  --z-toast: 200;
+  --z-dialog-backdrop: 300;
+  --z-dialog: 310;
+
+  /* Icon sizing ladder（Lucide 全项目统一 stroke-width 2） */
+  --icon-12: 12px;
+  --icon-16: 16px;
+  --icon-20: 20px;
+  --icon-24: 24px;
+  --icon-stroke: 2;
+  --icon-stroke-micro: 1.75;
+}
+
+/* ---------------------------------------------------------------------------
+   2. SEMANTIC — light theme
+   ------------------------------------------------------------------------ */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg-canvas: var(--n-025);
+  --bg-surface: var(--n-000);
+  --bg-surface-2: var(--n-050);
+  --bg-surface-hover: var(--n-050);
+  --bg-surface-active: var(--n-100);
+  --bg-overlay: var(--n-000);
+
+  /* Borders */
+  --border-subtle: var(--n-100);
+  --border-default: var(--n-200);
+  --border-strong: var(--n-300);
+
+  /* Foreground */
+  --fg: var(--n-800);
+  --fg-2: var(--n-600);
+  --muted: var(--n-500);
+  --meta: var(--n-400);
+  --disabled-fg: var(--n-400);
+
+  /* Accent */
+  --accent: var(--sig-600);
+  --accent-hover: var(--sig-700);
+  --accent-active: var(--sig-800);
+  --accent-on: #ffffff;
+  --accent-text: var(--sig-700);
+  --accent-tint: var(--sig-50);
+  --accent-tint-hover: var(--sig-100);
+  --accent-border: var(--sig-200);
+  --focus-ring: var(--sig-600);
+
+  /* Semantic colors */
+  --success-bg: #e7f5ec;
+  --success-fg: #18633a;
+  --success-solid: #1e7a45;
+  --warn-bg: #fdf3e3;
+  --warn-fg: #8a5310;
+  --warn-solid: #a96510;
+  --danger-bg: #fcedec;
+  --danger-fg: #91271e;
+  --danger-solid: #b22e22;
+  --info-bg: var(--sig-50);
+  --info-fg: var(--sig-700);
+  --info-solid: var(--sig-600);
+
+  /* C-extension：入口类型 tint / 编辑态 / 状态条 */
+  --type-app-container: var(--n-000);
+  --type-folder-tint: #fcf6e9;
+  --type-link-tint: #e7f4f4;
+  --surface-editing: #f4f8fb;
+  --banner-offline-bg: #fdf3e3;
+  --draft-badge-bg: var(--sig-100);
+
+  /* Scrollbar（覆盖式，绝不占位——占位会把 6 列挤成 5 列） */
+  --scrollbar-thumb: var(--n-300);
+  --scrollbar-thumb-hover: var(--n-400);
+  --scrollbar-track: transparent;
+
+  /* Elevation — light */
+  --elev-0: none;
+  --elev-1: 0 1px 2px rgba(16, 19, 22, 0.06);
+  --elev-2: 0 4px 12px rgba(16, 19, 22, 0.10), 0 1px 2px rgba(16, 19, 22, 0.06);
+  --elev-3: 0 16px 40px rgba(16, 19, 22, 0.18), 0 2px 6px rgba(16, 19, 22, 0.10), 0 0 0 1px rgba(16, 19, 22, 0.06);
+  --elev-drag: 0 12px 28px rgba(16, 19, 22, 0.22);
+
+  /* Focus ring composite */
+  --ring-focus: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--focus-ring);
+}
+
+/* ---------------------------------------------------------------------------
+   3. SEMANTIC — dark theme（读取系统主题失败时的兜底）
+   ------------------------------------------------------------------------ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces — 层级靠亮度递进，不靠阴影 */
+  --bg-canvas: var(--n-950);
+  --bg-surface: var(--n-900);
+  --bg-surface-2: var(--n-850);
+  --bg-surface-hover: var(--n-850);
+  --bg-surface-active: var(--n-800);
+  --bg-overlay: var(--n-980);
+
+  /* Borders */
+  --border-subtle: var(--n-850);
+  --border-default: var(--n-800);
+  --border-strong: var(--n-700);
+
+  /* Foreground */
+  --fg: var(--n-050);
+  --fg-2: var(--n-300);
+  --muted: var(--n-400);
+  --meta: var(--n-500);
+  --disabled-fg: var(--n-500);
+
+  /* Accent */
+  --accent: var(--sig-400);
+  --accent-hover: var(--sig-500);
+  --accent-active: var(--sig-300);
+  --accent-on: var(--n-980);
+  --accent-text: var(--sig-450);
+  --accent-tint: #12222e;
+  --accent-tint-hover: #172b38;
+  --accent-border: #1e3a4b;
+  --focus-ring: var(--sig-500);
+
+  /* Semantic colors */
+  --success-bg: #14261b;
+  --success-fg: #5cc48a;
+  --success-solid: #2e9e60;
+  --warn-bg: #2c2111;
+  --warn-fg: #e0ae52;
+  --warn-solid: #c98a2e;
+  --danger-bg: #2c1715;
+  --danger-fg: #ee7a6c;
+  --danger-solid: #d2493b;
+  --info-bg: #111f2b;
+  --info-fg: var(--sig-500);
+  --info-solid: var(--sig-400);
+
+  /* C-extension */
+  --type-app-container: var(--n-850);
+  --type-folder-tint: #241f16;
+  --type-link-tint: #152324;
+  --surface-editing: #151a1f;
+  --banner-offline-bg: #2c2111;
+  --draft-badge-bg: #12222e;
+
+  /* Scrollbar */
+  --scrollbar-thumb: var(--n-700);
+  --scrollbar-thumb-hover: var(--n-600);
+  --scrollbar-track: transparent;
+
+  /* Elevation — dark（更深才有意义） */
+  --elev-0: none;
+  --elev-1: none;
+  --elev-2: 0 4px 12px rgba(0, 0, 0, 0.50), 0 1px 2px rgba(0, 0, 0, 0.40);
+  --elev-3: 0 16px 40px rgba(0, 0, 0, 0.62), 0 2px 6px rgba(0, 0, 0, 0.50), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --elev-drag: 0 12px 28px rgba(0, 0, 0, 0.72);
+
+  --ring-focus: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--focus-ring);
+}
+
+/* ---------------------------------------------------------------------------
+   4. COMPONENT — B-slot / C-extension（只引用 semantic，不引用 primitive）
+   ------------------------------------------------------------------------ */
+:root {
+  /* Button — primary */
+  --btn-primary-bg: var(--accent);
+  --btn-primary-fg: var(--accent-on);
+  --btn-primary-bg-hover: var(--accent-hover);
+  --btn-primary-bg-active: var(--accent-active);
+
+  /* Button — secondary */
+  --btn-secondary-bg: transparent;
+  --btn-secondary-fg: var(--accent-text);
+  --btn-secondary-border: var(--accent-border);
+  --btn-secondary-bg-hover: var(--accent-tint);
+
+  /* Button — ghost */
+  --btn-ghost-bg: transparent;
+  --btn-ghost-fg: var(--fg-2);
+  --btn-ghost-bg-hover: var(--bg-surface-hover);
+
+  /* Button — destructive */
+  --btn-danger-bg: var(--danger-solid);
+  --btn-danger-fg: #ffffff;
+  --btn-danger-bg-hover: var(--danger-fg);
+  --btn-danger-text-only: var(--danger-fg);
+  --btn-danger-bg-disabled: transparent;
+
+  /* Input */
+  --input-bg: var(--bg-surface);
+  --input-border: var(--border-default);
+  --input-fg: var(--fg);
+  --input-placeholder: var(--meta);
+  --input-border-focus: var(--accent);
+  --input-border-error: var(--danger-solid);
+  --input-bg-disabled: var(--bg-surface-2);
+
+  /* Entry card */
+  --card-bg: var(--bg-surface);
+  --card-border: var(--border-default);
+  --card-bg-hover: var(--bg-surface-hover);
+  --card-bg-active: var(--bg-surface-active);
+  --card-border-editing: var(--border-strong);
+  --card-elev: var(--elev-1);
+  --card-elev-hover: var(--elev-2);
+  --card-title: var(--fg);
+  --card-subtitle: var(--muted);
+  --card-icon-box: var(--type-app-container);
+  --card-drag-opacity: 0.85;
+
+  /* Page tabs（segmented） */
+  --tab-track-bg: var(--bg-surface-2);
+  --tab-bg-selected: var(--bg-surface);
+  --tab-fg: var(--fg-2);
+  --tab-fg-selected: var(--fg);
+  --tab-indicator: var(--accent);
+
+  /* Result row / list row */
+  --row-bg-hover: var(--bg-surface-2);
+  --row-bg-selected: var(--bg-surface-2);
+  --row-indicator: var(--accent);
+
+  /* SyncIndicator（8 态共用骨架，颜色按态取） */
+  --sync-dot-size: 8px;
+  --sync-fg-neutral: var(--fg-2);
+  --sync-fg-busy: var(--accent-text);
+  --sync-fg-ok: var(--success-fg);
+  --sync-fg-warn: var(--warn-fg);
+  --sync-fg-danger: var(--danger-fg);
+  --sync-dot-neutral: var(--border-strong);
+  --sync-dot-busy: var(--accent);
+  --sync-dot-ok: var(--success-solid);
+  --sync-dot-warn: var(--warn-solid);
+  --sync-dot-danger: var(--danger-solid);
+  --sync-breathe-duration: var(--motion-breathe);
+  --sync-line-1-size: var(--text-xs);
+  --sync-line-2-size: var(--text-2xs);
+
+  /* FeedbackStatus（PENDING / SENT / DROPPED） */
+  --feedback-pending-bg: var(--warn-bg);
+  --feedback-pending-fg: var(--warn-fg);
+  --feedback-sent-bg: var(--success-bg);
+  --feedback-sent-fg: var(--success-fg);
+  --feedback-dropped-bg: var(--danger-bg);
+  --feedback-dropped-fg: var(--danger-fg);
+
+  /* Empty / Offline / Error 块 */
+  --empty-illustration-fg: var(--meta);
+  --empty-title-fg: var(--fg);
+  --empty-desc-fg: var(--muted);
+  --empty-max-w: 360px;
+  --empty-icon-size: 24px;
+
+  /* Diagnostics（值一律等宽） */
+  --diag-key-fg: var(--muted);
+  --diag-value-fg: var(--fg);
+  --diag-value-font: var(--font-mono);
+  --diag-row-min-h: var(--row-h);
+  --diag-ok-fg: var(--success-fg);
+  --diag-bad-fg: var(--danger-fg);
+
+  /* Menu */
+  --menu-bg: var(--bg-overlay);
+  --menu-elev: var(--elev-3);
+  --menu-item-hover: var(--bg-surface-hover);
+  --menu-separator: var(--border-subtle);
+
+  /* Toast / Banner */
+  --toast-bg: var(--bg-overlay);
+  --toast-elev: var(--elev-2);
+
+  /* Type tag / Source tag */
+  --tag-bg: var(--bg-surface-2);
+  --tag-fg: var(--fg-2);
+
+  /* Skeleton */
+  --skeleton-base: var(--bg-surface-2);
+  --skeleton-shine: var(--bg-surface-hover);
+}
+
+:root[data-theme="dark"] {
+  --btn-danger-fg: var(--n-980);
+  --tab-bg-selected: var(--bg-surface-active);
+}
+
+/* ---------------------------------------------------------------------------
+   5. A11y — reduced motion
+   ------------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-instant: 0ms;
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+    /* 循环类动画（呼吸/旋转）在 reduced-motion 下必须停为静态，不是变快 */
+    --motion-loop: 0ms;
+    --motion-breathe: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* 旋转/呼吸类装饰动画在 reduced-motion 下直接移除，改用静态替代形态 */
+  [data-motion="loop"] {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   6. A11y — forced colors（Windows 高对比度）
+   规则：颜色被系统接管后，信息不得只靠颜色传达——
+   同步 8 态靠「点形态 + 图标 + 文案」，此处只保证边框/焦点仍然可见。
+   ------------------------------------------------------------------------ */
+@media (forced-colors: active) {
+  :root {
+    --bg-canvas: Canvas;
+    --bg-surface: Canvas;
+    --bg-surface-2: Canvas;
+    --bg-overlay: Canvas;
+    --bg-surface-hover: Canvas;
+    --bg-surface-active: Canvas;
+
+    --fg: CanvasText;
+    --fg-2: CanvasText;
+    --muted: CanvasText;
+    --meta: CanvasText;
+    --disabled-fg: GrayText;
+
+    --border-subtle: CanvasText;
+    --border-default: CanvasText;
+    --border-strong: CanvasText;
+    --card-border: CanvasText;
+    --card-bg: Canvas;
+
+    --accent: Highlight;
+    --accent-hover: Highlight;
+    --accent-active: Highlight;
+    --accent-on: HighlightText;
+    --accent-text: LinkText;
+    --accent-border: CanvasText;
+    --accent-tint: Canvas;
+    --accent-tint-hover: Canvas;
+
+    --focus-ring: Highlight;
+    --ring-focus: 0 0 0 3px Highlight;
+
+    --success-fg: CanvasText;
+    --warn-fg: CanvasText;
+    --danger-fg: CanvasText;
+    --info-fg: CanvasText;
+
+    --elev-0: none;
+    --elev-1: none;
+    --elev-2: none;
+    --elev-3: none;
+    --elev-drag: none;
+
+    --scrollbar-thumb: CanvasText;
+    --scrollbar-thumb-hover: CanvasText;
+  }
+
+  /* 图标与状态点保留系统色，不做 forced-color-adjust: none */
+  [data-sync-state],
+  [data-feedback-state],
+  [data-type] {
+    border: 1px solid CanvasText;
+  }
+
+  /* 选中态在强制色下必须有可见边框，不能只靠背景 */
+  [aria-selected="true"],
+  [data-selected="true"] {
+    outline: 2px solid Highlight;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   7. A11y — Windows 缩放（125% / 150%）守卫
+   所有宽度来自 Token，禁止组件写死 px 容器宽度。
+   ------------------------------------------------------------------------ */
+:root {
+  --content-padding-x: var(--space-6);
+  --content-padding-y: var(--space-5);
+}
+</style>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { background: #d8d8d8; display: flex; align-items: center; justify-content: center; }
+  .win { width: 1040px; height: 720px; display: flex; flex-direction: column; overflow: hidden;
+         background: var(--bg-canvas); font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; }
+  .tb { height: 40px; flex: 0 0 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+        background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle); box-sizing: border-box; }
+  .row { flex: 1 1 auto; display: flex; min-height: 0; }
+  .sb { width: 240px; flex: 0 0 240px; display: flex; flex-direction: column; background: var(--bg-surface);
+        border-right: 1px solid var(--border-subtle); box-sizing: border-box; }
+  .nav { padding: 12px 12px 0; }
+  .navitem { position: relative; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+             border-radius: 6px; font-size: 13px; cursor: default; }
+  .navitem.on { background: var(--tab-bg-selected); color: var(--tab-fg-selected); font-weight: 510; }
+  .navitem:not(.on) { color: var(--tab-fg); }
+  .ind { position: absolute; left: 0; top: 8px; width: 3px; height: 20px; border-radius: 9999px; background: var(--tab-indicator); }
+  .sec { margin: 16px 0 0; padding: 12px 12px 0; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 4px; }
+  .act { height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 6px;
+         font-size: 13px; color: var(--fg-2); }
+  .act:hover { background: var(--bg-surface-hover); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 9999px;
+          font-size: 12px; background: var(--status-draft-bg, #fdf0d5); color: var(--fg); }
+  .flex1 { flex: 1 1 auto; min-height: 32px; }
+  .bot { border-top: 1px solid var(--border-subtle); padding: 8px 12px; }
+  .col { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+  .ch { height: 48px; flex: 0 0 48px; display: flex; align-items: center; gap: 12px; padding: 0 24px;
+        background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle); box-sizing: border-box; }
+  .search { height: 32px; flex: 0 1 420px; display: flex; align-items: center; gap: 8px; padding: 0 8px;
+            border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--meta); font-size: 13px; }
+  .chip { height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 8px;
+          font-size: 13px; color: var(--fg-2); background: var(--btn-ghost-bg); }
+  .content { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 20px 24px 24px; background: var(--bg-canvas); }
+  .gh { height: 32px; display: flex; align-items: center; font-size: 13px; font-weight: 510; color: var(--fg); }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .card { height: 132px; border-radius: 12px; border: 1px solid var(--card-border); background: var(--card-bg);
+          padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; }
+  .ib { width: 40px; height: 40px; border-radius: 10px; background: var(--bg-surface-2); }
+  .l1 { font-size: 13px; color: var(--card-title); }
+  .l2 { font-size: 12px; color: var(--card-subtitle); }
+  .note { position: fixed; left: 12px; bottom: 12px; font-size: 12px; color: #333; background: #fff;
+          padding: 6px 10px; border-radius: 6px; border: 1px solid #bbb; }
+</style>
+</head>
+<body data-page-node-id="3rMnm9cVn78O6xoAOyJc1R">
+<div class="win" data-page-node-id="gBa2oPHxCy6BkD9hnSkgLN">
+  <div class="tb" data-page-node-id="udfNrlLsXV3A6zcy5SE7g3">
+    <span style="font-size:14px;font-weight:510;color:var(--fg)" data-page-node-id="wUyx2YDVwM2BCXQXkzA0py">TeamLaunch</span>
+    <span style="flex:1" data-page-node-id="M3AXjXygJTzLceAv44vbpt"></span>
+    <span class="chip" style="width:40px;padding:0;justify-content:center" data-page-node-id="6drAPnmu5afjVglqN2c8I6">−</span>
+    <span class="chip" style="width:40px;padding:0;justify-content:center" data-page-node-id="4BZbNEU67BxfO1kPkEpGev">□</span>
+    <span class="chip" style="width:40px;padding:0;justify-content:center" data-page-node-id="aTLVBQDno4Z6Ie334xXxCu">×</span>
+  </div>
+
+  <div class="row" data-page-node-id="MxPObL7LJLNSr59JvdENU6">
+    <aside class="sb" data-page-node-id="1VPUOnxazA5ZeeRlNRFrjb">
+      <div class="nav" data-page-node-id="Nrr1YuglgrlaOs8qOv6gIO">
+        <div class="navitem on" data-page-node-id="N3yOnMQvglFmYYgN7vaXIp"><span class="ind" data-page-node-id="nrkv1H2kmBrdmO8jyDeIpT"></span>团队入口</div>
+        <div class="navitem" data-page-node-id="rXKq302UwMZWUQFjcI7CGU">我的入口</div>
+      </div>
+      <div class="sec" data-page-node-id="3xSVuOFCPBBcCRe4ZiPjpB">
+        <span class="pill" data-page-node-id="444onYNfFIfXDCf0kUlZK0">编辑模式</span>
+        <div class="act" data-page-node-id="8AKmYVieW0QB60kHkmEJLh">撤销</div>
+        <div class="act" data-page-node-id="Q0H8xoMw3yOoX8el1S3o4i">新建分组</div>
+        <div class="act" data-page-node-id="F6EzPJYn3A7gtau3PLEN0C">新建入口</div>
+        <div class="act" data-page-node-id="Mv2bQbJZK9eQYdorWRGlF0">更多编辑操作</div>
+      </div>
+      <div class="flex1" data-page-node-id="fl9ejIb4x7d7LAba7lZdgI"></div>
+      <div class="bot" data-page-node-id="wOYhmHlkkMvSQypIxN1XDm"><div class="act" data-page-node-id="Pg05Z4Fgz0GT40maTUsQp9">设置</div></div>
+    </aside>
+
+    <div class="col" data-page-node-id="7ZVFOivlgoKNZatEFmDHJG">
+      <div class="ch" data-page-node-id="Dv6OSqBd8DOyGWHl1fxBuR">
+        <div class="search" data-page-node-id="YDD9ccbehSghHvgGGDDHid">搜索团队入口</div>
+        <span style="flex:1" data-page-node-id="Flf5UVP23ITef3LxNaEt4U"></span>
+        <span class="chip" data-page-node-id="YFesqk1RLwQzrGQAZtXm5H">已同步 · v12</span>
+        <span class="chip" data-page-node-id="0C9IgIwzb12YIH9En5mVpt">筛选</span>
+        <span class="chip" style="width:32px;padding:0;justify-content:center" data-page-node-id="49NQJjOtRmRIcfPP3QJrV9">↻</span>
+      </div>
+      <div class="content" data-page-node-id="0eiG9fS5EyiKRo8LkJqVAg">
+        <div class="gh" data-page-node-id="kvEu9hzVUFPubyFMZ6g6ob">日常办公　<span style="font-weight:400;color:var(--muted)" data-page-node-id="vhVNVdnscJoGqECslCuKyI">6 项</span></div>
+        <div class="grid" data-page-node-id="YBEtEPFhJLMCwlrI4eBiq1">
+          <div class="card" data-page-node-id="PszR6t8ajEkaG0hATEesmx"><div class="ib" data-page-node-id="9tDaD8vU9ba7QoJ6L5T7s0"></div><span class="l1" data-page-node-id="ZLdaRADDYX26DJpiXMvYhk">企业微信</span><span class="l2" data-page-node-id="pnOHknKMANIkdisM9j21aD">软件</span></div>
+          <div class="card" data-page-node-id="yyJEZjbHd2kGuobAHp1oXW"><div class="ib" data-page-node-id="eIFfoMC9C08SOXOUYoQFQQ"></div><span class="l1" data-page-node-id="PJ0juHFw0BUDr3q0FPlsQj">共享盘</span><span class="l2" data-page-node-id="jH56ULYCPenKnVkQCFLStB">文件夹</span></div>
+          <div class="card" data-page-node-id="i0HtOs7AsQ131F5TDPNVNy"><div class="ib" data-page-node-id="9GdHp6tsEUCAkzkLbJnxAx"></div><span class="l1" data-page-node-id="xETawbBvEVR5fM7q0RJKgO">报销系统</span><span class="l2" data-page-node-id="DPg5BC49eK2hwczoVq1Zbf">网页</span></div>
+          <div class="card" data-page-node-id="9vHq12iAKaSXAP0ZCi7sFt"><div class="ib" data-page-node-id="0ErHCvja92bCw88x8ctnYk"></div><span class="l1" data-page-node-id="RpS2PFas7lEoixOE23cZBw">人事系统</span><span class="l2" data-page-node-id="w5dy0g7ibyPhBwxX5qEFpJ">网页</span></div>
+          <div class="card" data-page-node-id="JOhr17WGVbdePeWeqMtF8S"><div class="ib" data-page-node-id="0SfkMGbHIKAiNAyuCl0ngf"></div><span class="l1" data-page-node-id="BcGY3JW9loVcXPAIlBHWzo">工单平台</span><span class="l2" data-page-node-id="HXeRFKv5eL2s1f0AsDMDoT">网页</span></div>
+          <div class="card" data-page-node-id="GUNS6BDaa40k87QjJz5Whc"><div class="ib" data-page-node-id="vNLlOY1rl4IhdmWFA9ZFca"></div><span class="l1" data-page-node-id="ReAeiiHHCdiZXOHRW5CRM8">知识库</span><span class="l2" data-page-node-id="GFHv2LykzWkIH23bmcOKTn">网页</span></div>
+          <div class="card" data-page-node-id="D11ExixM8lAx1TISDaOkVG"><div class="ib" data-page-node-id="LgpCEO0vSqv8RoNhO5lMb0"></div><span class="l1" data-page-node-id="2F8EM26kmStE8OqQOCkeFT">VPN 客户端</span><span class="l2" data-page-node-id="VPXY3XAeEOIGssbBzcQhdE">软件</span></div>
+          <div class="card" data-page-node-id="A6kSuKoZGR1IVPZELYwLeq"><div class="ib" data-page-node-id="4j5QmhmojQbtM6Fppe6uEU"></div><span class="l1" data-page-node-id="oUEy6i8I88u61bN4qbMpWN">项目盘</span><span class="l2" data-page-node-id="eCed7zf5mMiN4OP0J3X0kG">文件夹</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="note" data-page-node-id="4nfmAQNaONSYDLH4wT1IBg">静态布局示意（真实数据需 Electron 宿主）：顶栏 40 不变 · 侧栏 240 · 内容头 48 · 内容区 752 = 4 列 ×176</div>
+</body>
+</html>
