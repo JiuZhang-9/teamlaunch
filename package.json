@@ -5,6 +5,7 @@
   "type": "module",
   "description": "TeamLaunch - Windows 桌面端团队统一入口启动器",
   "main": "dist/main/index.cjs",
+  "postinstall": "node scripts/patch-builder.cjs",
   "scripts": {
     "dev": "vite",
     "dev:detached": "npx vite --port 5180 --strictPort",
