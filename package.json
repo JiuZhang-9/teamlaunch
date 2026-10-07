@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "TeamLaunch - Windows 桌面端团队统一入口启动器",
+  "license": "MIT",
+  "author": "JiuZhang-9",
   "main": "dist/main/index.cjs",
   "postinstall": "node scripts/patch-builder.cjs",
   "scripts": {
