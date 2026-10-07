@@ -6,6 +6,14 @@
   "description": "TeamLaunch - Windows 桌面端团队统一入口启动器",
   "license": "MIT",
   "author": "JiuZhang-9",
+  "homepage": "https://github.com/JiuZhang-9/teamlaunch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JiuZhang-9/teamlaunch.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JiuZhang-9/teamlaunch/issues"
+  },
   "main": "dist/main/index.cjs",
   "postinstall": "node scripts/patch-builder.cjs",
   "scripts": {
