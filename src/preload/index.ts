@@ -7,6 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AdminStatus,
+  BrowserInfo,
   AppUpdateEvent,
   DiagnosticSnapshot,
   FavoriteItem,
@@ -201,6 +202,10 @@ const api: TeamLaunchApi = {
     enroll: (passphrase) => invoke<{ ok: boolean; reason?: string }>('tl:admin-enroll', passphrase),
     unlock: (passphrase) => invoke<{ ok: boolean }>('tl:admin-unlock', passphrase),
     deviceId: () => invoke<string>('tl:device-id'),
+  },
+
+  browsers: {
+    list: () => invoke<BrowserInfo[]>('tl:browsers-scan'),
   },
 
   palette: {

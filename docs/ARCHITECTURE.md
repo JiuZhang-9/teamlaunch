@@ -794,6 +794,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 | `telemetryNoticeAckedAt` | string? | null | 首次隐私说明已确认时间。**未确认前一律不发送任何上报** |
 | `iconCacheVersion` | int | 1 | 自增使全部图标缓存失效 |
 | `deletedConflictPolicy` | enum | `ask` | 个人导入 ID 冲突策略：ask/skip/overwrite/copy（AC-15 禁止静默覆盖） |
+| `browserExe` | string? | null | 打开网页用哪个浏览器（本机 exe 路径）；**null = 系统默认浏览器**。指定的浏览器失效时回落系统默认并提示，**不回写字段**（保留用户的选择） |
 
 **两处改名/删字段，开发按新表实现**：
 1. `telemetryUpload` → **`telemetryEnabled`**。原名字会被读成"只控制上传"，而 AC-18 要求关闭时**停止记录并清空缓冲**；名字必须不暗示错误语义。
@@ -1200,7 +1201,7 @@ PM 已把入口健康指标改为**条件判定**：只有下面两个完整度�
 | ADR-007 | 图标策略：本地提取 + 自定义协议服务 | `docs/decisions/ADR-007-icons.md` |
 | ADR-008 | 遥测方案：本地优先 + 局域网批量上报（零外网出口） | `docs/decisions/ADR-008-telemetry.md` |
 
-带触发条件的决定不在 ADR 里，见 `docs/decisions/OPEN-DECISIONS.md`（D-01 代码签名 / D-02 TLS / D-03 Win10 冒烟 / D-04 TS 回退；O-01..O-03 待 PM 裁定）。
+带触发条件的决定不在 ADR 里，见 `docs/decisions/OPEN-DECISIONS.md`（D-01 代码签名 / D-02 TLS / D-03 Win10 冒烟 / D-04 TS 回退 / D-05 更新源是否切 GitHub Releases；O-01..O-03 待 PM 裁定）。
 
 ---
 
@@ -1267,7 +1268,7 @@ SERVICE_NOT_LISTENING  >  PUBLIC_NETWORK_PROFILE  >  FIREWALL_RULE_MISSING
 | K-03 | mDNS 被否决 | **T1 服务发现**、ADR-002（三条硬证据） | 员工机零入站规则 |
 | K-04 | `exec` / `shell:true` 注入与解析错误 | T4.1/T4.2（`shell.openPath` 与 `spawn(shell:false)`） | 路径含空格/中文的专项用例 |
 | K-05 | 同步 IO 卡死主线程 | §3.2 依赖方向铁律：**禁止一切 `*Sync` IO** | 代码扫描 `Sync(` |
-| K-11（2026-10-11 补） | 读 Windows 控制台程序输出不处理编码 → 中文变乱码 | 控制台程序（`reg.exe` 等）按**系统代码页**输出（中文机＝936/GBK），Node 默认按 UTF-8 解 —— 「已安装程序」名字出现 `ДК◆◆` 这类乱码就是这么来的。规则：读这类输出必须**先取 ACP（`HKLM\...\Nls\CodePage`）再按对应编码解码**，或改用 PowerShell + JSON（显式 UTF-8）。只读英文路径的旧用法（App Paths）碰不到这个坑 | `src/main/picker.ts` 的 `ansiDecoder()`/`decodeConsoleOutput()` |
+| K-12（2026-10-11 补） | 读 Windows 控制台程序输出不处理编码 → 中文变乱码 | 控制台程序（`reg.exe` 等）按**系统代码页**输出（中文机＝936/GBK），Node 默认按 UTF-8 解 —— 「已安装程序」名字出现 `ДК◆◆` 这类乱码就是这么来的。规则：读这类输出必须**先取 ACP（`HKLM\...\Nls\CodePage`）再按对应编码解码**，或改用 PowerShell + JSON（显式 UTF-8）。只读英文路径的旧用法（App Paths）碰不到这个坑 | `src/main/winConsole.ts`（唯一落点，`regQueryBytes`/`decodeConsoleOutput`）|
 | K-06 | 首屏被击穿 | T4.4 禁止渲染期预检查，改为点击时判定 | 200 入口首屏 ≤1.5s |
 | K-07 | 内置浏览器打不开内网系统 | T4.3 网页一律走 `shell.openExternal` | 内网 SSO 页面用例 |
 | K-08 | 图标提取拖垮性能 | **T5 图标**（`icon.kind=local` 不跨网、并发 4 队列、懒加载） | 断网下图标仍可渲染 |

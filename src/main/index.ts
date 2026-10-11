@@ -24,6 +24,7 @@ import { registerHotkey, unregisterAll } from './hotkey.ts';
 import { createTray, destroyTray } from './tray.ts';
 import { acquireSingleInstanceLock, markQuitting } from './lifecycle.ts';
 import { localStore } from './localStore.ts';
+import { setBrowserPreference } from './browserPref.ts';
 import { ensureDeviceIdentity } from './deviceIdentity.ts';
 import { SettingsSchema, type Settings } from '../shared/schema/local.ts';
 import { createMemberSyncClient, type MemberSyncClient } from './syncClient.ts';
@@ -52,6 +53,7 @@ let memberClient: MemberSyncClient | null = null;
 async function wireBackend(): Promise<void> {
   bypassLanProxy();
   currentSettings = await readSettingsSafe();
+  setBrowserPreference(currentSettings.browserExe);
   await rewire(currentSettings.role);
 }
 
@@ -152,6 +154,8 @@ if (!acquireSingleInstanceLock(() => {
       onSettingsPatch: (next) => {
         const roleChanged = currentSettings.role !== next.role;
         currentSettings = next;
+        // 打开网页的浏览器偏好：改完立刻生效（不用重启）。
+        setBrowserPreference(next.browserExe);
         if (roleChanged) void rewire(next.role);
         syncTray();
         // 设置变更广播给所有窗口：主题（data-theme）在每个窗口各自的

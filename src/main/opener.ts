@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveAppCandidates } from './appResolver.ts';
+import { getBrowserPreference } from './browserPref.ts';
 
 export type OpenFailure =
   | 'NOT_INSTALLED'
@@ -22,7 +23,7 @@ export type OpenFailure =
   | 'LINK_UNAVAILABLE'
   | 'UNKNOWN';
 
-export type OpenResult = { ok: true } | { ok: false; failure: OpenFailure };
+export type OpenResult = { ok: true; /** 指定浏览器不可用、已回落系统默认 */ usedFallback?: true } | { ok: false; failure: OpenFailure };
 
 export interface OpenTarget {
   /** 团队入口 id：本机"重新定位"缓存按它存取（per-machine，永不同步）。 */
@@ -122,8 +123,35 @@ function launchExe(target: string, args: string, cwd?: string | null): Promise<O
   });
 }
 
-export function openUrl(url: string): OpenResult {
+/**
+ * 打开网页：默认走系统默认浏览器；用户在「设置 · 通用」指定了浏览器时用它启动。
+ *
+ * K-07 不变：网页一律走**外部浏览器**（内置 Chromium 是独立 profile，内网 SSO 会失效）。
+ * 指定的浏览器**每次都探测一次**——卸载/移动后不能瞎起；起不来就回落系统默认，
+ * 并用 `usedFallback` 如实上报（界面据此提示，不做静默降级）。
+ */
+export async function openUrl(url: string, browserExe?: string | null): Promise<OpenResult> {
   if (!/^https?:\/\/\S+$/i.test(url)) return { ok: false, failure: 'INVALID_URL' };
+
+  const pref = (browserExe ?? getBrowserPreference() ?? '').trim();
+  if (pref.length > 0) {
+    const state = await probe(pref);
+    if (state === 'ok') {
+      const launched = await new Promise<boolean>((resolve) => {
+        // 数组传参、不拼命令（K-04）；detached 让浏览器不随本进程退出而结束。
+        const child = spawn(pref, [url], { shell: false, detached: true, stdio: 'ignore' });
+        child.once('error', () => resolve(false));
+        child.once('spawn', () => {
+          child.unref();
+          resolve(true);
+        });
+      });
+      if (launched) return { ok: true };
+    }
+    void shell.openExternal(url);
+    return { ok: true, usedFallback: true };
+  }
+
   void shell.openExternal(url);
   return { ok: true };
 }

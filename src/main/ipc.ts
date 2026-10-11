@@ -29,6 +29,7 @@ import type {
 import { registerHotkey, type HotkeyStatus } from './hotkey.ts';
 import { commitPersonalImport, previewPersonalImport, savePersonal } from './personalPort.ts';
 import { identifyAsEntry, pickEntry, scanEntryPoints } from './picker.ts';
+import { scanBrowsers } from './browsers.ts';
 import { ensureDeviceIdentity } from './deviceIdentity.ts';
 
 const EMPTY_PERSONAL: PersonalConfig = { schemaVersion: 1, groups: [] };
@@ -302,6 +303,9 @@ export function registerIpc(deps: IpcDeps): void {
   // 入口采集：这两条此前界面上有菜单、后端却从未实现，点了没反应。
   ipcMain.handle('tl:entries-pick', (_e, kind: 'app' | 'folder') => pickEntry(kind));
   ipcMain.handle('tl:entries-scan', () => scanEntryPoints());
+
+  // 「设置 · 通用 · 打开网页的浏览器」的候选：只读注册表，不写任何东西。
+  ipcMain.handle('tl:browsers-scan', () => scanBrowsers());
 
   // 迷你面板窗口的收起动作（Esc / 点击面板外）由渲染层发回主进程执行。
   ipcMain.handle('tl:palette-hide', () => {

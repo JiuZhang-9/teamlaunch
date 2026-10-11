@@ -138,6 +138,9 @@ if (settings.role !== 'member') fail(`Settings 默认 role 应为 member，实�
 else ok('Settings 默认 role = member（服务默认不起，需显式开启管理员）');
 if (settings.deletedConflictPolicy !== 'ask') fail(`默认导入冲突策略应为 ask（禁止静默覆盖），实际 ${settings.deletedConflictPolicy}`);
 else ok('Settings 默认 deletedConflictPolicy = ask（AC-15 禁止静默覆盖）');
+// 打开网页的浏览器：默认必须是"系统默认浏览器"（null），不能悄悄替用户选一个。
+if (settings.browserExe !== null) fail(`browserExe 默认应为 null（＝系统默认浏览器，回落口径），实际 ${settings.browserExe}`);
+else ok('Settings 默认 browserExe = null（用系统默认浏览器打开网页）');
 expectReject('Settings 轮询低于 5s', S.SettingsSchema, { pollIntervalMs: 1_000 });
 // settings.json 只放用户意图：机器维护的端点记忆不得回到这里（ADR-002 L1 归 discovery.json）
 if ('knownEndpoints' in settings) fail('Settings 不应再含 knownEndpoints：端点记忆的唯一写入点是 discovery.json');

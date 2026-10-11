@@ -64,6 +64,11 @@ export const SettingsSchema = z.object({
    */
   // eslint-disable-next-line no-restricted-syntax -- 默认值即品牌青蓝；它是数据（用户可改的设置项），样式引用一律走派生后的 --accent*。
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#106696'),
+  /**
+   * 打开网页用哪个浏览器：**本机可执行文件路径**；null = 系统默认浏览器（默认值，行为不变）。
+   * 指定的浏览器失效（卸载/移动）时回落系统默认并提示——不回写这个字段（用户的选择留着）。
+   */
+  browserExe: z.string().nullable().default(null),
   /** 侧栏折叠：true = 侧栏完全消失（非图标栏形态）。持久化，跨会话恢复。 */
   sidebarCollapsed: z.boolean().default(false),
   /**

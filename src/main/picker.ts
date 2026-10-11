@@ -6,10 +6,11 @@
  * 这里补齐真实实现（P0-07 个人入口管理、P0-12 入口采集）。
  */
 import { app, dialog, shell } from 'electron';
-import { execFile } from 'node:child_process';
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { probe as probePath } from './opener.ts';
+// K-12：控制台输出（reg.exe）必须按系统代码页解码——实现集中在 winConsole.ts，别在这里用 utf8 直读。
+import { decodeConsoleOutput, regQueryBytes } from './winConsole.ts';
 
 export interface PickResult {
   ok: boolean;
@@ -204,66 +205,6 @@ async function walkShortcuts(
 function exeFromDisplayIcon(raw: string): string | null {
   const cleaned = raw.replace(/,\s*-?\d+\s*$/, '').replace(/^"+|"+$/g, '').trim();
   return /\.exe$/i.test(cleaned) ? cleaned : null;
-}
-
-/**
- * 系统 ANSI 代码页 → 解码器（读注册表/控制台输出必须按它解码）。
- *
- * 为什么必须有这一层：`reg.exe` 这类 **Windows 控制台程序**的输出是按**系统代码页**编码的
- * （中文 Windows = 936/GBK），而 Node 拿回字节后默认按 **UTF-8** 解 —— 中文名会变成乱码
- * （2026-10-11 用户实测：「已安装程序」里的名字出现 `ДК◆◆` 这类形状）。
- * 开始菜单那部分走的是快捷方式文件名/系统 API，不经过控制台输出，所以一直正常；
- * 项目里另一处 `reg query`（应用路径解析）只读英文路径，所以这个坑一直没暴露。
- */
-function decoderForCodePage(acp: number): TextDecoder | null {
-  const label =
-    acp === 936 ? 'gbk'
-    : acp === 950 ? 'big5'
-    : acp === 932 ? 'shift_jis'
-    : acp === 949 ? 'euc-kr'
-    : acp >= 1250 && acp <= 1258 ? `windows-${acp}`
-    : null;
-  if (label === null) return null;
-  try {
-    return new TextDecoder(label);
-  } catch {
-    // 运行时没带这个解码器（无完整 ICU）→ 退回 UTF-8
-    return null;
-  }
-}
-
-let ansiDecoderPromise: Promise<TextDecoder | null> | null = null;
-
-/** 取本机 ANSI 代码页（每会话一次，缓存）：ACP 值本身是 ASCII，不存在解码递归。 */
-function ansiDecoder(): Promise<TextDecoder | null> {
-  if (ansiDecoderPromise === null) {
-    ansiDecoderPromise = (async () => {
-      const bytes = await regQueryBytes(['query', 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Nls\\CodePage', '/v', 'ACP']);
-      if (bytes === null) return null;
-      const m = /REG_SZ\s+(\d+)/.exec(bytes.toString('latin1'));
-      if (m === null) return null;
-      return decoderForCodePage(Number(m[1]));
-    })();
-  }
-  return ansiDecoderPromise;
-}
-
-/** 跑一次 reg query，拿**原始字节**（解码交给调用方；数组传参 + 超时，K-04/K-05 同款纪律）。 */
-function regQueryBytes(args: string[]): Promise<Buffer | null> {
-  return new Promise((resolve) => {
-    execFile(
-      'reg',
-      args,
-      { timeout: 4000, windowsHide: true, encoding: 'buffer' },
-      (err, stdout) => resolve(err ? null : (stdout as unknown as Buffer)),
-    );
-  });
-}
-
-/** 按系统代码页解控制台输出；拿不到代码页就退回 UTF-8（纯 ASCII 内容两者一致）。 */
-async function decodeConsoleOutput(bytes: Buffer): Promise<string> {
-  const decoder = await ansiDecoder();
-  return decoder !== null ? decoder.decode(bytes) : bytes.toString('utf8');
 }
 
 /** 读注册表 Uninstall 键（读键，不遍历磁盘）→ DisplayName / DisplayIcon。 */

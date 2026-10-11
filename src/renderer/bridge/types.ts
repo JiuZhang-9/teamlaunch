@@ -63,7 +63,9 @@ export const OPEN_FAILURES = [
 ] as const;
 export type OpenFailure = (typeof OPEN_FAILURES)[number];
 
-export type OpenResult = { ok: true } | { ok: false; failure: OpenFailure };
+export type OpenResult =
+  | { ok: true; /** 指定浏览器不可用、已回落系统默认浏览器打开 */ usedFallback?: true }
+  | { ok: false; failure: OpenFailure };
 
 /** 剪贴板快捷添加的识别结果（与 main/picker.ts 的 IdentifyResult 结构一致，改两处要同步）。 */
 export type IdentifyResult =
@@ -334,6 +336,14 @@ export interface TeamLaunchApi {
     deviceId(): Promise<string>;
   };
 
+  /**
+   * 「设置 · 通用 · 打开网页的浏览器」的候选列表。
+   * 只读注册表（Clients\StartMenuInternet），不做任何本机写入；默认浏览器按 UserChoice 标注。
+   */
+  browsers: {
+    list(): Promise<BrowserInfo[]>;
+  };
+
   /** 迷你面板窗口（palette）的专属控制：渲染层 Esc/关闭动作请主进程收起窗口。 */
   palette: {
     hide(): Promise<void>;
@@ -400,6 +410,13 @@ export interface PublishRequestPayload {
  * `canEnroll`（这台机器能不能设置口令）与 `enrolled`（口令是否已设置）必须分开：
  * 混为一谈会让全新安装的机器显示"请输入口令"——而口令不存在、也没有设置入口，用户被卡死。
  */
+/** 已安装浏览器（`tl:browsers-scan`）：path 是 exe 绝对路径，isDefault 按系统 UserChoice 判定。 */
+export interface BrowserInfo {
+  name: string;
+  path: string;
+  isDefault: boolean;
+}
+
 export interface AdminStatus {
   enrolled: boolean;
   role: 'admin' | 'member';

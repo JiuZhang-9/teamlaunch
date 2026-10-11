@@ -33,7 +33,8 @@ import { Dialog } from './Dialog.tsx';
 import { AppHotkeysSection } from './AppHotkeysSection.tsx';
 import type { SettingsSection } from '../../store/workbenchStore.tsx';
 import type { Settings } from '../../../shared/schema/local.ts';
-import type { AdminStatus } from '../../bridge/types.ts';
+import { api } from '../../bridge/index.ts';
+import type { AdminStatus, BrowserInfo } from '../../bridge/types.ts';
 import { formatRevDate } from './EditActionBar.tsx';
 
 export type ZoomLevel = 90 | 100 | 105 | 110;
@@ -156,6 +157,31 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [recording, setRecording] = useState(false);
+  /** 本机已装浏览器（切到「通用」时扫一次；扫描失败就只剩"系统默认"这一项）。 */
+  const [browsers, setBrowsers] = useState<BrowserInfo[]>([]);
+
+  useEffect(() => {
+    if (section !== 'general') return;
+    let cancelled = false;
+    void api.browsers
+      .list()
+      .then((list) => {
+        if (!cancelled) setBrowsers(list);
+      })
+      .catch(() => {
+        if (!cancelled) setBrowsers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [section]);
+
+  /** 手动指定浏览器（主进程会把 .lnk 解析成真实 exe；取消不算失败）。 */
+  const pickBrowser = async (): Promise<void> => {
+    const picked = await api.entries.pick('app');
+    if (!picked.ok) return;
+    void onPatch({ browserExe: picked.target });
+  };
   const hotkeyRef = useRef<HTMLInputElement | null>(null);
   const acked = settings.telemetryNoticeAckedAt !== null;
 
@@ -339,6 +365,39 @@ export function SettingsPanel({
                 { value: 105 as ZoomLevel, label: '105%' },
                 { value: 110 as ZoomLevel, label: '110%' },
               ]}
+            />
+
+            <Divider />
+            <SectionHead>网页打开方式</SectionHead>
+            <Row
+              title="用哪个浏览器打开网页"
+              detail="默认跟随系统。指定后所有网页入口都用它打开；它不在了会自动回落系统默认并提示（不会静默换掉）"
+              control={
+                <span className="flex min-w-0 items-center gap-2">
+                <select
+                  aria-label="打开网页的浏览器"
+                  value={settings.browserExe ?? ''}
+                  onChange={(e) => void onPatch({ browserExe: e.target.value === '' ? null : e.target.value })}
+                  className="h-8 max-w-[220px] rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 t-sm text-[var(--fg)]"
+                >
+                  <option value="">系统默认浏览器</option>
+                  {browsers.map((b) => (
+                    <option key={b.path} value={b.path}>
+                      {b.name}
+                      {b.isDefault ? '（系统默认）' : ''}
+                    </option>
+                  ))}
+                  {/* 已指定但这次没扫到（被卸载/移动）也要列出来：否则下拉会静默跳回"系统默认"，
+                      看起来像用户的选择被改了（其实没有）。 */}
+                  {settings.browserExe !== null && !browsers.some((b) => b.path === settings.browserExe) && (
+                    <option value={settings.browserExe}>{settings.browserExe}</option>
+                  )}
+                </select>
+                  <Button tone="ghost" size="sm" className="shrink-0" onClick={() => void pickBrowser()}>
+                    浏览…
+                  </Button>
+                </span>
+              }
             />
 
             <Divider />

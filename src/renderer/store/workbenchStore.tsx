@@ -174,6 +174,10 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         setRuntime((r) => ({ ...r, [entry.id]: { phase: 'idle' } }));
         // 最近打开只记"真的打开了"的（面板空查询要显示它，失败的不算）。
         pushRecentOpen(entry.id);
+        // 指定了浏览器但它不在了 → 已用系统默认打开：如实说一句，别让用户以为用的是他选的那个。
+        if (result.usedFallback) {
+          push({ title: '原来选的浏览器找不到了，已用系统默认浏览器打开', tone: 'warn', duration: 6000 });
+        }
         return;
       }
       setRuntime((r) => ({ ...r, [entry.id]: { phase: 'failed', failure: result.failure } }));
