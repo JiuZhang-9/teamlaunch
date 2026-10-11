@@ -19,17 +19,19 @@ import { useEdit } from '../store/editStore.tsx';
 import { useFeedback } from '../store/feedbackStore.tsx';
 import { useSettings } from '../store/settingsStore.tsx';
 import { useSync } from '../store/syncStore.tsx';
+import { useToasts } from '../store/toastStore.tsx';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
 import type { Entry } from '../../shared/schema/entry.ts';
 
 export function TeamEntriesView() {
   const { snapshot, refresh } = useSync();
-  const { runtime, openEntry, copyTarget, openFeedback, relocateEntry, selecting, selected, toggleSelected, setTab, openDialog, openEntryEditor, typeFilter } = useWorkbench();
+  const { runtime, openEntry, copyTarget, copyManyTargets, openFeedback, relocateEntry, selecting, selected, toggleSelected, addSelected, clearSelected, launchChain, setTab, openDialog, openEntryEditor, typeFilter } = useWorkbench();
   const edit = useEdit();
   const { settings } = useSettings();
   const { pendingIds } = useFeedback();
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { isFavorite, toggleFavorite, setFavoriteMany } = useFavorites();
+  const { push } = useToasts();
   const p = syncPresentation(snapshot);
   const allGroups = snapshot.config?.groups ?? [];
   const filtering = typeFilter.length > 0;
@@ -50,7 +52,41 @@ export function TeamEntriesView() {
     openEntryEditor({ mode: 'create', groupId: null, scope: 'team' });
   };
 
+  /**
+   * 多选批量菜单（团队只读页）：只读页没有删除/移动能力（那是编辑态的事），
+   * 所以批量只做「打开 / 复制 / 收藏」这三件只读也能做的事 + 两个选择工具。
+   * 只有一条选中时仍走单条菜单（重编辑式的动作不该被藏起来）。
+   */
+  const batchMenuFor = (entry: Entry): ContextMenuItem[] => {
+    const items = selected;
+    const n = items.length;
+    const allFav = items.every((e) => isFavorite(e.id));
+    const group = groups.find((g) => g.entries.some((e) => e.id === entry.id));
+    return [
+      { id: 'batch-open', label: `打开 ${n} 项`, onSelect: () => void launchChain(settings.chainIntervalMs) },
+      { id: 'batch-copy', label: `复制 ${n} 项链接/路径`, onSelect: () => void copyManyTargets(items) },
+      {
+        id: 'batch-favorite',
+        label: `${allFav ? '取消收藏' : '收藏'} ${n} 项`,
+        onSelect: () => {
+          void setFavoriteMany(items.map((e) => e.id), !allFav);
+          push({ title: allFav ? `已取消收藏 ${n} 项` : `已收藏 ${n} 项`, tone: 'info' });
+        },
+      },
+      {
+        id: 'batch-select-group',
+        label: '全选本组',
+        disabled: !group,
+        onSelect: () => {
+          if (group) addSelected(group.entries);
+        },
+      },
+      { id: 'batch-clear', label: '清空清单', onSelect: () => clearSelected() },
+    ];
+  };
+
   const menuFor = (entry: Entry): ContextMenuItem[] => {
+    if (selected.length >= 2 && selected.some((e) => e.id === entry.id)) return batchMenuFor(entry);
     const items: ContextMenuItem[] = [
       { id: 'open', label: '打开', onSelect: () => void openEntry(entry) },
       { id: 'copy', label: entry.type === 'web' ? '复制链接' : '复制路径', onSelect: () => void copyTarget(entry) },

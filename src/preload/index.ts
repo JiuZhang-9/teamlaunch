@@ -115,6 +115,12 @@ const api: TeamLaunchApi = {
       return invoke<string | null>('tl:entries-icon', gate.data);
     },
     copyTarget: (entryId) => invoke<boolean>('tl:entries-copy', entryId),
+    /** 多选批量复制：入口对象逐个过 schema 后交给主进程，一次写入多行。 */
+    copyMany: (entries) => {
+      const gated = (Array.isArray(entries) ? entries : []).map((raw) => EntrySchema.safeParse(raw)).filter((g) => g.success).map((g) => g.data);
+      if (gated.length === 0) return Promise.resolve(false);
+      return invoke<boolean>('tl:entries-copy-many', gated);
+    },
     reveal: (entryId) => invoke<void>('tl:entries-reveal', entryId),
     openExternal: (url) => invoke<void>('tl:entries-open-external', url),
     pick: (kind) => invoke<PickResult>('tl:entries-pick', kind),
@@ -199,9 +205,13 @@ const api: TeamLaunchApi = {
 
   palette: {
     hide: () => invoke<void>('tl:palette-hide'),
+    /** 面板里「加为入口」：主进程收起面板、唤起主窗口并把文本转发过去（见 tl:palette-quick-add）。 */
+    quickAdd: (text) => invoke<boolean>('tl:palette-quick-add', text),
   },
 
   clipboard: {
+    /** 只读文本（剪贴板候选行）。单条判定与清单去重在渲染层做。 */
+    read: () => invoke<string>('tl:clipboard-read'),
     write: (text) => invoke<boolean>('tl:clipboard-write', text),
   },
 
@@ -222,6 +232,8 @@ const api: TeamLaunchApi = {
     onPaletteHidden: (cb) => subscribe<void>('tl:palette-hidden', () => cb()),
     onSettingsChanged: (cb) => subscribe<Settings>('tl:settings', cb),
     onAppUpdate: (cb) => subscribe<AppUpdateEvent>('tl:app-update', cb),
+    /** 主进程转发的"把这段文本走一遍粘贴添加"（面板的「加为入口」用）。 */
+    onQuickAdd: (cb) => subscribe<string>('tl:quick-add', cb),
   },
   updater: {
     install: () => invoke<void>('tl:app-update-install'),

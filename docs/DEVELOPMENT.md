@@ -90,7 +90,6 @@ curl -s http://127.0.0.1:5180/src/renderer/App.tsx | grep -o "transformOrigin"
 ```bash
 npm run typecheck        # tsc --noEmit
 npm run lint             # eslint . --max-warnings=0
-npm run verify:render    # 10 视图渲染 + 同步 8 态 + 反馈 4 态语义
 npm run verify:p0        # 设计系统 P0 反模式扫描
 npm run verify:tokens    # 设计 Token 校验
 ```
@@ -101,10 +100,6 @@ npm run verify:tokens    # 设计 Token 校验
 npm run verify:all       # 含 server / schema / openapi / deps / wiring
 npm run verify:qa        # QA 专项门禁
 ```
-
-> `verify:render` 是渲染层的硬门禁：它用 Vite 的 SSR 装载器把组件树真正渲染一遍，
-> 覆盖 10 个视图 + 同步 8 态 + 离线 4 因 + 反馈 4 态语义。
-> **编译通过不等于界面能渲染**，这条门禁就是挡"编译过但白屏"的。
 
 ---
 

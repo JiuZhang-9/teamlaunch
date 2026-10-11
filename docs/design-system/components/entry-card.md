@@ -84,7 +84,7 @@
 | 6 | **Loading** | 图标位换成 `LoaderCircle` 24（旋转，`data-motion="loop"`）；标题保持；**卡片仍可再次点击**（不阻塞） | `--motion-loop` 1200ms |
 | 7 | **Error** | 图标槽右上角叠 `TriangleAlert` 12（`--danger-fg`）；副标签换成失效文案：软件 `本机未找到该软件` / 文件夹 `文件夹不存在或当前无权限` / 网页 `链接格式无效`；边框 `--danger-solid` | 即时 |
 | 8 | **Empty（图标缺失）** | 走第 2 节回退链：`fallback` 首字单体图（40×40 圆角 8，bg `--bg-surface-2`，字 17/590 `--fg-2`）→ Lucide 24 | — |
-| 9 | **Selected** | 编辑态多选：边框 2px `--accent` + 左上角 `CircleCheck` 16 填充块；列表/搜索态：左 2px `--row-indicator` | `--motion-fast` |
+| 9 | **Selected** | 多选态：边框 2px `--accent` + **左上角徽标显示"它是第几个被选中的"**（未选中＝空心圆；序号＝点击顺序＝连锁启动顺序；徽标压在图标之上，不再被图标盖住）；**右上角不显示任何内容**（顺序号不再重复出现；收藏星只在非多选态显示）；列表/搜索态：左 2px `--row-indicator` | `--motion-fast` |
 
 **变体：Editing（管理员编辑态）**
 - 边框 `--card-border-editing`（`--border-strong`），**不用虚线**（虚线在 125% 缩放下会糊）

@@ -17,10 +17,12 @@ export interface ContextMenuProps {
   x: number;
   y: number;
   items: ContextMenuItem[];
+  /** 菜单顶部的一行不可点说明（例如只读态为什么这些动作按不动）；给了才渲染。 */
+  note?: string;
   onClose(): void;
 }
 
-export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
+export function ContextMenu({ x, y, items, note, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: x, top: y });
 
@@ -57,6 +59,12 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
       className="fixed z-[var(--z-dropdown)] min-w-[196px] overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-subtle)] py-1"
       style={{ left: pos.left, top: pos.top, background: 'var(--menu-bg)', boxShadow: 'var(--menu-elev)' }}
     >
+      {note && (
+        <>
+          <p className="t-2xs px-3 pb-1 pt-0.5 text-[var(--meta)]">{note}</p>
+          <div className="mx-1 mb-1 h-px bg-[var(--border-subtle)]" />
+        </>
+      )}
       {items.map((it) => (
         <MenuItem
           key={it.id}

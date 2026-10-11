@@ -5,7 +5,7 @@
  *  - 发布中/失败一律保留草稿（只有服务端 200 才清空）；
  *  - 校验失败定位到具体入口与字段，不清空其他编辑（AC-07）。
  */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from '../bridge/index.ts';
 import type { PublishError, PublishOutcome } from '../bridge/types.ts';
 import type { TeamConfig } from '../../shared/schema/config.ts';
@@ -13,6 +13,7 @@ import { SCHEMA_VERSION } from '../../shared/schema/common.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
 import { useSync } from './syncStore.tsx';
 import { useSettings } from './settingsStore.tsx';
+import { useToasts } from './toastStore.tsx';
 import { changeCount, diffTeamConfig, validateDraft, type ChangeSet } from '../lib/publish.ts';
 
 export type PublishPhase = 'idle' | 'publishing';
@@ -77,6 +78,7 @@ const clone = (c: TeamConfig): TeamConfig => JSON.parse(JSON.stringify(c)) as Te
 export function EditProvider({ children }: { children: ReactNode }) {
   const { snapshot } = useSync();
   const { settings } = useSettings();
+  const { push } = useToasts();
   const published = snapshot.config;
   const [unlocked, setUnlocked] = useState(api.settings.get().role === 'admin');
   const [editing, setEditing] = useState(false);
@@ -84,6 +86,9 @@ export function EditProvider({ children }: { children: ReactNode }) {
   const [undoSnapshot, setUndoSnapshot] = useState<TeamConfig | null>(null);
   const [phase, setPhase] = useState<PublishPhase>('idle');
   const [lastError, setLastError] = useState<PublishError | null>(null);
+  /** Toast 的最新引用：闲置计时器只该被"用户活动"重置，不能被无关重渲染（同步广播每 30s 一次）重置。 */
+  const pushRef = useRef(push);
+  pushRef.current = push;
 
   /** 关闭管理员模式 = 编辑会话立即回收：解锁态、编辑态、草稿全部清空。
       此前只停了本机服务，界面上的编辑能力原样保留——开关形同虚设。 */
@@ -95,6 +100,71 @@ export function EditProvider({ children }: { children: ReactNode }) {
     setUndoSnapshot(null);
   }, [settings.role]);
 
+  /**
+   * 锁定会话：清解锁态 + 退出编辑，**草稿保留在内存**。
+   *
+   * 只回收本机会话，不动 role——角色是"这台机器是不是管理员机"（设置开关管），
+   * 会话是"当前有没有编辑权限"。（此前 lock() 顺手把 role 改回 member，
+   * 会把关闭服务的重活和退出编辑混在一件事里。）
+   *
+   * 保留草稿是有意的：这个函数现在是 ADR-006「闲置自动清除解锁态」的落点，
+   * 而闲置退出不该把管理员十来分钟的编辑一笔勾销——重新解锁后 beginEdit 会复用这份草稿。
+   */
+  const lock = useCallback(() => {
+    setUnlocked(false);
+    setEditing(false);
+  }, []);
+
+  /**
+   * 闲置自动退出编辑（PRD §14.1 / ADR-006）。
+   *
+   * 三条约定：
+   *  - 只在**编辑态内**计时：打开应用但没进编辑不算闲置——否则管理员机一启动就可能被"锁上"，
+   *    点开编辑还要先设口令，纯属给日常添堵；
+   *  - 窗口内的键盘 / 指针 / 滚轮活动都会重置计时；
+   *  - 超时后按本机**是否设置过口令**分流（用户拍板的折中）：设过口令 = 有要保护的边界，
+   *    清解锁态（回只读、重新进入要口令）；没设过口令 = 没有边界，只退出编辑，
+   *    不制造"强制设口令"的流程。
+   * 无论哪种，草稿都保留在内存（＝ exit(false) 的语义），不丢工作。
+   */
+  useEffect(() => {
+    if (!editing) return;
+    const timeoutMs = Math.max(30_000, settings.editIdleTimeoutMs);
+    let timer = 0;
+    const arm = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void (async () => {
+          let enrolled = false;
+          try {
+            enrolled = (await api.admin.status()).enrolled;
+          } catch {
+            // 问不到就按"没设过口令"处理：宁可不锁，也不能把管理员挡在编辑之外
+          }
+          if (enrolled) lock();
+          else setEditing(false);
+          pushRef.current({
+            title: enrolled
+              ? '闲置过久，已退出并锁定编辑模式。未发布的改动保留在本机，重新解锁可继续。'
+              : '闲置过久，已退出编辑模式。未发布的改动保留在本机，点「编辑模式」可继续。',
+            tone: 'info',
+            duration: 6000,
+          });
+        })();
+      }, timeoutMs);
+    };
+    arm();
+    window.addEventListener('keydown', arm, true);
+    window.addEventListener('pointerdown', arm, true);
+    window.addEventListener('wheel', arm, true);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('keydown', arm, true);
+      window.removeEventListener('pointerdown', arm, true);
+      window.removeEventListener('wheel', arm, true);
+    };
+  }, [editing, settings.editIdleTimeoutMs, lock]);
+
   const base = draft ?? published;
   const changes = useMemo(
     () => diffTeamConfig(published ?? EMPTY_CONFIG, base ?? EMPTY_CONFIG),
@@ -103,6 +173,10 @@ export function EditProvider({ children }: { children: ReactNode }) {
   const issues = useMemo(() => (base ? validateDraft(base) : []), [base]);
 
   const mutate = (fn: (c: TeamConfig) => TeamConfig) => {
+    /* 草稿只允许在编辑态写入。此前没有任何守卫：只读团队页上点「上移一位 / 重命名 / 删除分组」
+       会静默改草稿，而界面读的是已发布快照——表现是"可点但无效果"，并且改动会在
+       下次 beginEdit 时被整份丢弃。UI 层已经禁用了那些入口，这里是绕不过去的兜底。 */
+    if (!editing) return;
     const current = base ? clone(base) : clone(EMPTY_CONFIG);
     setUndoSnapshot(clone(current));
     setDraft(fn(current));
@@ -118,18 +192,12 @@ export function EditProvider({ children }: { children: ReactNode }) {
       }
       return r.ok;
     },
-    lock() {
-      // 只回收本机会话，不动 role——角色是"这台机器是不是管理员机"（设置开关管），
-      // 会话是"当前有没有编辑权限"。此前 lock() 顺手把 role 改回 member，
-      // 会把关闭服务的重活和退出编辑混在一件事里。
-      setUnlocked(false);
-      setEditing(false);
-      setDraft(null);
-    },
+    lock,
     editing,
-    /** 空草稿（从未发布过）也允许进入编辑——管理员首跑的必经之路，此前在这里被挡死。 */
+    /** 空草稿（从未发布过）也允许进入编辑——管理员首跑的必经之路，此前在这里被挡死。
+        已有草稿（闲置退出保留的那份）直接复用：否则重新进入编辑会静默丢掉未发布的改动。 */
     beginEdit() {
-      setDraft(clone(published ?? EMPTY_CONFIG));
+      setDraft((cur) => cur ?? clone(published ?? EMPTY_CONFIG));
       setUndoSnapshot(null);
       setEditing(true);
       setLastError(null);

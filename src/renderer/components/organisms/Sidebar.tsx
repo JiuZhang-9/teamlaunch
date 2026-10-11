@@ -11,7 +11,7 @@
  * 弹性空白与底部区声明 app-region: drag，与顶部 TitleBar 一起构成"整条左侧都能拖窗口"。
  * 可拖区域内的交互元素必须逐个 no-drag。
  */
-import { FileDown, FileUp, FolderPlus, Pencil, Plus, Settings, Undo2, type LucideIcon } from 'lucide-react';
+import { FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, ScanSearch, Settings, Undo2, type LucideIcon } from 'lucide-react';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -43,6 +43,9 @@ export interface SidebarProps {
   /** 个人页：与团队编辑态同构的两个主按钮（统一性，用户明确要求）。 */
   onAddPersonalGroup(): void;
   onAddPersonalEntry(): void;
+  /** 个人页的两条批量入口：多行粘贴 / 扫描本机程序（入口点扫描）。 */
+  onBatchAddPersonal(): void;
+  onScanPersonal(): void;
   /**
    * 非空 = 「添加」不可用的原因（容量撞上限）。
    * 用 softDisabled 而非原生 disabled：按钮留在 tab 序列里，键盘用户能聚焦到它
@@ -60,9 +63,10 @@ export interface SidebarProps {
   onToggleEdit(): void;
   collapsed?: boolean;
   /**
-   * 分组锚点右键菜单的动作出口（personal/editing 可用）：open=打开分组操作对话框，
-   * up/down=换序，sortByName=全部分组按名称排序（仅个人页）。只读团队页不传此 prop，
-   * 右键菜单即不出现。
+   * 分组锚点右键菜单的动作出口：open=打开分组操作对话框，up/down=换序，
+   * sortByName=全部分组按名称排序（仅个人页）。只读团队页（mode==='team'）也传此 prop，
+   * 但菜单项一律禁用并给出说明——"看得见能力在哪、也看得见为什么按不动"；
+   * 菜单位置的禁用只是表象，真正的写入守卫在 editStore（非编辑态不写草稿）。
    */
   onGroupAction?(group: Group, action: 'open' | 'up' | 'down' | 'sortByName'): void;
 }
@@ -96,7 +100,7 @@ function SectionCap({ children }: { children: ReactNode }) {
 export function Sidebar(props: SidebarProps) {
   const {
     tab, mode, onTabChange, groups, snapshot, onOpenSettings, onOpenDiagnostics, onRefresh,
-    onAddPersonalGroup, onAddPersonalEntry, addDisabledReason, onImport, onExport,
+    onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal, addDisabledReason, onImport, onExport,
     onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false,
   onGroupAction,
   } = props;
@@ -131,6 +135,24 @@ export function Sidebar(props: SidebarProps) {
     const target = document.getElementById(`tl-group-${encodeURIComponent(name)}`);
     target?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
   };
+
+  /**
+   * 分组右键菜单的四项动作：只在能改分组的页面可用（个人页 / 团队编辑态）。
+   * 只读团队页显示为禁用 + 顶部说明，不再"可点但无效果"；
+   * 换序在边界处同样禁用（此前可点却不动，也是"点了没反应"）。
+   */
+  const groupMenuState = groupMenu
+    ? (() => {
+        const idx = groups.findIndex((g) => g.id === groupMenu.group.id);
+        const canManage = mode === 'personal' || mode === 'editing';
+        return {
+          canManage,
+          canMoveUp: canManage && idx > 0,
+          canMoveDown: canManage && idx >= 0 && idx < groups.length - 1,
+          note: canManage ? undefined : '进入编辑模式后可管理分组',
+        };
+      })()
+    : null;
 
   const syncLine =
     mode === 'personal'
@@ -192,9 +214,22 @@ export function Sidebar(props: SidebarProps) {
           {mode === 'editing' && (
             <>
               <SectionCap>编辑操作</SectionCap>
-              <StatusPill tone="draft" icon={Pencil} iconSize={16}>
-                编辑模式
-              </StatusPill>
+              {/* 「编辑模式」是开关而不是纯徽标：再点一次即退出编辑（外观保持徽标形态）。
+                  此前它不可点，鼠标用户只能滑到底部「放弃改动」，既费事又容易误点；
+                  快捷键 Ctrl+Shift+E 与「放弃改动」都保留，三条路都走同一个 toggleEdit
+                  （退出前照旧过"放弃未发布的改动？"确认）。 */}
+              <button
+                type="button"
+                aria-pressed
+                aria-label="退出编辑模式"
+                title="退出编辑模式"
+                onClick={onToggleEdit}
+                className="block w-full rounded-[var(--radius-pill)] text-left transition-opacity duration-[var(--motion-fast)] hover:opacity-90 focus-visible:shadow-[var(--ring-focus)]"
+              >
+                <StatusPill tone="draft" icon={Pencil} iconSize={16} className="w-full justify-start">
+                  编辑模式
+                </StatusPill>
+              </button>
               <SidebarAction icon={Undo2} onClick={onUndo}>
                 撤销
               </SidebarAction>
@@ -204,7 +239,8 @@ export function Sidebar(props: SidebarProps) {
               <SidebarAction icon={Plus} onClick={onAddEntry}>
                 新建入口
               </SidebarAction>
-              {/* 「更多编辑操作」菜单已移除：内容与上方行按钮完全重复，退出有 Ctrl+Shift+E（用户明确要求）。 */}
+              {/* 「更多编辑操作」菜单已移除：内容与上方行按钮完全重复。
+                  退出编辑有三个入口：上方「编辑模式」开关（再点一次）、Ctrl+Shift+E、底部「放弃改动」。 */}
             </>
           )}
 
@@ -236,6 +272,23 @@ export function Sidebar(props: SidebarProps) {
                 aria-describedby={addDisabledReason ? 'tl-capacity-reason' : undefined}
               >
                 添加入口
+              </SidebarAction>
+              {/* 两条"批量"入口：贴多行 / 扫本机。撞容量时与"添加入口"同款前置禁用。 */}
+              <SidebarAction
+                icon={Layers}
+                onClick={onBatchAddPersonal}
+                softDisabled={Boolean(addDisabledReason)}
+                title={addDisabledReason ?? undefined}
+              >
+                批量添加
+              </SidebarAction>
+              <SidebarAction
+                icon={ScanSearch}
+                onClick={onScanPersonal}
+                softDisabled={Boolean(addDisabledReason)}
+                title={addDisabledReason ?? undefined}
+              >
+                扫描本机程序
               </SidebarAction>
               {/* 禁用原因必须能被读屏读到：hover 只对鼠标用户存在。 */}
               {addDisabledReason && (
@@ -359,19 +412,20 @@ export function Sidebar(props: SidebarProps) {
         document.body
       )}
 
-      {groupMenu && onGroupAction && (
+      {groupMenu && onGroupAction && groupMenuState && (
         <ContextMenu
           x={groupMenu.x}
           y={groupMenu.y}
+          note={groupMenuState.note}
           items={[
-            { id: 'rename', label: '重命名分组…', onSelect: () => onGroupAction(groupMenu.group, 'open') },
-            { id: 'up', label: '上移一位', onSelect: () => onGroupAction(groupMenu.group, 'up') },
-            { id: 'down', label: '下移一位', onSelect: () => onGroupAction(groupMenu.group, 'down') },
+            { id: 'rename', label: '重命名分组…', disabled: !groupMenuState.canManage, onSelect: () => onGroupAction(groupMenu.group, 'open') },
+            { id: 'up', label: '上移一位', disabled: !groupMenuState.canMoveUp, onSelect: () => onGroupAction(groupMenu.group, 'up') },
+            { id: 'down', label: '下移一位', disabled: !groupMenuState.canMoveDown, onSelect: () => onGroupAction(groupMenu.group, 'down') },
             /* 排序接替原「更多操作」菜单（用户明确要求移除该菜单）：个人页的全局粗排序住在这。 */
             ...(mode === 'personal'
               ? [{ id: 'sortByName', label: '全部分组按名称排序', onSelect: () => onGroupAction(groupMenu.group, 'sortByName') }]
               : []),
-            { id: 'delete', label: '删除分组…', destructive: true, onSelect: () => onGroupAction(groupMenu.group, 'open') },
+            { id: 'delete', label: '删除分组…', destructive: true, disabled: !groupMenuState.canManage, onSelect: () => onGroupAction(groupMenu.group, 'open') },
           ]}
           onClose={() => setGroupMenu(null)}
         />

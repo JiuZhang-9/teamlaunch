@@ -39,7 +39,6 @@ import { PersonalEntriesView } from '../../pages/PersonalEntriesView.tsx';
 import { AdminEditView } from '../../pages/AdminEditView.tsx';
 import { HomePageView } from '../../pages/HomePageView.tsx';
 import type { Group } from '../../../shared/schema/group.ts';
-import type { Entry } from '../../../shared/schema/entry.ts';
 
 const OFFLINE_BANNER_STATES = new Set([
   'OFFLINE_CACHED',
@@ -49,7 +48,7 @@ const OFFLINE_BANNER_STATES = new Set([
 ]);
 
 export function MainWindowShell() {
-  const { tab, setTab, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, clearSelected, exitSelecting, launchChain } =
+  const { tab, setTab, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, clearSelected, exitSelecting, launchChain, quickAddFromText } =
     useWorkbench();
   const { snapshot, refresh } = useSync();
   const { settings, patch } = useSettings();
@@ -179,41 +178,9 @@ export function MainWindowShell() {
   /** 应用内快捷键：内置默认 + 用户覆盖（settings.appHotkeys 只存改过的动作）。 */
   const appHotkeys = useMemo(() => ({ ...DEFAULT_APP_HOTKEYS, ...settings.appHotkeys }), [settings.appHotkeys]);
 
-  /** 粘贴快捷添加（方案 A）：复制了网址/路径后，在非输入焦点按 Ctrl+V，
-      识别剪贴板内容并预填进与手动添加同款的编辑器——回车即成，取消不留痕。
-      落点永远是「我的入口」（个人场景为主，行为可预期）；只在无对话框、
-      非隐私门、焦点不在输入框时接管，输入框内的 Ctrl+V 仍是普通粘贴。 */
-  const quickAddFromClipboard = useCallback(
-    async (text: string) => {
-      const identified = await api.entries.identify(text);
-      if (identified.kind === 'none') {
-        push({ title: identified.reason, tone: 'info' });
-        return;
-      }
-      const now = new Date().toISOString();
-      const prefill: Entry =
-        identified.kind === 'web'
-          ? {
-              id: '', name: identified.name, type: 'web', url: identified.url,
-              sort: 0, description: null, icon: { kind: 'fallback' }, iconAssetHash: null, updatedAt: now,
-            }
-          : identified.kind === 'app'
-            ? {
-                id: '', name: identified.name, type: 'app', target: identified.target,
-                sourcePath: identified.sourcePath, args: identified.args ?? '', cwd: '', expandEnv: true,
-                sort: 0, description: null, icon: { kind: 'local' }, iconAssetHash: null, updatedAt: now,
-              }
-            : {
-                id: '', name: identified.name, type: 'folder', target: identified.target,
-                sort: 0, description: null, icon: { kind: 'local' }, iconAssetHash: null, updatedAt: now,
-              };
-      setTab('personal');
-      openEntryEditor({ mode: 'create', groupId: null, scope: 'personal', prefill });
-    },
-    [push, openEntryEditor, setTab],
-  );
-
-
+  /* 快捷面板的「加为入口」：主进程收起面板后把文本转到这里，
+     走与 Ctrl+V 粘贴添加完全同一条流程（识别与预填在 workbenchStore）。 */
+  useEffect(() => api.events.onQuickAdd((text) => void quickAddFromText(text)), [quickAddFromText]);
   /* ---------------- 全局键位（键位表见 useGlobalHotkeys） ---------------- */
   useGlobalHotkeys({
     onTabTeam: () => setTab('team'),
@@ -259,14 +226,16 @@ export function MainWindowShell() {
       const text = e.clipboardData?.getData('text/plain') ?? '';
       if (!text.trim()) return;
       e.preventDefault();
-      void quickAddFromClipboard(text);
+      void quickAddFromText(text);
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [dialog, entryEditor, gateBlocking, quickAddFromClipboard]);
+  }, [dialog, entryEditor, gateBlocking, quickAddFromText]);
   const contentBackground = editing ? 'var(--surface-editing)' : 'var(--bg-canvas)';
   /** 侧栏与内容头共用：编辑态只属于团队页，个人页永远是 personal，主页无操作区。 */
   const mode: SidebarMode = tab === 'home' ? 'home' : tab === 'personal' ? 'personal' : editing ? 'editing' : 'team';
+  /** 侧栏分组对话框的换序边界：按真实索引算（此前硬编码 true，边界上点了不动）。 */
+  const sidebarGroupIdx = sidebarGroup ? groups.findIndex((g) => g.id === sidebarGroup.id) : -1;
 
   return (
     <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
@@ -301,18 +270,21 @@ export function MainWindowShell() {
               }
               return;
             }
+            /* 只读团队页没有分组管理动作：菜单项已禁用，这里再兜一层（纵深防御，防脚本误触）。 */
+            if (mode === 'team') return;
+            /* 换序不再顺带打开分组对话框：此前 up/down 会一边弹出对话框一边移动，动作不可预期。 */
+            if (action === 'up' || action === 'down') {
+              const delta = action === 'up' ? (-1 as const) : (1 as const);
+              if (mode === 'personal') void personalMoveGroup(group.id, delta);
+              else edit.moveGroup(group.id, delta);
+              return;
+            }
             setSidebarGroup(group);
-            if (action === 'up') {
-              if (mode === 'personal') void personalMoveGroup(group.id, -1);
-              else edit.moveGroup(group.id, -1);
-            }
-            if (action === 'down') {
-              if (mode === 'personal') void personalMoveGroup(group.id, 1);
-              else edit.moveGroup(group.id, 1);
-            }
           }}
           onAddPersonalGroup={() => void addPersonalGroup()}
           onAddPersonalEntry={() => openEntryEditor({ mode: 'create', groupId: null, scope: 'personal' })}
+          onBatchAddPersonal={() => openDialog('batchAdd')}
+          onScanPersonal={() => openDialog('scanPicker')}
           addDisabledReason={tab === 'personal' ? capacityReason : null}
           onImport={() => fileRef.current?.click()}
           onExport={() => void doExport()}
@@ -444,8 +416,9 @@ export function MainWindowShell() {
       {sidebarGroup && (
         <GroupActionsDialog
           groupName={sidebarGroup.name}
-          canMoveUp
-          canMoveDown
+          canManage={mode !== 'team'}
+          canMoveUp={sidebarGroupIdx > 0}
+          canMoveDown={sidebarGroupIdx >= 0 && sidebarGroupIdx < groups.length - 1}
           entryCount={sidebarGroup.entries.length}
           scope={mode === 'personal' ? 'personal' : 'team'}
           onRename={(name) => {
@@ -492,7 +465,7 @@ export function MainWindowShell() {
         onConfirmExit={() => {
           setConfirmExit(false);
           edit.exit(true);
-          push({ title: '已退出编辑模式，未发布的改动仍保存在本机', tone: 'info' });
+          push({ title: '已退出编辑模式，未发布的改动已丢弃', tone: 'info' });
         }}
         importOutcome={importOutcome}
         onDismissImport={() => setImportOutcome(null)}

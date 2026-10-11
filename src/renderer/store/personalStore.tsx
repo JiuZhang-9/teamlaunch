@@ -12,6 +12,36 @@ import { capacityExceededCopy } from '../../shared/capacity-copy.ts';
 /** 入口 id：本机生成，不依赖网络，也不与团队配置冲突（团队用 e- 前缀）。 */
 const newId = (): string => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
+/**
+ * 由新增入参造一条入口。
+ * app / folder 是判别联合的不同分支：url 只有 web 才有，不能出现在前两者上，
+ * 否则 zod 校验会直接拒掉（schema 是 discriminatedUnion）。
+ */
+function makeEntry(input: NewEntryInput, sort: number): Entry {
+  const common = {
+    id: newId(),
+    name: input.name,
+    sort,
+    icon: { kind: 'local' as const },
+    iconAssetHash: null,
+    updatedAt: new Date().toISOString(),
+  };
+  if (input.kind === 'web') {
+    return { ...common, type: 'web', url: input.target, description: null };
+  }
+  return input.kind === 'app'
+    ? {
+        ...common,
+        type: 'app',
+        target: input.target,
+        sourcePath: input.sourcePath ?? null,
+        args: '',
+        cwd: '',
+        expandEnv: true,
+      }
+    : { ...common, type: 'folder', target: input.target };
+}
+
 /** 逐项决定用的键是**导入文件里**的 id（后端 ImportDecisions.perEntry 的约定）。 */
 export interface ImportConflictItem {
   id: string;
@@ -24,7 +54,8 @@ export type ImportChoice = 'copy' | 'overwrite' | 'skip';
 
 /** 新增入口的入参。sourcePath 用于保留 .lnk 原始路径，便于将来重新解析。 */
 export interface NewEntryInput {
-  kind: 'app' | 'folder';
+  /** web 时 target 放网址（批量粘贴里网址是主要场景，三条新增路径共用一套入参）。 */
+  kind: 'app' | 'folder' | 'web';
   name: string;
   target: string;
   sourcePath?: string | null;
@@ -64,9 +95,13 @@ interface PersonalCtx {
   /** 当前占用与是否撞上限 —— 「添加」按钮据此前置禁用（不等后端抛错才说）。 */
   usage: CapacityUsage;
   removeEntry(entryId: string): Promise<void>;
+  /** 批量删除（多选）：一次落盘，不做逐条覆盖写。 */
+  removeEntries(entryIds: string[]): Promise<void>;
   renameEntry(entryId: string, name: string): Promise<void>;
   moveEntry(entryId: string, delta: -1 | 1): Promise<void>;
   addCopy(entryId: string): Promise<void>;
+  /** 批量创建副本（多选）：容量按整批在写之前判，命名去重也跨整批算。 */
+  addCopies(entryIds: string[]): Promise<{ ok: boolean; added: number; reason?: string }>;
   /**
    * 新增一个入口（从本机选择的程序或文件夹）。
    *
@@ -103,6 +138,8 @@ interface PersonalCtx {
    * 落点与原位相同则原样返回（拖回自己 = 无操作）。
    */
   moveEntryToGroup(entryId: string, toGroupId: string, toIndex?: number): Promise<void>;
+  /** 批量移动到同一个分组（多选）：按清单顺序追加到目标组末尾，一次落盘。 */
+  moveEntriesToGroup(entryIds: string[], toGroupId: string): Promise<void>;
   exportJson(): Promise<{ ok: true; path: string; count: number } | { ok: false; reason: string }>;
   /** 两段式的第一段：预览，不改任何数据。 */
   beginImport(text: string): Promise<ImportOutcome>;
@@ -212,41 +249,130 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
         group = { id: `g-${newId()}`, name, sort: groups.length, entries: [] };
         groups.push(group);
       }
-      // app / folder 是判别联合的不同分支：url 只有 web 才有，不能出现在前两者上，
-      // 否则 zod 校验会直接拒掉（schema 是 discriminatedUnion）。
-      const common = {
-        id: newId(),
-        name: input.name,
-        sort: group.entries.length,
-        target: input.target,
-        sourcePath: input.sourcePath ?? null,
-        args: '',
-        cwd: '',
-        expandEnv: true,
-        icon: { kind: 'local' as const },
-        iconAssetHash: null,
-        updatedAt: new Date().toISOString(),
-      };
-      const entry: Entry = input.kind === 'app' ? { ...common, type: 'app' } : { ...common, type: 'folder' };
-      group.entries.push(entry);
+      // app / folder 是判别联合的不同分支：造条目的规则在 makeEntry 里，批量路径共用同一份。
+      group.entries.push(makeEntry(input, group.entries.length));
       await commit({ ...config, groups });
       return { ok: true };
     },
     [config, commit],
   );
 
-  /** 批量新增：逐条走 addEntry 的规则（撞上限时停下并返回已加数量）。 */
+  /** 批量删除：一次算完、只落盘一次（逐条 removeEntry 会各写一次且互相覆盖）。 */
+  const removeEntries = useCallback(
+    async (entryIds: string[]) => {
+      const gone = new Set(entryIds);
+      const groups = mapEntries((e) => (gone.has(e.id) ? [] : [e]));
+      await commit({ ...config, groups });
+    },
+    [config, commit, mapEntries],
+  );
+
+  /** 副本命名：与单条 addCopy 同一套格式（去重基准跨整批统一）。 */
+  const copyName = (base: string, n: number): string => `${base}（副本${n === 1 ? '' : ` ${n}`}）`;
+
+  /**
+   * 批量创建副本：容量在写之前按整批判（超了就只做放得下的那几条），
+   * 命名去重也在整批范围内算——否则同一批里会出现两个同名副本。
+   */
+  const addCopies = useCallback(
+    async (entryIds: string[]): Promise<{ ok: boolean; added: number; reason?: string }> => {
+      const total = config.groups.reduce((n, g) => n + g.entries.length, 0);
+      const room = CAPACITY.MAX_ENTRIES - total;
+      if (room <= 0 || entryIds.length === 0) {
+        return {
+          ok: false,
+          added: 0,
+          reason: capacityExceededCopy({ entries: total, groups: config.groups.length }),
+        };
+      }
+      const wanted = entryIds.slice(0, room);
+      const taken = new Set(config.groups.flatMap((g) => g.entries.map((e) => e.name)));
+      let added = 0;
+      const groups = clone(config).groups.map((g) => {
+        const entries: Entry[] = [];
+        for (const e of g.entries) {
+          entries.push(e);
+          if (!wanted.includes(e.id)) continue;
+          let n = 1;
+          while (taken.has(copyName(e.name, n))) n += 1;
+          const name = copyName(e.name, n);
+          taken.add(name);
+          entries.push({ ...e, id: `${e.id}-copy-${n}`, name, sort: e.sort + 1 });
+          added += 1;
+        }
+        return { ...g, entries: entries.map((e, i) => ({ ...e, sort: i })) };
+      });
+      await commit({ ...config, groups });
+      return {
+        ok: entryIds.length <= room,
+        added,
+        reason: entryIds.length > room ? capacityExceededCopy({ entries: total, groups: config.groups.length }) : undefined,
+      };
+    },
+    [config, commit],
+  );
+
+  /** 批量移动到同一个分组：按清单顺序追加到目标组末尾，一次落盘。 */
+  const moveEntriesToGroup = useCallback(
+    async (entryIds: string[], toGroupId: string) => {
+      const wanted = new Set(entryIds);
+      const groups = clone(config).groups;
+      const target = groups.find((g) => g.id === toGroupId);
+      if (!target) return;
+      const moving: Entry[] = [];
+      for (const g of groups) {
+        g.entries = g.entries.filter((e) => {
+          if (!wanted.has(e.id)) return true;
+          moving.push(e);
+          return false;
+        });
+      }
+      // 目标组内的先后 = 清单里的顺序（用户勾选的顺序），而不是各自原来在组里的位置。
+      const order = new Map(entryIds.map((id, i) => [id, i]));
+      moving.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+      target.entries.push(...moving);
+      const next = groups.map((g, k) => ({
+        ...g,
+        sort: k,
+        entries: g.entries.map((e, i) => ({ ...e, sort: i })),
+      }));
+      await commit({ ...config, groups: next });
+    },
+    [config, commit],
+  );
+
+  /**
+   * 批量新增：**一次性算完、只落盘一次**。
+   *
+   * 此前是循环调 addEntry——每个调用都基于同一份旧 config 克隆，
+   * 结果是"加了 N 条只剩最后一条"（勾选多个程序一起导入时就撞上）。
+   * 容量按累计条数在写之前判，撞上限时停下并回报已加入的条数。
+   */
   const addEntries = useCallback(
     async (inputs: NewEntryInput[]): Promise<{ ok: boolean; added: number; reason?: string }> => {
+      const groups = clone(config).groups;
+      let total = groups.reduce((n, g) => n + g.entries.length, 0);
       let added = 0;
       for (const input of inputs) {
-        const r = await addEntry(input);
-        if (!r.ok) return { ok: added > 0, added, reason: r.reason };
+        const groupName = (input.groupName ?? DEFAULT_GROUP).trim() || DEFAULT_GROUP;
+        let group = groups.find((g) => g.name === groupName);
+        if (!group) {
+          if (groups.length >= CAPACITY.MAX_GROUPS || total >= CAPACITY.MAX_ENTRIES) {
+            return { ok: added > 0, added, reason: capacityExceededCopy({ entries: total, groups: groups.length }) };
+          }
+          group = { id: `g-${newId()}`, name: groupName, sort: groups.length, entries: [] };
+          groups.push(group);
+        } else if (total >= CAPACITY.MAX_ENTRIES) {
+          return { ok: added > 0, added, reason: capacityExceededCopy({ entries: total, groups: groups.length }) };
+        }
+        group.entries.push(makeEntry(input, group.entries.length));
+        total += 1;
         added += 1;
       }
+      await commit({ ...config, groups });
       return { ok: true, added };
     },
-    [addEntry],
+    [config, commit],
   );
 
   /**
@@ -471,12 +597,15 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       moveGroup,
       removeGroup,
       moveEntryToGroup,
+      moveEntriesToGroup,
+      removeEntries,
+      addCopies,
       sortGroupsByName,
       exportJson: () => api.personal.exportJson(),
       beginImport,
       resolveImport,
     }),
-    [config, usage, removeEntry, renameEntry, moveEntry, addCopy, addEntry, addEntries, addEntryObject, updateEntryObject, addGroup, renameGroup, moveGroup, removeGroup, moveEntryToGroup, sortGroupsByName, beginImport, resolveImport],
+    [config, usage, removeEntry, removeEntries, renameEntry, moveEntry, addCopy, addCopies, addEntry, addEntries, addEntryObject, updateEntryObject, addGroup, renameGroup, moveGroup, removeGroup, moveEntryToGroup, moveEntriesToGroup, sortGroupsByName, beginImport, resolveImport],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -28,7 +28,7 @@ import type {
 } from '../renderer/bridge/types.ts';
 import { registerHotkey, type HotkeyStatus } from './hotkey.ts';
 import { commitPersonalImport, previewPersonalImport, savePersonal } from './personalPort.ts';
-import { identifyAsEntry, pickEntry, scanStartMenu } from './picker.ts';
+import { identifyAsEntry, pickEntry, scanEntryPoints } from './picker.ts';
 import { ensureDeviceIdentity } from './deviceIdentity.ts';
 
 const EMPTY_PERSONAL: PersonalConfig = { schemaVersion: 1, groups: [] };
@@ -181,6 +181,24 @@ export function registerIpc(deps: IpcDeps): void {
     return true;
   });
 
+  /**
+   * 多选批量复制：逐个取目标后**一次**写入多行。
+   * 渲染层循环调单条通道只会互相覆盖剪贴板（最后只剩一条），所以必须一条通道办完。
+   * 入口对象在渲染层已经过 schema，这里再校验一次（与 openObject 同一纪律）。
+   */
+  ipcMain.handle('tl:entries-copy-many', (_e, raw: unknown) => {
+    const list = Array.isArray(raw) ? raw : [];
+    const lines: string[] = [];
+    for (const item of list) {
+      const gate = EntrySchema.safeParse(item);
+      if (!gate.success) continue;
+      lines.push(gate.data.type === 'web' ? gate.data.url : gate.data.target);
+    }
+    if (lines.length === 0) return false;
+    clipboard.writeText(lines.join('\n'));
+    return true;
+  });
+
   ipcMain.handle('tl:entries-reveal', async (_e, entryId: string) => {
     const entry = await resolveEntry(entryId);
     if (!entry || entry.type === 'web') return;
@@ -283,11 +301,33 @@ export function registerIpc(deps: IpcDeps): void {
 
   // 入口采集：这两条此前界面上有菜单、后端却从未实现，点了没反应。
   ipcMain.handle('tl:entries-pick', (_e, kind: 'app' | 'folder') => pickEntry(kind));
-  ipcMain.handle('tl:entries-scan', () => scanStartMenu());
+  ipcMain.handle('tl:entries-scan', () => scanEntryPoints());
 
   // 迷你面板窗口的收起动作（Esc / 点击面板外）由渲染层发回主进程执行。
   ipcMain.handle('tl:palette-hide', () => {
     hidePalette();
+  });
+
+  /**
+   * 剪贴板读取（快捷搜索面板的剪贴板候选行）：只读文本，**不落库、不写日志**。
+   * 单条判定（含换行就不认）在渲染层做——它同时要按当前清单去重。
+   */
+  ipcMain.handle('tl:clipboard-read', () => clipboard.readText());
+
+  /**
+   * 面板里"加为入口"：面板窗口自己装不下对话框（那边只有面板一套组件），
+   * 所以收起面板 → 唤起并聚焦主窗口 → 把文本推给主窗口，
+   * 由主窗口走与 Ctrl+V 粘贴添加**同一套**预填编辑器流程。
+   */
+  ipcMain.handle('tl:palette-quick-add', (_e, text: unknown) => {
+    const main = deps.getWindows()[0];
+    if (!main || main.isDestroyed()) return false;
+    hidePalette();
+    if (main.isMinimized()) main.restore();
+    main.show();
+    main.focus();
+    main.webContents.send('tl:quick-add', String(text ?? ''));
+    return true;
   });
 
   // 浏览器式缩放：只作用于发起调用的窗口（迷你面板保持 100%）。

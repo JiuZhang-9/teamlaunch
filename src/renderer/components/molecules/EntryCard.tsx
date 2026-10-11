@@ -7,7 +7,7 @@
  * 三重类型通道（AC-03）：12px 类型角标图标 + 副标签里的类型文字前缀 + 容器 tint（第三通道）。
  */
 import { forwardRef, useRef, type KeyboardEvent, type MouseEvent } from 'react';
-import { Check, GripVertical, MessageSquareWarning, Pencil, Star, TriangleAlert, Trash } from 'lucide-react';
+import { GripVertical, MessageSquareWarning, Pencil, Star, TriangleAlert, Trash } from 'lucide-react';
 import type { Entry } from '../../../shared/schema/entry.ts';
 import { TYPE_META, failureSubtitleOf, subtitleOf, targetFull } from '../../lib/entry.ts';
 import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
@@ -141,27 +141,20 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         border,
       }}
     >
-      {/* 多选/Ctrl+点选：左上勾选圈 + 右上顺序徽标（顺序=点击顺序，即连锁启动顺序） */}
+      {/* 多选徽标（左上角，唯一一处）：未选中 = 空心圆；选中 = 主题色实底 + **它是第几个被选中的**
+          （序号＝点击顺序＝连锁启动顺序）。z-10 压在图标之上——此前它被图标盖住（用户实测）。
+          右侧不再重复显示序号：一处信息说清一件事。 */}
       {(selecting || selectionOrder != null) && (
         <span
           aria-hidden
-          className="absolute left-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full border"
+          className="absolute left-1.5 top-1.5 z-10 grid h-5 min-w-5 place-items-center rounded-full border px-1 text-[11px] leading-none font-[var(--weight-emphasize)]"
           style={{
             background: selectionOrder ? 'var(--accent)' : 'var(--bg-surface)',
             borderColor: selectionOrder ? 'var(--accent)' : 'var(--border-strong)',
             color: selectionOrder ? 'var(--accent-on, #fff)' : 'var(--meta)',
           }}
         >
-          {selectionOrder ? <Check size={12} strokeWidth={3} /> : null}
-        </span>
-      )}
-      {selectionOrder != null && (
-        <span
-          aria-hidden
-          className="absolute right-1.5 top-1.5 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] leading-none font-[var(--weight-emphasize)]"
-          style={{ background: 'var(--accent)', color: 'var(--accent-on, #fff)' }}
-        >
-          {selectionOrder}
+          {selectionOrder ?? null}
         </span>
       )}
       {onToggleFavorite && !selecting && (

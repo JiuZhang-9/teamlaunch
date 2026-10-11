@@ -2,13 +2,11 @@
  * V-02 我的入口页 —— 本机可编辑，**永不跨设备同步**。
  * 因此本页工具栏没有 SyncIndicator，也不得出现任何"同步中/已同步"字样。
  */
-import { EllipsisVertical, FolderPlus, Plus, ScanSearch } from 'lucide-react';
+import { EllipsisVertical, FolderPlus, Layers, Plus, ScanSearch } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../bridge/index.ts';
-import type { ScanCandidate } from '../bridge/types.ts';
 import { useEntryPicker } from '../hooks/useEntryPicker.ts';
 import { Button } from '../components/atoms/Button.tsx';
-import { ScanPickerDialog } from '../components/organisms/ScanPickerDialog.tsx';
 import { GroupActionsDialog } from '../components/organisms/GroupActionsDialog.tsx';
 import { GroupSections } from '../components/organisms/GroupSections.tsx';
 import { ConfirmDialog } from '../components/organisms/SimpleDialog.tsx';
@@ -20,6 +18,7 @@ import { Banner } from '../components/molecules/Banner.tsx';
 import { useFeedback } from '../store/feedbackStore.tsx';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
+import { useSettings } from '../store/settingsStore.tsx';
 import { useToasts } from '../store/toastStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
 import { capacityExceededCopy } from '../../shared/capacity-copy.ts';
@@ -30,19 +29,21 @@ type Pending = { kind: 'delete'; entry: Entry } | null;
 type MoveTarget = { entry: Entry; fromGroupId: string } | null;
 
 export function PersonalEntriesView() {
-  const { config, usage, removeEntry, addCopy, moveEntry, renameGroup, moveGroup, removeGroup, moveEntryToGroup } = usePersonal();
-  const { runtime, openEntry, copyTarget, openEntryEditor, relocateEntry, typeFilter, selecting, selected, toggleSelected } = useWorkbench();
+  const { config, usage, removeEntry, removeEntries, addCopy, addCopies, moveEntry, renameGroup, moveGroup, removeGroup, moveEntryToGroup, moveEntriesToGroup } = usePersonal();
+  const { runtime, openEntry, copyTarget, copyManyTargets, openEntryEditor, relocateEntry, typeFilter, selecting, selected, toggleSelected, addSelected, clearSelected, launchChain, openDialog } = useWorkbench();
   const { pendingIds } = useFeedback();
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { isFavorite, toggleFavorite, setFavoriteMany } = useFavorites();
+  const { settings } = useSettings();
   const { push } = useToasts();
-  const { addApp, addFolder, scan, commitScan } = useEntryPicker();
+  const { addApp, addFolder } = useEntryPicker();
   const [pending, setPending] = useState<Pending>(null);
+  /** 多选批量的删除确认与移动目标（与单条两个状态分开，语义不混）。 */
+  const [pendingBatch, setPendingBatch] = useState<Entry[] | null>(null);
+  const [movingBatch, setMovingBatch] = useState<Entry[] | null>(null);
   /** 待操作的分组（分组头 ⋯ 菜单用）。 */
   const [actingGroup, setActingGroup] = useState<Group | null>(null);
   /** 待移动的入口（移动到分组对话框用）。 */
   const [moving, setMoving] = useState<MoveTarget>(null);
-  /** 开始菜单扫描的候选列表；非空时展示勾选对话框。 */
-  const [scanItems, setScanItems] = useState<ScanCandidate[] | null>(null);
 
   const allGroups = config.groups;
   const filtering = typeFilter.length > 0;
@@ -75,7 +76,60 @@ export function PersonalEntriesView() {
     </div>
   );
 
+  /**
+   * 多选批量菜单：右键落在"已选中的卡片"上、且清单里不止一条时启用。
+   * 只有一条选中时仍走单条菜单——不能把「重编辑 / 在本机重新定位」这些单条动作藏起来。
+   */
+  const batchMenuFor = (entry: Entry): ContextMenuItem[] => {
+    const items = selected;
+    const n = items.length;
+    const ids = items.map((e) => e.id);
+    const allFav = items.every((e) => isFavorite(e.id));
+    const group = groups.find((g) => g.entries.some((e) => e.id === entry.id));
+    const list: ContextMenuItem[] = [
+      {
+        id: 'batch-open',
+        label: `打开 ${n} 项`,
+        /* 与连锁启动同一条链路：逐个打开、间隔 chainIntervalMs、失败汇总不中断。 */
+        onSelect: () => void launchChain(settings.chainIntervalMs),
+      },
+      { id: 'batch-copy', label: `复制 ${n} 项链接/路径`, onSelect: () => void copyManyTargets(items) },
+      {
+        id: 'batch-favorite',
+        label: `${allFav ? '取消收藏' : '收藏'} ${n} 项`,
+        onSelect: () => {
+          void setFavoriteMany(ids, !allFav);
+          push({ title: allFav ? `已取消收藏 ${n} 项` : `已收藏 ${n} 项`, tone: 'info' });
+        },
+      },
+      { id: 'batch-move', label: `移动到分组…（${n} 项）`, onSelect: () => setMovingBatch(items) },
+      {
+        id: 'batch-copy-entry',
+        label: `创建 ${n} 个副本`,
+        // 副本也是新增入口，撞上限时禁用并给出原因（与单条「创建副本」同规矩）。
+        disabled: Boolean(capacityReason),
+        onSelect: () => {
+          void addCopies(ids).then((r) => {
+            push(r.ok ? { title: `已创建 ${r.added} 个副本`, tone: 'success' } : { title: r.reason ?? '没能创建副本', tone: 'warn' });
+          });
+        },
+      },
+      { id: 'batch-delete', label: `删除 ${n} 项`, destructive: true, onSelect: () => setPendingBatch(items) },
+      {
+        id: 'batch-select-group',
+        label: '全选本组',
+        disabled: !group,
+        onSelect: () => {
+          if (group) addSelected(group.entries);
+        },
+      },
+      { id: 'batch-clear', label: '清空清单', onSelect: () => clearSelected() },
+    ];
+    return list;
+  };
+
   const menuFor = (entry: Entry): ContextMenuItem[] => {
+    if (selected.length >= 2 && selected.some((e) => e.id === entry.id)) return batchMenuFor(entry);
     const fromGroup = groups.find((g) => g.entries.some((e) => e.id === entry.id));
     const items: ContextMenuItem[] = [
       { id: 'open', label: '打开', onSelect: () => void openEntry(entry) },
@@ -135,12 +189,11 @@ export function PersonalEntriesView() {
               <Button tone="secondary" onClick={() => void addFolder()}>
                 添加文件夹
               </Button>
-              <Button
-                tone="ghost"
-                icon={ScanSearch}
-                onClick={() => void scan().then((items) => items && setScanItems(items))}
-              >
-                扫描开始菜单程序
+              <Button tone="ghost" icon={ScanSearch} onClick={() => openDialog('scanPicker')}>
+                扫描本机程序
+              </Button>
+              <Button tone="ghost" icon={Layers} onClick={() => openDialog('batchAdd')}>
+                批量添加
               </Button>
             </>
           }
@@ -224,17 +277,6 @@ export function PersonalEntriesView() {
         </Dialog>
       )}
 
-      {scanItems && (
-        <ScanPickerDialog
-          items={scanItems}
-          onCancel={() => setScanItems(null)}
-          onConfirm={(picked) => {
-            void commitScan(picked);
-            setScanItems(null);
-          }}
-        />
-      )}
-
       {pending?.kind === 'delete' && (
         <ConfirmDialog
           title={`删除「${pending.entry.name}」？`}
@@ -248,6 +290,47 @@ export function PersonalEntriesView() {
             push({ title: `已删除「${pending.entry.name}」`, tone: 'info' });
           }}
         />
+      )}
+
+      {/* 多选批量删除：问一次、删一批（不逐条弹确认）。 */}
+      {pendingBatch && (
+        <ConfirmDialog
+          title={`删除这 ${pendingBatch.length} 项？`}
+          detail={`删除后这台电脑上就找不到它们了，团队入口不受影响。${
+            pendingBatch.length <= 5 ? `\n（${pendingBatch.map((e) => e.name).join('、')}）` : ''
+          }`}
+          confirmLabel={`删除 ${pendingBatch.length} 项`}
+          destructive
+          onCancel={() => setPendingBatch(null)}
+          onConfirm={() => {
+            const list = pendingBatch;
+            setPendingBatch(null);
+            void removeEntries(list.map((e) => e.id));
+            push({ title: `已删除 ${list.length} 项`, tone: 'info' });
+          }}
+        />
+      )}
+
+      {/* 多选批量移动到同一分组：目标组里确实已包含整批时也没关系，等于把它们挪到组尾。 */}
+      {movingBatch && (
+        <Dialog title={`把 ${movingBatch.length} 项移动到…`} width="normal" onClose={() => setMovingBatch(null)}>
+          <div role="listbox" aria-label="目标分组" className="flex flex-col">
+            {groups.map((g) => (
+              <MenuItem
+                key={g.id}
+                role="menuitem"
+                label={g.name}
+                detail={`${g.entries.length} 项`}
+                onSelect={() => {
+                  const list = movingBatch;
+                  setMovingBatch(null);
+                  void moveEntriesToGroup(list.map((e) => e.id), g.id);
+                  push({ title: `已把 ${list.length} 项移动到「${g.name}」`, tone: 'success' });
+                }}
+              />
+            ))}
+          </div>
+        </Dialog>
       )}
     </>
   );

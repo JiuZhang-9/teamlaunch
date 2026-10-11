@@ -7,7 +7,7 @@
  *      用户亲手指定的一定是他要的，优先级最高；
  *   2) App Paths 注册表（HKLM / WOW6432Node / HKCU 的 `...\App Paths\<exe 名>`，
  *      "运行"对话框同款机制，正规安装的软件大多注册在这里）；
- *   3) 开始菜单索引（复用 picker.scanStartMenu，一次扫描会话内缓存；
+ *   3) 本机入口点索引（复用 picker.scanEntryPoints，一次扫描会话内缓存；
  *      按 exe 基名与显示名各建一个键）。
  *
  * 解析只提供线索：候选必须在 opener 里再过存在性探测，第一个真实存在的才执行。
@@ -16,7 +16,7 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { z } from 'zod';
 import { localStore } from './localStore.ts';
-import { scanStartMenu, type ScanCandidate } from './picker.ts';
+import { scanEntryPoints, type ScanCandidate } from './picker.ts';
 
 export interface AppOverride {
   target: string;
@@ -76,11 +76,13 @@ function regQueryDefault(key: string): Promise<string | null> {
   });
 }
 
-/** 开始菜单索引（会话内只扫一次）：exe 基名与显示名 → 快捷方式候选。 */
+/** 本机入口点索引（会话内只扫一次）：exe 基名与显示名 → 候选。
+    索引来自《入口点扫描》（开始菜单/桌面/任务栏/已安装程序）——比只看开始菜单覆盖更全，
+    候选仍要逐个探测后才执行，所以索引放宽只会多几次探测、不会错开程序。 */
 let menuIndexPromise: Promise<Map<string, ScanCandidate>> | null = null;
-function startMenuIndex(): Promise<Map<string, ScanCandidate>> {
+function entryPointIndex(): Promise<Map<string, ScanCandidate>> {
   if (!menuIndexPromise) {
-    menuIndexPromise = scanStartMenu()
+    menuIndexPromise = scanEntryPoints()
       .then((r) => {
         const map = new Map<string, ScanCandidate>();
         for (const it of r.items) {
@@ -123,7 +125,7 @@ export async function resolveAppCandidates(entryId: string, target: string): Pro
     }
   }
 
-  const hit = (await startMenuIndex()).get(exeName.toLowerCase());
+  const hit = (await entryPointIndex()).get(exeName.toLowerCase());
   if (hit) push({ target: hit.target });
 
   return out;

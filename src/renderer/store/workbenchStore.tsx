@@ -18,8 +18,20 @@ import type { OpenFailure } from '../bridge/types.ts';
 import type { Entry, EntryType } from '../../shared/schema/entry.ts';
 import { useToasts } from './toastStore.tsx';
 import { FAILURE_DETAIL, targetFull } from '../lib/entry.ts';
+import { readMemoryString, writeMemoryString } from '../lib/localMemory.ts';
+import { pushRecentOpen } from '../lib/recentOpens.ts';
 
 export type TabKey = 'home' | 'team' | 'personal';
+
+/** 上次所在页（本机记忆，不跨机同步、不进 settings）。默认团队入口。 */
+const LAST_TAB_KEY = 'lastTab';
+const DEFAULT_TAB: TabKey = 'team';
+const TAB_KEYS: TabKey[] = ['home', 'team', 'personal'];
+
+function readLastTab(): TabKey {
+  const v = readMemoryString(LAST_TAB_KEY);
+  return v !== null && (TAB_KEYS as string[]).includes(v) ? (v as TabKey) : DEFAULT_TAB;
+}
 
 export type DialogKey =
   | 'none'
@@ -31,7 +43,10 @@ export type DialogKey =
   | 'privacy'
   | 'shortcuts'
   | 'announcements'
-  | 'importResult';
+  | 'importResult'
+  /** 个人页的两个"批量"对话框：多行粘贴 / 扫描本机入口点。 */
+  | 'batchAdd'
+  | 'scanPicker';
 
 /**
  * 设置对话框内的分区（左侧栏四页：通用/快捷键/高级/关于）。
@@ -64,6 +79,8 @@ interface WorkbenchCtx {
   runtime: Record<string, EntryRuntime>;
   openEntry(entry: Entry): Promise<void>;
   copyTarget(entry: Entry): Promise<void>;
+  /** 多选批量复制：一次写入多行（每行一个目标）。 */
+  copyManyTargets(entries: Entry[]): Promise<void>;
   dialog: DialogKey;
   openDialog(d: DialogKey): void;
   closeDialog(): void;
@@ -79,6 +96,11 @@ interface WorkbenchCtx {
   entryEditor: EntryEditorRequest | null;
   openEntryEditor(req: EntryEditorRequest): void;
   closeEntryEditor(): void;
+  /**
+   * 一段文本（粘贴 / 快捷面板候选行）→ 识别 → 预填进与手动添加同一套编辑器。
+   * 落点永远是「我的入口」：个人场景为主、行为可预期（PRD §8.4 最近使用是独立快捷区）。
+   */
+  quickAddFromText(text: string): Promise<void>;
   /** 类型筛选（空 = 全部）。 */
   typeFilter: TypeFilter;
   toggleTypeFilter(t: EntryType): void;
@@ -88,6 +110,8 @@ interface WorkbenchCtx {
   selected: Entry[];
   toggleSelecting(): void;
   toggleSelected(entry: Entry): void;
+  /** 多选批量：整批加入清单（全选本组用），已在清单里的跳过。 */
+  addSelected(list: Entry[]): void;
   clearSelected(): void;
   exitSelecting(): void;
   launchChain(intervalMs: number): Promise<void>;
@@ -96,7 +120,7 @@ interface WorkbenchCtx {
 const Ctx = createContext<WorkbenchCtx | null>(null);
 
 export function WorkbenchProvider({ children }: { children: ReactNode }) {
-  const [tab, setTabRaw] = useState<TabKey>('team');
+  const [tab, setTabRaw] = useState<TabKey>(readLastTab);
   const [query, setQuery] = useState('');
   const [runtime, setRuntime] = useState<Record<string, EntryRuntime>>({});
   const [dialog, setDialog] = useState<DialogKey>('none');
@@ -116,6 +140,10 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   const setTab = useCallback((next: TabKey) => {
     setTabRaw(next);
+    /* 本机记忆：从哪一页关掉，下次打开就回到哪一页。只记在这台机器的浏览器存储里——
+       不进 settings（那会广播给所有窗口、变成"可同步的偏好"），也不跨机同步，
+       否则两台机器会互相顶掉对方的记忆。 */
+    writeMemoryString(LAST_TAB_KEY, next);
     setQuery('');
     setSelected([]);
     setSelecting(false);
@@ -144,6 +172,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       const result = await api.entries.openObject(entry);
       if (result.ok) {
         setRuntime((r) => ({ ...r, [entry.id]: { phase: 'idle' } }));
+        // 最近打开只记"真的打开了"的（面板空查询要显示它，失败的不算）。
+        pushRecentOpen(entry.id);
         return;
       }
       setRuntime((r) => ({ ...r, [entry.id]: { phase: 'failed', failure: result.failure } }));
@@ -182,6 +212,29 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   );
 
   const openFeedback = useCallback((entryId: string) => setFeedbackTargetId(entryId), []);
+
+  /** 多选批量复制：主进程逐个取目标、拼成多行后一次写入（循环调单条只会互相覆盖）。 */
+  const copyManyTargets = useCallback(
+    async (entries: Entry[]) => {
+      if (entries.length === 0) return;
+      const ok = await api.entries.copyMany(entries);
+      push(
+        ok
+          ? { title: `已复制 ${entries.length} 项（每行一条）`, tone: 'success' }
+          : { title: '没能写入剪贴板，请手动选择文本复制', tone: 'danger' },
+      );
+    },
+    [push],
+  );
+
+  /** 多选批量：把一组入口追加进清单（已在清单里的跳过，保持现有顺序 = 启动顺序）。 */
+  const addSelected = useCallback((list: Entry[]) => {
+    setSelected((cur) => {
+      const has = new Set(cur.map((e) => e.id));
+      const add = list.filter((e) => !has.has(e.id));
+      return add.length === 0 ? cur : [...cur, ...add];
+    });
+  }, []);
 
   const toggleSelecting = useCallback(() => {
     setSelecting((v) => {
@@ -242,6 +295,42 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const openEntryEditor = useCallback((req: EntryEditorRequest) => setEntryEditor(req), []);
   const closeEntryEditor = useCallback(() => setEntryEditor(null), []);
 
+  /**
+   * 粘贴快捷添加（方案 A）与面板「加为入口」的唯一实现：识别 → 预填 → 打开编辑器。
+   * 此前这段逻辑长在 MainWindowShell 里（只服务 Ctrl+V），快捷面板够不着，
+   * 面板只好另写一套——"同一件事两个实现"迟早分叉，所以上收到 store。
+   * 识别失败只说清楚原因，绝不静默；落点仍是「我的入口」+ 新建编辑器（可改名字与分组）。
+   */
+  const quickAddFromText = useCallback(
+    async (text: string) => {
+      const identified = await api.entries.identify(text);
+      if (identified.kind === 'none') {
+        push({ title: identified.reason, tone: 'info' });
+        return;
+      }
+      const now = new Date().toISOString();
+      const prefill: Entry =
+        identified.kind === 'web'
+          ? {
+              id: '', name: identified.name, type: 'web', url: identified.url,
+              sort: 0, description: null, icon: { kind: 'fallback' }, iconAssetHash: null, updatedAt: now,
+            }
+          : identified.kind === 'app'
+            ? {
+                id: '', name: identified.name, type: 'app', target: identified.target,
+                sourcePath: identified.sourcePath, args: identified.args ?? '', cwd: '', expandEnv: true,
+                sort: 0, description: null, icon: { kind: 'local' }, iconAssetHash: null, updatedAt: now,
+              }
+            : {
+                id: '', name: identified.name, type: 'folder', target: identified.target,
+                sort: 0, description: null, icon: { kind: 'local' }, iconAssetHash: null, updatedAt: now,
+              };
+      setTab('personal');
+      setEntryEditor({ mode: 'create', groupId: null, scope: 'personal', prefill });
+    },
+    [push, setTab],
+  );
+
   const value = useMemo<WorkbenchCtx>(
     () => ({
       tab,
@@ -251,6 +340,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       runtime,
       openEntry,
       copyTarget,
+      copyManyTargets,
       dialog,
       openDialog: setDialog,
       closeDialog: () => setDialog('none'),
@@ -262,6 +352,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       entryEditor,
       openEntryEditor,
       closeEntryEditor,
+      quickAddFromText,
       typeFilter,
       toggleTypeFilter,
       clearTypeFilter,
@@ -269,11 +360,12 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       selected,
       toggleSelecting,
       toggleSelected,
+      addSelected,
       clearSelected,
       exitSelecting,
       launchChain,
     }),
-    [tab, setTab, query, runtime, openEntry, copyTarget, dialog, settingsSection, openSettings, feedbackTargetId, openFeedback, relocateEntry, entryEditor, openEntryEditor, closeEntryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, selecting, selected, toggleSelecting, toggleSelected, clearSelected, exitSelecting, launchChain],
+    [tab, setTab, query, runtime, openEntry, copyTarget, copyManyTargets, dialog, settingsSection, openSettings, feedbackTargetId, openFeedback, relocateEntry, entryEditor, openEntryEditor, closeEntryEditor, quickAddFromText, typeFilter, toggleTypeFilter, clearTypeFilter, selecting, selected, toggleSelecting, toggleSelected, addSelected, clearSelected, exitSelecting, launchChain],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

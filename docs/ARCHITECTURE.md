@@ -659,7 +659,7 @@ Electron 44 官方 `app.getFileIcon` 的 `size` 语义为：`small` = 16x16，`n
 ```
 
 - 内存中保存 `verifier` 用于验签，进程重启不丢失（本地文件已有），口令在 UI 解锁后仅驻留在当前进程内存，不写回磁盘。
-- **管理端空闲自动退出编辑模式**（PRD §14.1）：默认闲置 10 分钟清除内存中的解锁态，回到只读。
+- **管理端空闲自动退出编辑模式**（PRD §14.1）：编辑态内闲置 `editIdleTimeoutMs`（默认 10 分钟）即退出编辑；**草稿保留在内存**（重新进入编辑接着改，不丢工作）。解锁态的清除按本机是否设置过口令分流：设置过 → 一并清解锁态（回只读、重新进入要口令）；未设置过 → 只退编辑（没有口令就没有可保护的边界，不制造"强制设口令"的流程）。
 
 #### T6.3 写请求签名（应对 PRD"TLS 或等价机制"）
 
@@ -788,7 +788,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 | `trayEnabled` | boolean | true | 托盘常驻 |
 | `hotkey` | string | `Ctrl+Space` | 全局热键加速器串 |
 | `pollIntervalMs` | int | 30000 | 轮询间隔（schema 夹紧 5s–300s） |
-| `editIdleTimeoutMs` | int | 600000 | 管理员解锁闲置自动退出（PRD §14.1） |
+| `editIdleTimeoutMs` | int | 600000 | 编辑态闲置自动退出（PRD §14.1）；草稿保留，解锁态是否同清见 T6.2 |
 | `theme` | enum `system`/`light`/`dark` | `system` | 跟随系统；读取失败兜底深色（Spec §8） |
 | `telemetryEnabled` | boolean | true | 可关闭；**关闭即刻停止本地记录并清空未发送缓冲**，不只是停止上传（见 §11.3） |
 | `telemetryNoticeAckedAt` | string? | null | 首次隐私说明已确认时间。**未确认前一律不发送任何上报** |
@@ -798,6 +798,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 **两处改名/删字段，开发按新表实现**：
 1. `telemetryUpload` → **`telemetryEnabled`**。原名字会被读成"只控制上传"，而 AC-18 要求关闭时**停止记录并清空缓冲**；名字必须不暗示错误语义。
 2. **删除 `knownEndpoints`**。端点记忆是机器维护的高频状态，唯一所有者是 `discovery.json`（ADR-005）。一个事实不允许两个写入点。
+3. **本机记忆类状态不进 settings（2026-10-11 补）**：上次所在页（`lastTab`）、最近打开这类"这台机器记得的事"存**渲染层 localStorage**（`src/renderer/lib/localMemory.ts`、`recentOpens.ts`）——不进 settings.json、不参与 `tl:settings-patch` 广播、不跨机同步（否则两台机器各记各的页面，会互相顶掉）。`sidebarCollapsed` 是历史遗留（视作用户意图，留在 settings），新状态一律走本机记忆。
 
 ### 5.3 团队配置文档（同时也是同步报文体）
 
@@ -935,7 +936,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 ### 7.2 管理员发布
 
 ```
-解锁编辑模式（本地口令 → scrypt 校验；闲置 10 min 自动退出）
+解锁编辑模式（本地口令 → scrypt 校验；编辑态闲置 10 min 自动退出、草稿保留）
   │
   ├─ 编辑产生本机草稿（员工不可见）
   ├─ 点击发布
@@ -1266,6 +1267,7 @@ SERVICE_NOT_LISTENING  >  PUBLIC_NETWORK_PROFILE  >  FIREWALL_RULE_MISSING
 | K-03 | mDNS 被否决 | **T1 服务发现**、ADR-002（三条硬证据） | 员工机零入站规则 |
 | K-04 | `exec` / `shell:true` 注入与解析错误 | T4.1/T4.2（`shell.openPath` 与 `spawn(shell:false)`） | 路径含空格/中文的专项用例 |
 | K-05 | 同步 IO 卡死主线程 | §3.2 依赖方向铁律：**禁止一切 `*Sync` IO** | 代码扫描 `Sync(` |
+| K-11（2026-10-11 补） | 读 Windows 控制台程序输出不处理编码 → 中文变乱码 | 控制台程序（`reg.exe` 等）按**系统代码页**输出（中文机＝936/GBK），Node 默认按 UTF-8 解 —— 「已安装程序」名字出现 `ДК◆◆` 这类乱码就是这么来的。规则：读这类输出必须**先取 ACP（`HKLM\...\Nls\CodePage`）再按对应编码解码**，或改用 PowerShell + JSON（显式 UTF-8）。只读英文路径的旧用法（App Paths）碰不到这个坑 | `src/main/picker.ts` 的 `ansiDecoder()`/`decodeConsoleOutput()` |
 | K-06 | 首屏被击穿 | T4.4 禁止渲染期预检查，改为点击时判定 | 200 入口首屏 ≤1.5s |
 | K-07 | 内置浏览器打不开内网系统 | T4.3 网页一律走 `shell.openExternal` | 内网 SSO 页面用例 |
 | K-08 | 图标提取拖垮性能 | **T5 图标**（`icon.kind=local` 不跨网、并发 4 队列、懒加载） | 断网下图标仍可渲染 |

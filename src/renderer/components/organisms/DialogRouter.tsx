@@ -16,6 +16,8 @@ import { usePersonal, type ImportChoice, type ImportOutcome } from '../../store/
 import { useToasts } from '../../store/toastStore.tsx';
 import { MiniPaletteView } from '../../pages/MiniPaletteView.tsx';
 import { AnnouncementsEditorDialog } from './AnnouncementsEditorDialog.tsx';
+import { BatchAddDialogView } from '../../pages/BatchAddDialogView.tsx';
+import { ScanPickerDialogView } from '../../pages/ScanPickerDialogView.tsx';
 import { HelpDialog } from './HelpDialog.tsx';
 import { PublishDialogView } from '../../pages/PublishDialogView.tsx';
 import { SettingsPanelView } from '../../pages/SettingsPanelView.tsx';
@@ -80,6 +82,10 @@ export function DialogRouter({
 
       {dialog === 'announcements' && <AnnouncementsEditorDialog onClose={closeDialog} />}
 
+      {dialog === 'batchAdd' && <BatchAddDialogView onClose={closeDialog} />}
+
+      {dialog === 'scanPicker' && <ScanPickerDialogView onClose={closeDialog} />}
+
       {dialog === 'adminUnlock' && (
         <AdminUnlockDialogView
           onCancel={closeDialog}
@@ -128,7 +134,9 @@ export function DialogRouter({
       {confirmExit && (
         <ConfirmDialog
           title="放弃未发布的改动？"
-          detail={`有 ${dirtyCount} 项编辑尚未发布。放弃后团队页仍显示当前版本 v${revision}，本机草稿会被清空。`}
+          /* 与确认后的 Toast 用同一套结论：改动**会丢**。此前确认框说"草稿会被清空"、
+             提示却说"仍保存在本机"，两句互相矛盾，用户以为放弃后还能找回来。 */
+          detail={`有 ${dirtyCount} 项编辑尚未发布。放弃后团队页仍显示当前版本 v${revision}，这些改动会被丢弃、不会发布。`}
           confirmLabel="放弃改动"
           cancelLabel="继续编辑"
           destructive

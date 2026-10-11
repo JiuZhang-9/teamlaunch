@@ -230,6 +230,11 @@ export interface TeamLaunchApi {
      */
     icon(entry: Entry): Promise<string | null>;
     copyTarget(entryId: string): Promise<boolean>;
+    /**
+     * 多选批量复制：传入口对象数组，主进程逐个取目标后**一次**写入多行（每行一条）。
+     * 循环调 copyTarget 只会互相覆盖剪贴板，所以单独开一条通道。
+     */
+    copyMany(entries: Entry[]): Promise<boolean>;
     reveal(entryId: string): Promise<void>;
     openExternal(url: string): Promise<void>;
     /**
@@ -239,7 +244,7 @@ export interface TeamLaunchApi {
      * 快捷方式会被解析成真实 exe 路径，同时保留 .lnk 原路径（sourcePath）。
      */
     pick(kind: 'app' | 'folder'): Promise<PickResult>;
-    /** 扫描开始菜单，返回指向 exe 的快捷方式候选（去重、排序、有上限）。 */
+    /** 扫描本机入口点（开始菜单 / 桌面 / 任务栏 / 已安装程序），返回候选（去重、排序、有上限）。 */
     scanStartMenu(): Promise<ScanResult>;
     /** 剪贴板快捷添加（方案 A）：识别一段文本可否快速成入口；kind=none 时给可读原因。 */
     identify(text: string): Promise<IdentifyResult>;
@@ -332,9 +337,16 @@ export interface TeamLaunchApi {
   /** 迷你面板窗口（palette）的专属控制：渲染层 Esc/关闭动作请主进程收起窗口。 */
   palette: {
     hide(): Promise<void>;
+    /**
+     * 面板里「加为入口」：主进程收起面板、唤起并聚焦主窗口，把文本转给主窗口，
+     * 由主窗口走与 Ctrl+V 粘贴添加同一套预填编辑器（面板窗口装不下对话框）。
+     */
+    quickAdd(text: string): Promise<boolean>;
   };
 
   clipboard: {
+    /** 只读剪贴板文本（快捷面板的剪贴板候选行）；单条判定与去重在渲染层做。 */
+    read(): Promise<string>;
     write(text: string): Promise<boolean>;
   };
 
@@ -370,6 +382,8 @@ export interface TeamLaunchApi {
     onSettingsChanged(cb: (settings: Settings) => void): () => void;
     /** 自动更新进展：available=发现新版本开始后台下载；downloaded=已就绪可安装。 */
     onAppUpdate(cb: (event: AppUpdateEvent) => void): () => void;
+    /** 主进程转发的"把这段文本走一遍粘贴添加"（快捷面板的「加为入口」用）。 */
+    onQuickAdd(cb: (text: string) => void): () => void;
   };
 }
 
@@ -406,6 +420,8 @@ export interface ScanCandidate {
   name: string;
   target: string;
   sourcePath: string;
+  /** 来源标签：开始菜单 / 桌面 / 任务栏 / 已安装程序（只用于界面标注）。 */
+  source?: string;
 }
 
 export interface ScanResult {

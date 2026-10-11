@@ -18,6 +18,12 @@ interface FavoriteCtx {
   favorites: FavoriteItem[];
   isFavorite(entryId: string): boolean;
   toggleFavorite(entryId: string): Promise<void>;
+  /**
+   * 批量设为收藏 / 取消收藏（多选菜单）。
+   * 语义是"一次设定成同一个状态"，不是逐项 toggle——逐项 toggle 会让整批的结果不可预期。
+   * 一次写盘（逐项调 toggle 会写 N 次、互相覆盖）。
+   */
+  setFavoriteMany(entryIds: string[], on: boolean): Promise<void>;
 }
 
 const Ctx = createContext<FavoriteCtx | null>(null);
@@ -44,7 +50,22 @@ export function FavoriteProvider({ children }: { children: ReactNode }) {
 
   const isFavorite = useCallback((entryId: string) => favorites.some((f) => f.entryId === entryId), [favorites]);
 
-  const value = useMemo(() => ({ favorites, isFavorite, toggleFavorite }), [favorites, isFavorite, toggleFavorite]);
+  const setFavoriteMany = useCallback(async (entryIds: string[], on: boolean) => {
+    setFavorites((cur) => {
+      const wanted = new Set(entryIds);
+      const kept = cur.filter((f) => !wanted.has(f.entryId));
+      const at = new Date().toISOString();
+      // 保持"最新收藏排在后面"的既有顺序（主页按倒序展示）。
+      const next = on ? [...kept, ...entryIds.map((entryId) => ({ entryId, addedAt: at }))] : kept;
+      void api.favorites.save(next);
+      return next;
+    });
+  }, []);
+
+  const value = useMemo(
+    () => ({ favorites, isFavorite, toggleFavorite, setFavoriteMany }),
+    [favorites, isFavorite, toggleFavorite, setFavoriteMany],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

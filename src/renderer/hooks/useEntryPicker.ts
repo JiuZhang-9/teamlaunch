@@ -1,5 +1,5 @@
 /**
- * 入口采集的共用逻辑：从本机挑程序 / 文件夹，以及扫描开始菜单。
+ * 入口采集的共用逻辑：从本机挑程序 / 文件夹，以及扫描本机入口点。
  *
  * 这三条路径此前**完全不存在**：界面上有菜单、点了只有一句提示，
  * 后端也没有对应的能力。现在主进程（picker.ts）与状态层（addEntry）都已补齐，这里把它们接起来。
@@ -18,7 +18,7 @@ export interface EntryPicker {
   addApp(): Promise<void>;
   /** 打开选择框挑一个文件夹，加入「我的入口」。 */
   addFolder(): Promise<void>;
-  /** 扫描开始菜单，返回候选列表；调用方负责渲染选择对话框。 */
+  /** 扫描本机入口点，返回候选列表；调用方负责渲染选择对话框。 */
   scan(): Promise<ScanCandidate[] | null>;
   /** 选择对话框确认后批量落盘，返回实际添加数量。 */
   commitScan(picked: ScanCandidate[]): Promise<number>;
