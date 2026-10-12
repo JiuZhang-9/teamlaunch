@@ -15,8 +15,8 @@
     "url": "https://github.com/JiuZhang-9/teamlaunch/issues"
   },
   "main": "dist/main/index.cjs",
-  "postinstall": "node scripts/patch-builder.cjs",
   "scripts": {
+    "postinstall": "node scripts/patch-builder.cjs",
     "dev": "vite",
     "dev:detached": "npx vite --port 5180 --strictPort",
     "build": "npm run build:renderer && npm run build:preload && npm run build:main",

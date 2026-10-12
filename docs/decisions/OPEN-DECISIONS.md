@@ -46,18 +46,6 @@
 | 触发后动作 | **整体降级到 Electron 43.7.5** 并更新 ADR-001 与 `ARCHITECTURE.md` §1.1；不前拨到 42（EOL 太近） |
 | 负责人 | 架构师 + 后端 |
 
-### D-05 自动更新源是否切到 GitHub Releases（或两条并存）
-
-| 项 | 内容 |
-|---|---|
-| 状态 | **Decided —— 暂不切换，登记待命**（用户 2026-10-11 拍板"先待定，放进路线图"） |
-| 现状 | 更新源固定为**管理员机内嵌服务**（`src/main/updater.ts` 的 generic feed；`GET /updates/:file`）。局域网内闭环、无外部依赖 |
-| 已知代价 | **GitHub 公开发布页只有安装包**：从那里下载的人拿不到后续自动更新（我们也没挂 `latest.yml`，即使挂了旧客户端也不会去 GitHub 找）。这是开源体检登记过的 P2 |
-| 为什么先不切 | 当前使用者都在同一局域网，管理员机 feed 已够用；切 GitHub 需要客户端能访问公网（公司网可能禁止），且会把"谁在用"暴露给 GitHub（与 AC-18 的隐私取向相左） |
-| **触发条件**（任一达成即回来评估） | ① 出现**局域网外**的使用者（异地/居家办公）② 决定对外公开分发并要求"下载即能自更新" ③ 试点范围扩大到需要独立更新通道 |
-| 触发后动作 | 在两条路线里选一：(a) **切 GitHub Releases**——Release 挂 `latest.yml` + blockmap，`setFeedURL` 指向 GitHub（需确认目标网络可达且接受外部可见）；(b) **两条并存**——局域网优先管理员机、失败回落 GitHub。选定后写 ADR（含 feed 的完整性与签名考量，D-02 相关）再实施 |
-| 负责人 | 用户侧拍板 + 架构师实施 |
-
 ### D-04 TypeScript 7.0.2 回退
 
 | 项 | 内容 |
@@ -69,6 +57,18 @@
 | 当前锚定 | **TypeScript 5.9.3**（`package.json` 与 `ARCHITECTURE.md` §1.1 均已更新） |
 | 给开发的硬约束 | **必须按 5.9.3 的 API 写代码**。文档不再写"默认 7.0.2"，后来人若照 TS 7 的语法或编译器行为写，会在本地直接失败 |
 | 重新评估条件 | `typescript-eslint` 发布支持 TS 7 的主版本，且 electron-vite / Vite 8 / Tailwind 4 均无报错时，再评估是否前移 |
+
+### D-05 自动更新源是否切到 GitHub Releases（或两条并存）
+
+| 项 | 内容 |
+|---|---|
+| 状态 | **Decided —— 暂不切换，登记待命**（用户 2026-10-11 拍板"先待定，放进路线图"） |
+| 现状 | 更新源固定为**管理员机内嵌服务**（`src/main/updater.ts` 的 generic feed；`GET /updates/:file`）。局域网内闭环、无外部依赖 |
+| 已知代价 | **GitHub 公开发布页只有安装包**：从那里下载的人拿不到后续自动更新（我们也没挂 `latest.yml`，即使挂了旧客户端也不会去 GitHub 找）。这是开源体检登记过的 P2 |
+| 为什么先不切 | 当前使用者都在同一局域网，管理员机 feed 已够用；切 GitHub 需要客户端能访问公网（公司网可能禁止），且会把"谁在用"暴露给 GitHub（与 AC-18 的隐私取向相左） |
+| **触发条件**（任一达成即回来评估） | ① 出现**局域网外**的使用者（异地/居家办公）② 决定对外公开分发并要求"下载即能自更新" ③ 试点范围扩大到需要独立更新通道 |
+| 触发后动作 | 在两条路线里选一：(a) **切 GitHub Releases**——Release 挂 `latest.yml` + blockmap，`setFeedURL` 指向 GitHub（需确认目标网络可达且接受外部可见）；(b) **两条并存**——局域网优先管理员机、失败回落 GitHub。选定后写 ADR（含 feed 的完整性与签名考量，D-02 相关）再实施 |
+| 负责人 | 用户侧拍板 + 架构师实施 |
 
 ---
 
@@ -103,6 +103,31 @@
 | 两个方案 | (a) 接受丢失：激活指标只统计"确认说明后"的用户，口径明确但分母变小(b) 确认后重定义首次：把"确认之后的第一次成功打开"记为 `first_core_action`，语义略变但样本完整 |
 | 架构默认实现 | 裁定前按 (a) 走 |
 
+### O-04 运行时依赖升级：electron-updater 6.6.2 → ≥6.8.9（连带 js-yaml）
+
+| 项 | 内容 |
+|---|---|
+| 状态 | **Open**（待维护者执行，属发版级改动） |
+| 背景 | 2026-10-10 开源体检发现：`npm audit --omit=dev` 报 **3 个 high**——electron-updater 6.6.2 的传递依赖 builder-util-runtime，以及 js-yaml 4.1.0 的 prototype pollution / 二次复杂度 DoS 系列通告。文档锚定自 git 基线起就写 6.8.9，package.json 实际一直是 6.6.2，属文档先行于代码 |
+| 为什么没当场升 | electron-updater 是已发布安装包的自更新组件，按本项目交付纪律必须走「构建安装包 → 实机验证 → 再提交/发版」全流程 |
+| 处置路径 | `npm i electron-updater@^6.8.9` + 处理 js-yaml（需 ≥4.3.2，超出上游声明区间，用 overrides）→ `npm run verify:all` + `verify:qa` → `dist:win` → 实机验证自动更新 → 按发版纪律出包；完成后回写 `ARCHITECTURE.md` §1.1 与 Spec §4 锚定并关闭本条 |
+
+### O-05 仓库安全开关：私有漏洞报告与 Dependabot 安全更新未开启
+
+| 项 | 内容 |
+|---|---|
+| 状态 | **Open**（待维护者开启；纯仓库设置，不改代码） |
+| 冲突 | `SECURITY.md` 引导报告者使用 GitHub 私有漏洞报告（Security Advisories），但仓库实际 `enabled: false`——公开文档承诺了一条不存在的通道 |
+| 处置路径 | 开私有漏洞报告：`gh api repos/JiuZhang-9/teamlaunch/private-vulnerability-reporting -X PUT`；开 Dependabot 安全更新：仓库 Settings → Code security → Dependabot alerts 与 Dependabot security updates（secret scanning 与 push protection 已开启，无需动） |
+
+### O-06 社区基建缺口：无 CI、无 Issue/PR 模板、无行为准则
+
+| 项 | 内容 |
+|---|---|
+| 状态 | **Open**（待维护者决定是否补齐、补到什么程度） |
+| 现状 | 已有 README / LICENSE / SECURITY / CONTRIBUTING；缺 `.github/workflows`（verify 门禁无 CI 兜底，外部 PR 无法自证全绿）、Issue/PR 模板、`CODE_OF_CONDUCT.md` |
+| 说明 | 单人维护阶段可接受；若开放外部贡献，CI 至少跑 `verify:all + verify:qa + typecheck + lint`（Windows 环境注意 postinstall 会执行 `scripts/patch-builder.cjs`，脚本在无 electron-builder 或上游重构时安全跳过） |
+
 ---
 
 ## 3. 已关闭（Closed，留档备查）
@@ -119,6 +144,6 @@
 
 ## 4. 维护规则
 
-1. **触发即回归**：D-01..D-04 任一触发条件达成，先改本文件状态，再动代码，最后更新对应 ADR。
-2. **Open 项不得带病进入开发**：O-01..O-03 已有默认实现，开发不阻塞；一旦 PM 裁定，立即更新本文件与 `ARCHITECTURE.md` 对应章节。
+1. **触发即回归**：D-01..D-05 任一触发条件达成，先改本文件状态，再动代码，最后更新对应 ADR。
+2. **Open 项不得带病进入开发**：O-01..O-06 已有默认实现或处置路径，开发不阻塞；一旦 PM 裁定或执行完毕，立即更新本文件与对应文档。
 3. **新增条目规则**：任何"现在决定、将来可能变"的事项都要登记；只写"决定"不写"触发条件"的条目无效。
