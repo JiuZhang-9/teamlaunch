@@ -7,6 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AdminStatus,
+  AppUpdateStatus,
   BrowserInfo,
   AppUpdateEvent,
   DiagnosticSnapshot,
@@ -243,6 +244,10 @@ const api: TeamLaunchApi = {
   updater: {
     install: () => invoke<void>('tl:app-update-install'),
     openUpdatesFolder: () => invoke<boolean>('tl:app-updates-folder'),
+    /** 手动跑一轮检查，返回检查后的状态（设置页「检查更新」）。 */
+    check: () => invoke<AppUpdateStatus>('tl:app-update-check'),
+    /** 读当前更新状态：是否已发现新版本、是否已下载待安装、上次失败原因。 */
+    status: () => invoke<AppUpdateStatus>('tl:app-update-status'),
   },
   favorites: {
     get: () => invoke<FavoriteItem[]>('tl:favorites-get'),

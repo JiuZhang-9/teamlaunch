@@ -11,8 +11,18 @@
  */
 import { execFile } from 'node:child_process';
 
+/**
+ * 这里只需要"把字节解成字符串"这一点能力，刻意不引用具体的 TextDecoder 类型：
+ * 全局的 `TextDecoder`（DOM lib）与 `node:util` 的 `TextDecoder` 是两个互不兼容的
+ * 类型，而本文件同时被 tsconfig.json（含 DOM lib）与 tsconfig.node.json 编译 ——
+ * 引用其中任一个，都会在另一个配置下报类型错（TS2749 / TS2322）。
+ */
+interface ConsoleDecoder {
+  decode(bytes: Uint8Array): string;
+}
+
 /** 系统 ANSI 代码页 → 解码器。 */
-function decoderForCodePage(acp: number): TextDecoder | null {
+function decoderForCodePage(acp: number): ConsoleDecoder | null {
   const label =
     acp === 936 ? 'gbk'
     : acp === 950 ? 'big5'
@@ -29,10 +39,10 @@ function decoderForCodePage(acp: number): TextDecoder | null {
   }
 }
 
-let ansiDecoderPromise: Promise<TextDecoder | null> | null = null;
+let ansiDecoderPromise: Promise<ConsoleDecoder | null> | null = null;
 
 /** 取本机 ANSI 代码页（每会话一次，缓存）：ACP 值本身是 ASCII，不存在解码递归。 */
-export function ansiDecoder(): Promise<TextDecoder | null> {
+export function ansiDecoder(): Promise<ConsoleDecoder | null> {
   if (ansiDecoderPromise === null) {
     ansiDecoderPromise = (async () => {
       const bytes = await regQueryBytes([

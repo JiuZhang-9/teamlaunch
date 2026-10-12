@@ -80,6 +80,27 @@ export type RelocateResult = { ok: true } | { ok: false; reason: 'cancelled' | O
 /** 自动更新事件（与 main/updater.ts 的 AppUpdateEvent 结构一致，改两处要同步）。 */
 export type AppUpdateEvent = { type: 'available' | 'downloaded'; version: string };
 
+/**
+ * 更新器状态快照（与 main/updater.ts 的 AppUpdateStatus 结构一致，改两处要同步）。
+ *
+ * 刻意不走推送：状态行只在打开设置或点「检查更新」时读一次，
+ * 推送会把"每次周期检查"都变成一次渲染层唤醒。
+ */
+export interface AppUpdateStatus {
+  /** 检查链是否已启用（只有打包版启用）。 */
+  active: boolean;
+  currentVersion: string;
+  /** 当前可信更新源；null = 还没找到管理员服务（是常态，不是故障）。 */
+  feedBase: string | null;
+  availableVersion: string | null;
+  /** 下载完成、等待用户确认安装。 */
+  readyToInstall: boolean;
+  /** 最近一次失败的可读原因；null = 没失败过。 */
+  lastError: string | null;
+  /** 最近一次检查完成时间（ISO）。 */
+  lastCheckedAt: string | null;
+}
+
 /** 主页收藏（2026-10-05）：本机各存各的，只存入口 id。 */
 export interface FavoriteItem {
   entryId: string;
@@ -262,10 +283,17 @@ export interface TeamLaunchApi {
 
   /** 自动更新（打包版才有行为；开发态 install 不会被执行——入口根本不启动）。 */
   updater: {
-    /** 静默安装已下载的更新并重启（perMachine 安装会要一次 UAC）。 */
+    /**
+     * 静默安装已下载的更新并重启。
+     * per-user 安装无提权、秒装；per-machine 安装会要一次管理员确认。
+     */
     install(): Promise<void>;
     /** 打开更新分发目录（管理员把构建产物放进来）。 */
     openUpdatesFolder(): Promise<boolean>;
+    /** 手动跑一轮检查，返回检查后的状态。 */
+    check(): Promise<AppUpdateStatus>;
+    /** 读当前更新状态（设置页状态行）。 */
+    status(): Promise<AppUpdateStatus>;
   };
 
   sync: {

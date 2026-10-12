@@ -17,6 +17,7 @@ import {
   Monitor,
   MonitorCog,
   Moon,
+  RefreshCw,
   SlidersHorizontal,
   Sun,
   TriangleAlert,
@@ -34,7 +35,7 @@ import { AppHotkeysSection } from './AppHotkeysSection.tsx';
 import type { SettingsSection } from '../../store/workbenchStore.tsx';
 import type { Settings } from '../../../shared/schema/local.ts';
 import { api } from '../../bridge/index.ts';
-import type { AdminStatus, BrowserInfo } from '../../bridge/types.ts';
+import type { AdminStatus, AppUpdateStatus, BrowserInfo } from '../../bridge/types.ts';
 import { formatRevDate } from './EditActionBar.tsx';
 
 export type ZoomLevel = 90 | 100 | 105 | 110;
@@ -50,6 +51,24 @@ const SECTIONS: Array<{ id: SettingsSection; label: string; icon: LucideIcon }> 
 /** 主题色预设（定稿 2026-10-02）：第一个是品牌青蓝默认值；粉/橙为用户点名保留项。 */
 // eslint-disable-next-line no-restricted-syntax -- 这些 hex 是"用户可选的数据选项"，不是样式引用；样式一律走 --accent* 派生变量。
 const ACCENT_PRESETS = ['#106696', '#db2777', '#ea580c', '#12805c', '#0284c7', '#6d5ae0', '#c2344a', '#b45309'] as const;
+
+/**
+ * 更新状态的一句话（关于页状态行）。
+ *
+ * 顺序即优先级：已就绪 > 下载中 > 连不上源 > 上次失败 > 已是最新。
+ * 刻意不给"连不上"加红色/感叹号——局域网源不可达是这个部署形态的常态，
+ * 界面不该把它说成故障（与同步状态的保守回落同一纪律）。
+ */
+function updateStatusLine(s: AppUpdateStatus | null): string {
+  if (s === null) return '更新状态未知（读取失败）';
+  if (!s.active) return '开发态运行：更新检查未启用';
+  if (s.readyToInstall && s.availableVersion) return `v${s.availableVersion} 已下载，点右侧按钮安装并重启`;
+  if (s.availableVersion) return `发现 v${s.availableVersion}，正在后台下载`;
+  if (s.feedBase === null) return '暂时连不上更新源（不影响使用）';
+  if (s.lastError !== null) return `上次检查未成功：${s.lastError}`;
+  if (s.lastCheckedAt === null) return '尚未检查';
+  return `已是最新版本 · ${new Date(s.lastCheckedAt).toLocaleString()}`;
+}
 
 export interface SettingsPanelProps {
   settings: Settings;
@@ -70,6 +89,12 @@ export interface SettingsPanelProps {
   onSetOrChangePassphrase(): void;
   /** 打开更新分发目录（管理员把构建产物放进来，全团队自动更新）。 */
   onOpenUpdatesFolder(): void;
+  /** 手动检查应用更新（关于页「检查更新」）。 */
+  onCheckUpdate(): void;
+  /** 检查进行中：按钮转圈并禁止重复点。 */
+  updateChecking?: boolean;
+  /** 更新器状态快照（关于页状态行）；null = 还没读到。 */
+  updateStatus: AppUpdateStatus | null;
   /** AC-05：注册失败才提示，本次会话只提示一次，不得反复弹窗 */
   hotkeyConflict?: boolean;
   teamRevision: number | null;
@@ -152,7 +177,8 @@ function Divider() {
 
 export function SettingsPanel({
   settings, onPatch, onClose, onViewPrivacy, zoom, onZoom, onCopyDeviceId,
-  adminStatus, roleAdmin, onToggleAdmin, onSetOrChangePassphrase, onOpenUpdatesFolder, announcedAt,
+  adminStatus, roleAdmin, onToggleAdmin, onSetOrChangePassphrase, onOpenUpdatesFolder,
+  onCheckUpdate, updateChecking = false, updateStatus, announcedAt,
   hotkeyConflict = false, teamRevision, deviceId, initialSection,
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
@@ -549,6 +575,12 @@ export function SettingsPanel({
                 {teamRevision != null ? `v${teamRevision}${announcedAt ? ' · ' + formatRevDate(announcedAt) : ''}` : '未同步'}
               </dd>
             </dl>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="t-xs min-w-0 flex-1 text-[var(--fg-2)]">{updateStatusLine(updateStatus)}</span>
+              <Button size="sm" tone="secondary" icon={RefreshCw} loading={updateChecking} onClick={onCheckUpdate}>
+                检查更新
+              </Button>
+            </div>
             <p className="t-xs mt-4 mb-0 text-[var(--muted)]">
               把团队与个人常用入口集中在一处：点击即启动，管理员统一维护团队入口，本机入口只存在你自己的电脑上。
             </p>

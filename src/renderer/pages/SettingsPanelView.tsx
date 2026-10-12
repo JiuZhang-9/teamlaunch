@@ -21,7 +21,7 @@ import { useSettings } from '../store/settingsStore.tsx';
 import { useSync } from '../store/syncStore.tsx';
 import { useToasts } from '../store/toastStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
-import type { AdminStatus } from '../bridge/types.ts';
+import type { AdminStatus, AppUpdateStatus } from '../bridge/types.ts';
 
 export interface SettingsPanelViewProps {
   onClose(): void;
@@ -166,10 +166,37 @@ export function SettingsPanelView({ onClose, hotkeyConflict = false }: SettingsP
   const [deviceId, setDeviceId] = useState('');
   const [passphraseMode, setPassphraseMode] = useState<PassphraseMode | null>(null);
   const [confirmAdminOff, setConfirmAdminOff] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
 
   const reloadStatus = useCallback(async () => {
     setAdminStatus(await api.admin.status());
   }, []);
+
+  /* 关于页的更新状态行：打开设置时读一次；失败（开发态没有更新器）就留 null，界面照实说"未知"。 */
+  const reloadUpdateStatus = useCallback(async () => {
+    try {
+      setUpdateStatus(await api.updater.status());
+    } catch {
+      setUpdateStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadUpdateStatus();
+  }, [reloadUpdateStatus]);
+
+  /** 手动检查：跑完一轮后用返回的状态刷新状态行；失败给一条 toast（详情在 logs\main.log）。 */
+  const checkUpdate = useCallback(async () => {
+    setUpdateChecking(true);
+    try {
+      setUpdateStatus(await api.updater.check());
+    } catch {
+      push({ title: '检查更新没能完成，详情见 logs\\main.log', tone: 'danger' });
+    } finally {
+      setUpdateChecking(false);
+    }
+  }, [push]);
 
   useEffect(() => {
     void reloadStatus();
@@ -209,6 +236,9 @@ export function SettingsPanelView({ onClose, hotkeyConflict = false }: SettingsP
         onToggleAdmin={(next) => void toggleAdmin(next)}
         onSetOrChangePassphrase={() => setPassphraseMode(adminStatus?.enrolled ? 'change' : 'set')}
         onOpenUpdatesFolder={() => void api.updater.openUpdatesFolder()}
+        onCheckUpdate={() => void checkUpdate()}
+        updateChecking={updateChecking}
+        updateStatus={updateStatus}
         hotkeyConflict={hotkeyConflict}
         initialSection={settingsSection}
         onPatch={(p) => {

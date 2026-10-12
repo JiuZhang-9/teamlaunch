@@ -9,7 +9,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { extractIcon, openEntry, openUrl, type OpenTarget, type RelocateResult } from './opener.ts';
 import { resolveAppCandidates, saveOverride } from './appResolver.ts';
-import { installDownloadedUpdate } from './updater.ts';
+import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './updater.ts';
 import { syncService } from './syncBridge.ts';
 import { serverPort } from './serverPort.ts';
 import { hidePalette } from './windowManager.ts';
@@ -101,6 +101,9 @@ export function registerIpc(deps: IpcDeps): void {
     await mkdir(dir, { recursive: true });
     return (await shell.openPath(dir)).length === 0;
   });
+  // 设置页的「检查更新」与状态行：手动跑一轮 + 读当前状态（都是显式调用，不走推送）。
+  ipcMain.handle('tl:app-update-check', () => checkForUpdatesNow());
+  ipcMain.handle('tl:app-update-status', () => getUpdateStatus());
 
   // 粘贴快捷添加（方案 A）的识别端：这段文本能不能直接成入口、是什么形态。只识别不落库。
   ipcMain.handle('tl:entries-identify', async (_e, text: string) => identifyAsEntry(String(text ?? '')));

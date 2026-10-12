@@ -61,6 +61,8 @@ export function MainWindowShell() {
   const [confirmExit, setConfirmExit] = useState(false);
   const [importOutcome, setImportOutcome] = useState<ImportOutcome>(null);
   const [updateBanner, setUpdateBanner] = useState<string | null>(null);
+  /** 应用自更新：已下载待安装的版本号（常驻横幅，关掉不装也行——下次启动会再提示）。 */
+  const [appUpdate, setAppUpdate] = useState<string | null>(null);
   /** 热键注册状态只信主进程推送：此前这里写死 true + 按默认键名猜测，横幅常年说谎。 */
   const [hotkeyConflict, setHotkeyConflict] = useState(false);
   const [locateId, setLocateId] = useState<string | null>(null);
@@ -86,22 +88,28 @@ export function MainWindowShell() {
     };
   }, []);
 
-  /* 自动更新进展：available 一次轻提示；downloaded 常驻 toast + 一键安装。 */
+  /* 自动更新：available 一次轻提示（几秒自散）；downloaded 常驻横幅 + 一键安装。
+     装与重启刻意不自动做（主进程 autoInstallOnAppQuit=false）——用户不确认就不动他的机器。 */
   useEffect(() => {
     const off = api.events.onAppUpdate((event) => {
       if (event.type === 'available') {
         push({ title: `发现新版本 v${event.version}，正在后台下载`, tone: 'info' });
         return;
       }
-      push({
-        title: `新版本 v${event.version} 已就绪，重启后即更新`,
-        tone: 'success',
-        duration: 0,
-        actions: [{ label: '立即更新并重启', onSelect: () => void api.updater.install() }],
-      });
+      setAppUpdate(event.version);
     });
     return off;
   }, [push]);
+
+  /* 启动时先捞一次状态：上次会话已下载好的更新不必等 30 秒后的周期检查才亮横幅。 */
+  useEffect(() => {
+    void api.updater
+      .status()
+      .then((s) => {
+        if (s.readyToInstall && s.availableVersion) setAppUpdate(s.availableVersion);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const groups: Group[] = useMemo(() => {
     if (tab === 'home') return [];
@@ -328,6 +336,16 @@ export function MainWindowShell() {
           )}
 
           {updateBanner && <Banner tone="success" title={updateBanner} />}
+
+          {appUpdate && (
+            <Banner
+              tone="success"
+              title={`新版本 v${appUpdate} 已就绪`}
+              detail="安装会关闭并重启应用：仅为当前用户安装的机器直接装好；为所有用户安装的机器会要一次管理员确认。"
+              action={{ label: '立即更新并重启', onSelect: () => void api.updater.install() }}
+              onDismiss={() => setAppUpdate(null)}
+            />
+          )}
 
           <div
             id={`tl-panel-${tab}`}
