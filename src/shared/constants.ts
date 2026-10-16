@@ -137,6 +137,23 @@ export const SIGNED_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'] as const;
  */
 export const STRICT_JSON_CONTENT_TYPE = 'application/json';
 
+/**
+ * 自动更新（ADR-009）：**GitHub Releases 是正式源，局域网镜像只是加速与回落**。
+ *
+ * 为什么用 generic provider 指到 `releases/latest/download/`，而不是 electron-updater
+ * 自带的 github provider：后者要查 api.github.com——那个域名在部分企业网络不可达，且
+ * 未认证请求有每小时 60 次限流。直取 Release 资产的 CDN 两个问题都没有（2026-10-12 实测：
+ * 302 → CDN 200、支持 Range（差量下载可用）、3.2 MB/s）。
+ *
+ * 硬依赖：正式源每个 Release **必须**挂 latest.yml——没挂＝所有人看不到新版，
+ * 而且失败是静默的。发版脚本 scripts/release-gh.mjs 负责挂齐并校验。
+ */
+export const UPDATE_FEED = {
+  githubBaseUrl: 'https://github.com/JiuZhang-9/teamlaunch/releases/latest/download',
+  /** 探测 latest.yml 的超时：两个源都探不到＝本轮静默跳过（源不可达是常态，不是故障）。 */
+  probeTimeoutMs: 5000,
+} as const;
+
 /** 签名串的字段分隔。用换行而不是冒号，避免与 path 中的冒号混淆。 */
 export const SIGNATURE_FIELD_SEPARATOR = '\n';
 

@@ -90,3 +90,25 @@ logs\main.log
 - **首次启动会先展示隐私说明，未确认前不会记录也不会上传任何数据**（零记录，磁盘上不存在遥测文件）。
 - 设置 → 关闭遥测后，立即停止本地记录、清空未发送缓冲、不再发起任何请求。
 - 遥测不接入任何第三方互联网服务，只上报到管理员客户端；不采集 IP、原始搜索词、完整路径、个人入口内容、硬件序列号。
+
+## 9. 自动更新（1.0.21 起：GitHub 正式源 + 局域网镜像）
+
+源的角色（决策见 `docs/decisions/ADR-009-github-update-feed.md`）：
+
+| 源 | 角色 | 谁在什么时候用到 |
+|---|---|---|
+| **GitHub Releases** | **正式源（版本权威）** | 公开下载者、异地/居家办公、管理员机不在网时；公司网若限制 GitHub，则自动改用下面的镜像 |
+| **局域网镜像**（管理员机内嵌服务 `/updates/`） | 加速 + 回落 | 公司内网里与 GitHub 同为新版时（内网下载更快，也不占公司出口带宽） |
+
+**管理员机怎么维护镜像**（可选，不做也能更新——员工会走 GitHub）：
+把 `npm run dist:win` 产物里的三件套拷进更新分发目录（设置·高级 →「更新分发目录」打开，
+即 `%APPDATA%\TeamLaunch\updates`）：**`latest.yml` + `TeamLaunch-Setup-x.y.z.exe` + `.exe.blockmap`**。
+**少挂 `latest.yml` 等于镜像白放**——员工端会看到"镜像里没有这个版本"，然后回落 GitHub。
+
+**每个 GitHub Release 必须挂**：`TeamLaunch-Setup-x.y.z.exe`、同名 `.blockmap`、**`latest.yml`**、
+`SHA256SUMS.txt`。没挂 `latest.yml` 时所有人都收不到新版，而且失败是静默的（只在日志里）。
+发版用 `npm run release:gh`（打 tag → 建 Release → 上传并校验四件套）。
+
+**排查更新问题（唯一证据来源）**：`%APPDATA%\TeamLaunch\logs\main.log` 里的 `[TL-UPD]` 行——
+能看到每轮检查选了哪个源、探测到什么版本、下载与安装的结果。设置·关于页的状态行会直接写明
+「来源 GitHub / 来源 局域网镜像」，以及最近一轮是否成功。

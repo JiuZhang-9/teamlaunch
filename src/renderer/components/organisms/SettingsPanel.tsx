@@ -52,22 +52,29 @@ const SECTIONS: Array<{ id: SettingsSection; label: string; icon: LucideIcon }> 
 // eslint-disable-next-line no-restricted-syntax -- 这些 hex 是"用户可选的数据选项"，不是样式引用；样式一律走 --accent* 派生变量。
 const ACCENT_PRESETS = ['#106696', '#db2777', '#ea580c', '#12805c', '#0284c7', '#6d5ae0', '#c2344a', '#b45309'] as const;
 
+/** 更新源的显示名（关于页状态行）。 */
+function updateSourceLabel(source: AppUpdateStatus['source']): string {
+  if (source === 'github') return 'GitHub';
+  if (source === 'mirror') return '局域网镜像';
+  return '来源未知';
+}
+
 /**
  * 更新状态的一句话（关于页状态行）。
  *
- * 顺序即优先级：已就绪 > 下载中 > 连不上源 > 上次失败 > 已是最新。
- * 刻意不给"连不上"加红色/感叹号——局域网源不可达是这个部署形态的常态，
- * 界面不该把它说成故障（与同步状态的保守回落同一纪律）。
+ * 顺序即优先级：已就绪 > 下载中 > 两个源都够不着 > 本轮失败 > 尚未检查 > 已是最新。
+ * 刻意不给"够不着"加红色/感叹号——公开用户没有局域网镜像、公司网封 GitHub 都是这个
+ * 部署形态的常态，界面不该把它说成故障（与同步状态的保守回落同一纪律）。
  */
 function updateStatusLine(s: AppUpdateStatus | null): string {
   if (s === null) return '更新状态未知（读取失败）';
   if (!s.active) return '开发态运行：更新检查未启用';
   if (s.readyToInstall && s.availableVersion) return `v${s.availableVersion} 已下载，点右侧按钮安装并重启`;
-  if (s.availableVersion) return `发现 v${s.availableVersion}，正在后台下载`;
-  if (s.feedBase === null) return '暂时连不上更新源（不影响使用）';
+  if (s.availableVersion) return `发现 v${s.availableVersion}（${updateSourceLabel(s.source)}），正在后台下载`;
+  if (s.lastResult === 'unreachable') return '暂时连不上更新源（不影响使用）';
   if (s.lastError !== null) return `上次检查未成功：${s.lastError}`;
   if (s.lastCheckedAt === null) return '尚未检查';
-  return `已是最新版本 · ${new Date(s.lastCheckedAt).toLocaleString()}`;
+  return `已是最新版本 · 来源 ${updateSourceLabel(s.source)} · ${new Date(s.lastCheckedAt).toLocaleString()}`;
 }
 
 export interface SettingsPanelProps {

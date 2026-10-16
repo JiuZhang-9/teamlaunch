@@ -1,6 +1,6 @@
 {
   "name": "teamlaunch",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "private": true,
   "type": "module",
   "description": "TeamLaunch - Windows 桌面端团队统一入口启动器",
@@ -29,6 +29,7 @@
     "lint": "eslint . --max-warnings=0",
     "electron:dev": "node scripts/run-electron.mjs",
     "dist:win": "npm run build && electron-builder --win --x64",
+    "release:gh": "node scripts/release-gh.mjs",
     "verify:p0": "python docs/design-system/scan-p0.py",
     "verify:tokens": "python docs/design-system/validate-tokens.py",
     "verify:icons": "node docs/design-system/verify-lucide-exports.mjs",

@@ -28,6 +28,7 @@ import { sign } from '../src/server/hooks/auth.ts';
 import { ChallengeService } from '../src/services/challenge.service.ts';
 import { AUTH, BEACON_MAGIC, UDP_DISCOVERY_PORT, DISCOVERY_PERSIST_THROTTLE_MS, PREFERRED_TCP_PORT } from '../src/shared/constants.ts';
 import { assertTrustedKdf, deriveVerifier, isTrustedKdf, scryptMemoryBytes, UntrustedKdfError } from '../src/shared/kdf.ts';
+import { compareVersions, isVersionNewer } from '../src/shared/version.ts';
 import { SettingsRepository } from '../src/repositories/settings.repository.ts';
 import { PersonalRepository } from '../src/repositories/personal.repository.ts';
 import { PersonalService } from '../src/services/personal.service.ts';
@@ -984,6 +985,22 @@ async function main() {
     const ok = checkPersonalSave({ schemaVersion: 1, groups: [] });
     assert(ok.ok === true, '合法配置不该被拒');
     return '容量 → 结构 顺序正确：三种输入各自拿到对的那句话';
+  });
+
+  // 选源判定（ADR-009）：两个更新源谁报的版本新，决定去问谁。判错的后果是
+  // "明明有新版本却一直不下载"，而且不报错——所以边界必须钉在 smoke 里。
+  await step('版本比较：选源判定（数值段 / 预发布 / 畸形输入）', async () => {
+    assert(compareVersions('1.0.21', '1.0.20') === 1, '1.0.21 应新于 1.0.20');
+    assert(compareVersions('1.0.20', '1.0.20') === 0, '同版本应相等');
+    assert(compareVersions('1.0.9', '1.0.10') === -1, '数值段必须按数值比（1.0.9 < 1.0.10）');
+    assert(compareVersions('1.2.0', '1.10.0') === -1, '数值段必须按数值比（1.2 < 1.10）');
+    assert(isVersionNewer('1.0.22-rc.1', '1.0.21') === true, '预发布版应新于更低的核心版本');
+    assert(isVersionNewer('1.0.22-rc.1', '1.0.22') === false, '预发布版应低于同核心的正式版');
+    assert(isVersionNewer('1.0.22-rc.2', '1.0.22-rc.1') === true, '预发布段按数值递增');
+    assert(isVersionNewer('', '1.0.20') === false, '空串不得被当成新版本');
+    assert(isVersionNewer('latest', '1.0.20') === false, '畸形状不得被当成新版本');
+    assert(compareVersions('1.0.20.1', '1.0.20') === 1, '多余段按数值比（1.0.20.1 > 1.0.20）');
+    return '1.0.9<1.0.10、预发布低于同核心正式版、畸形输入不误判为新版本';
   });
 
   // ServerOptions.port 曾被静默忽略（漂移循环恒定从首选常量起跳），调用方以为

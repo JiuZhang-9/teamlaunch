@@ -23,6 +23,12 @@
    网络配置文件（公用网络下规则不生效）。
 4. **管理员口令**：无默认口令，最低 8 位；忘记口令需先彻底退出应用后删除
    `%APPDATA%\TeamLaunch\credential.json` 重设（见 `docs/DELIVERY.md`）。
+5. **自动更新走 GitHub Releases**（ADR-009）：更新包从 `github.com` 直取（HTTPS + 官方 CDN），
+   靠 Release 上的 `latest.yml` 做版本判定与 sha512 校验；管理员机内嵌服务降级为
+   **局域网镜像**（明文 HTTP，仅在局域网内做同版本加速 / GitHub 不可达时回落）。
+   **这是本项目唯一的第三方外网出口**——每次检查会访问 `github.com`，不携带设备标识，
+   与使用数据统计无关；公司内网若限制 GitHub，更新会自动改走镜像。是否提供"不自动检查更新"
+   开关见 `docs/decisions/OPEN-DECISIONS.md` O-07。
 
 ## 适用范围
 

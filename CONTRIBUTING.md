@@ -48,4 +48,8 @@ chore: 固化 electron-builder rename 兜底补丁为 postinstall 脚本
 1. `package.json` 升版本号
 2. `CHANGELOG.md` 加条目（新增/修复/变更，面向使用者）
 3. `npm run dist:win`，产物在 `dist/installer/`
-4. git commit + `git tag -a vX.Y.Z` + GitHub Release 挂安装包
+4. `npm run release:gh` —— 打 `vX.Y.Z` tag、建 GitHub Release，并把
+   **exe + blockmap + `latest.yml` + SHA256SUMS.txt** 一并挂上并校验
+
+第 4 步不能省、也不能少挂文件：**`latest.yml` 是自动更新的硬依赖**（ADR-009）——
+Release 上缺它，所有人都看不到新版本，而且失败是静默的（只在客户端日志里）。

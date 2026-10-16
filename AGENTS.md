@@ -38,11 +38,13 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 `docs/design-system/`｜分发与现场排障 `docs/DELIVERY.md`｜开发细节 `docs/DEVELOPMENT.md`｜
 决策与待办登记 `docs/decisions/OPEN-DECISIONS.md` + `docs/decisions/ADR-001..008`
 
-## 当前状态（2026-10-12）
+## 当前状态（2026-10-16）
 
-- v1.0.18 已发布并实机验收通过（11 条 UX 改进 + 指定打开网页的浏览器）；更新源仍为管理员机（D-05 暂不切 GitHub）
-- **v1.0.20 已合并进 main 但尚未验收**：员工端 per-user 安装 + 更新改为「下载自动、安装询问」
-  （来自另一台开发机，提交自带"未在真机跑通员工机分发与自动更新闭环"的说明）；
+- v1.0.20 已装用户实机（per-machine 原地升级 + 日志落盘已验；**员工端 per-user 装法仍待真机**）
+- **v1.0.21 已实现、未验收**：自动更新源改为「GitHub Releases 正式源 + 局域网镜像回落」（ADR-009）。
   按发版纪律，**实机验收通过前不打 tag、不挂 Release**
-- 待办集中在 `docs/decisions/OPEN-DECISIONS.md`：O-04 依赖升级（3 high）／O-05 仓库安全开关／O-06 CI 与社区基建
+- **每个 Release 必须挂 `latest.yml`**（GitHub 源的硬依赖：没挂＝所有人看不到新版，且失败静默）；
+  用 `npm run release:gh` 一步挂齐（exe + blockmap + latest.yml + SHA256SUMS 并校验）
+- 待办集中在 `docs/decisions/OPEN-DECISIONS.md`：O-04 依赖升级（3 high）／O-05 仓库安全开关／
+  O-06 CI 与社区基建／O-07 更新检查的隐私披露与开关
 - 已知未修缺陷：启动缓存竞态（ARCHITECTURE R23，重启即好）；局域网多机同步端到端实测待做

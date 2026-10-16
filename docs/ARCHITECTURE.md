@@ -1037,7 +1037,7 @@ SyncService 总预算 3 s 未获可用响应
 | R21 | `sampleJudgable` 长期为 false（遥测在当前管理员在线模式下不可用） | **中** | **既定产品处置路径：回到 P1「管理员内容健康中心 + 逐项人工确认」，而不是改用云端方案**（见下方 R21 专项说明） |
 | R22 | 用残缺样本硬判定入口健康，导致管理员删改本属正常的入口 | **中高** | 已通过 PM 的"条件判定"机制根除：`sampleJudgable=false` 时入口健康不设硬门槛，只做参考（ADR-008 §样本残缺与可判定性） |
 | R23 | 启动缓存竞态：preload 异步预热慢于渲染层首帧，Provider 以默认值固化（隐私门重弹＋「我的入口」空白），重启即好 | **低** | 试点期实机复现记录，**未修**（重启即自愈）；修复方向＝预热完成前保持加载态或挂载后重取一次缓存；伴生事实：localStorage 落盘有延迟，硬杀进程会丢最近写入 |
-| R24 | 安装包内置的 `resources/app-update.yml` 声明 `provider: github`（由 `package.json` 的 repository 字段自动生成，指向公开 Releases），与 D-05「更新源＝管理员机、暂不切 GitHub」相左 | **低** | **当前不会真的访问 GitHub**：`updater.ts` 每次检查前 `setFeedURL` 覆盖成管理员机 feed，且无 feed base 时直接跳过检查（2026-10-12 打包版实测：日志只有 `skip: no feed base`）。守则是**任何新增的更新检查路径都必须先 `setFeedURL`**；若要彻底消除隐患，可选：electron-builder.yml 显式声明发布源，或打包后删除该文件（启动时的配置加固会自带一份并指过去，删除不影响更新链路）——两条都属更新源范畴，改前按 D-05 走决策 |
+| R24 | 安装包内置的 `resources/app-update.yml` 声明 `provider: github`（由 `package.json` 的 repository 字段自动生成） | **低** | **已按 ADR-009 收编**：GitHub 现在就是正式源，内置文件与设计一致，不再是隐患。守则保留——**任何新增的更新检查路径都必须先 `setFeedURL`**（局域网镜像仍靠它切换；内置文件里真正被读取的只有 `updaterCacheDirName`） |
 
 ### R21 专项说明：样本不可判定时的既定路径（不得向上推翻）
 

@@ -80,6 +80,9 @@ export type RelocateResult = { ok: true } | { ok: false; reason: 'cancelled' | O
 /** 自动更新事件（与 main/updater.ts 的 AppUpdateEvent 结构一致，改两处要同步）。 */
 export type AppUpdateEvent = { type: 'available' | 'downloaded'; version: string };
 
+/** 更新源（与 main/updater.ts 的 UpdateSource 一致，改两处要同步）。 */
+export type UpdateSource = 'github' | 'mirror';
+
 /**
  * 更新器状态快照（与 main/updater.ts 的 AppUpdateStatus 结构一致，改两处要同步）。
  *
@@ -90,12 +93,14 @@ export interface AppUpdateStatus {
   /** 检查链是否已启用（只有打包版启用）。 */
   active: boolean;
   currentVersion: string;
-  /** 当前可信更新源；null = 还没找到管理员服务（是常态，不是故障）。 */
-  feedBase: string | null;
+  /** 最近一轮实际采用的源；null = 两个源都够不着（是常态，不是故障）。 */
+  source: UpdateSource | null;
+  /** 最近一轮的结论：已是最新 / 两个源都够不着；null = 还没跑过一轮。 */
+  lastResult: 'latest' | 'unreachable' | null;
   availableVersion: string | null;
   /** 下载完成、等待用户确认安装。 */
   readyToInstall: boolean;
-  /** 最近一次失败的可读原因；null = 没失败过。 */
+  /** 最近一轮失败的可读原因；null = 本轮没失败。 */
   lastError: string | null;
   /** 最近一次检查完成时间（ISO）。 */
   lastCheckedAt: string | null;
