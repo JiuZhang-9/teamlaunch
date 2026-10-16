@@ -49,14 +49,31 @@ export interface RenameDialogProps {
   title: string;
   initial: string;
   confirmLabel?: string;
+  /** 输入框的读屏名与占位文案（默认面向"入口"；新建分组会换成分组用语）。 */
+  fieldLabel?: string;
+  placeholder?: string;
+  /** 一行说明（输入框上方）。 */
+  detail?: string;
+  /** 输入上限（默认不限，由调用方传 CAPACITY 的对应值）。 */
+  maxLength?: number;
+  /**
+   * 就地校验：返回非空字符串即拦下这次提交（**不关窗**，把原因显示在输入框下方）。
+   * 新建分组用它拦同名——分组名是侧栏锚点 id 与批量添加落点的键，重名会出歧义。
+   */
+  validate?(next: string): string | null;
   onConfirm(next: string): void;
   onCancel(): void;
 }
 
-export function RenameDialog({ title, initial, confirmLabel = '保存', onConfirm, onCancel }: RenameDialogProps) {
+export function RenameDialog({
+  title, initial, confirmLabel = '保存', fieldLabel = '入口名称',
+  placeholder = '给这个入口起个能认出它的名字', detail, maxLength, validate,
+  onConfirm, onCancel,
+}: RenameDialogProps) {
   const [value, setValue] = useState(initial);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const empty = value.trim().length === 0;
+  const trimmed = value.trim();
+  const error = trimmed.length === 0 ? '名称不能为空' : (validate?.(trimmed) ?? null);
   return (
     <Dialog
       title={title}
@@ -71,25 +88,28 @@ export function RenameDialog({ title, initial, confirmLabel = '保存', onConfir
           <Button
             tone="primary"
             size="lg"
-            softDisabled={empty}
-            onClick={() => onConfirm(value.trim())}
+            softDisabled={error !== null}
+            onClick={() => onConfirm(trimmed)}
           >
             {confirmLabel}
           </Button>
         </>
       }
     >
+      {detail && <p className="mb-2 t-xs text-[var(--muted)]">{detail}</p>}
       <Input
         ref={inputRef}
         value={value}
-        aria-label="入口名称"
-        placeholder="给这个入口起个能认出它的名字"
+        invalid={error !== null}
+        aria-label={fieldLabel}
+        placeholder={placeholder}
+        maxLength={maxLength}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !empty) onConfirm(value.trim());
+          if (e.key === 'Enter' && error === null) onConfirm(trimmed);
         }}
       />
-      {empty && <p className="mt-1 t-xs text-[var(--danger-fg)]">名称不能为空</p>}
+      {error !== null && <p className="mt-1 t-xs text-[var(--danger-fg)]">{error}</p>}
     </Dialog>
   );
 }

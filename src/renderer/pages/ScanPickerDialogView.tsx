@@ -4,10 +4,14 @@
  * 扫描范围＝入口点（开始菜单 / 桌面 / 任务栏固定项 / 注册表已安装程序），
  * 只读目录与注册表、不遍历磁盘（用户 2026-09-29 拍板）。扫描期间给一句"正在扫描"，
  * 失败/空结果由 useEntryPicker 统一提示后关掉对话框——不摆一个空列表在那里。
+ *
+ * 勾选后的「添加（N 个）」先弹一次确认再落盘（2026-10-17 用户要求）：
+ * 写明条数与落点分组，避免"点了就进，事后才知道加了几条"。
  */
 import { useEffect, useState } from 'react';
 import { Dialog } from '../components/organisms/Dialog.tsx';
 import { ScanPickerDialog } from '../components/organisms/ScanPickerDialog.tsx';
+import { ConfirmDialog } from '../components/organisms/SimpleDialog.tsx';
 import { useEntryPicker } from '../hooks/useEntryPicker.ts';
 import { usePersonal } from '../store/personalStore.tsx';
 import type { ScanCandidate } from '../bridge/types.ts';
@@ -16,6 +20,8 @@ export function ScanPickerDialogView({ onClose }: { onClose(): void }) {
   const { config } = usePersonal();
   const { scan, commitScan } = useEntryPicker();
   const [items, setItems] = useState<ScanCandidate[] | null>(null);
+  /** 勾选完待确认的那一批：确认前不落盘。 */
+  const [pending, setPending] = useState<ScanCandidate[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,14 +52,27 @@ export function ScanPickerDialogView({ onClose }: { onClose(): void }) {
     .map((e) => (e.type === 'web' ? e.url : e.target));
 
   return (
-    <ScanPickerDialog
-      items={items}
-      existingTargets={existing}
-      onCancel={onClose}
-      onConfirm={(picked) => {
-        void commitScan(picked);
-        onClose();
-      }}
-    />
+    <>
+      <ScanPickerDialog
+        items={items}
+        existingTargets={existing}
+        onCancel={onClose}
+        onConfirm={(picked) => setPending(picked)}
+      />
+      {pending && (
+        <ConfirmDialog
+          title="添加这些程序？"
+          detail={`将添加 ${pending.length} 个入口到「我的入口」分组。`}
+          confirmLabel={`添加 ${pending.length} 个`}
+          onCancel={() => setPending(null)}
+          onConfirm={() => {
+            const list = pending;
+            setPending(null);
+            void commitScan(list);
+            onClose();
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -16,6 +16,7 @@ import { TitleBar } from './TitleBar.tsx';
 import { ContentHeader } from './ContentHeader.tsx';
 import { Sidebar, type SidebarMode } from './Sidebar.tsx';
 import { GroupActionsDialog } from './GroupActionsDialog.tsx';
+import { RenameDialog } from './SimpleDialog.tsx';
 import { EditActionBar } from './EditActionBar.tsx';
 import { ChainLaunchBar } from './ChainLaunchBar.tsx';
 import { DialogRouter } from './DialogRouter.tsx';
@@ -23,6 +24,8 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue.ts';
 import { useGlobalHotkeys } from '../../hooks/useGlobalHotkeys.ts';
 import { useToolbarMenus } from '../../hooks/useToolbarMenus.ts';
 import { entryLimitCopy, groupLimitCopy } from '../../../shared/capacity-copy.ts';
+import { measure } from '../../../shared/capacity-usage.ts';
+import { CAPACITY } from '../../../shared/schema/common.ts';
 import { DEFAULT_APP_HOTKEYS } from '../../../shared/app-hotkeys.ts';
 import { useEntryIcons } from '../../hooks/useEntryIcons.ts';
 import { useEntrySearch } from '../../hooks/useEntrySearch.ts';
@@ -234,9 +237,27 @@ export function MainWindowShell() {
   /** 容量前置说明：撞上限时「添加」按钮禁用并把原因挂到 hover / 读屏上。 */
   /* 容量门控**按动作分**（2026-10-17 用户反馈：8 个分组时"添加入口 / 批量添加 / 扫描程序"
      也被一起禁掉，而它们加的是入口、与分组数无关，属过度拦截）：
-     分组数只拦「新建分组」，入口数只拦"加入口"三件套。 */
-  const groupAddReason = usage.atGroupLimit ? groupLimitCopy(usage) : null;
-  const entryAddReason = usage.atEntryLimit ? entryLimitCopy(usage) : null;
+     分组数只拦「新建分组」，入口数只拦"加入口"三件套。
+     个人页看落盘配置，团队编辑态看**草稿**（口径同一套，数值各自算）。 */
+  const draftUsage = useMemo(() => measure(edit.draft), [edit.draft]);
+  const groupAddReason =
+    tab === 'personal'
+      ? (usage.atGroupLimit ? groupLimitCopy(usage) : null)
+      : editing && draftUsage.groups >= CAPACITY.MAX_GROUPS
+        ? groupLimitCopy(draftUsage)
+        : null;
+  const entryAddReason =
+    tab === 'personal'
+      ? (usage.atEntryLimit ? entryLimitCopy(usage) : null)
+      : editing && draftUsage.entries >= CAPACITY.MAX_ENTRIES
+        ? entryLimitCopy(draftUsage)
+        : null;
+
+  /* 新建分组对话框（个人页 / 团队编辑态共用一个"名称输入确认框"）。 */
+  const [newGroupScope, setNewGroupScope] = useState<'personal' | 'team' | null>(null);
+  const newGroupGroups = (scope: 'personal' | 'team') => (scope === 'personal' ? personal.groups : edit.draft.groups);
+  const newGroupDefault =
+    newGroupScope === null ? '' : `新分组 ${newGroupGroups(newGroupScope).length + 1}`;
 
   const gateBlocking = settings.telemetryNoticeAckedAt === null;
 
@@ -303,16 +324,17 @@ export function MainWindowShell() {
             }
             setSidebarGroup(group);
           }}
-          onAddPersonalGroup={() => void addPersonalGroup()}
+          onAddPersonalGroup={() => setNewGroupScope('personal')}
           onAddPersonalEntry={() => openEntryEditor({ mode: 'create', groupId: null, scope: 'personal' })}
           onBatchAddPersonal={() => openDialog('batchAdd')}
           onScanPersonal={() => openDialog('scanPicker')}
-          addGroupDisabledReason={tab === 'personal' ? groupAddReason : null}
-          addEntryDisabledReason={tab === 'personal' ? entryAddReason : null}
+          onBatchAddTeam={() => openDialog('batchAddTeam')}
+          addGroupDisabledReason={groupAddReason}
+          addEntryDisabledReason={entryAddReason}
           onImport={() => fileRef.current?.click()}
           onExport={() => void doExport()}
           onUndo={edit.undo}
-          onAddGroup={edit.addGroup}
+          onAddGroup={() => setNewGroupScope('team')}
           onAddEntry={() => openEntryEditor({ mode: 'create', groupId: null, scope: 'team' })}
           showEditEntry={settings.role === 'admin'}
           onToggleEdit={toggleEdit}
@@ -447,6 +469,34 @@ export function MainWindowShell() {
         <span role="status" className="sr-only">
           已定位到 {locateId}
         </span>
+      )}
+
+      {/* 新建分组：名称输入确认框（个人页与团队编辑态共用）。同名会就地拦住——
+          分组名是侧栏锚点 id 与批量添加落点的键，重名会出歧义。 */}
+      {newGroupScope && (
+        <RenameDialog
+          title="新建分组"
+          detail="分组名会显示在侧栏与卡片页；之后也能在分组上右键重命名。"
+          fieldLabel="分组名称"
+          placeholder="给这个分组起个名字"
+          initial={newGroupDefault}
+          confirmLabel="创建分组"
+          maxLength={CAPACITY.MAX_NAME_LEN}
+          validate={(next) =>
+            newGroupGroups(newGroupScope).some((g) => g.name.trim() === next)
+              ? '已有同名分组，换个名字或先重命名那一个'
+              : null
+          }
+          onConfirm={(name) => {
+            const scope = newGroupScope;
+            setNewGroupScope(null);
+            void (async () => {
+              const r = scope === 'personal' ? await addPersonalGroup(name) : edit.addGroup(name);
+              if (!r.ok && r.reason) push({ title: r.reason, tone: 'warn' });
+            })();
+          }}
+          onCancel={() => setNewGroupScope(null)}
+        />
       )}
 
       {sidebarGroup && (

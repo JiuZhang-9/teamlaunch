@@ -1,10 +1,11 @@
 /**
- * 批量添加（多行粘贴）—— 个人页「批量添加」打开的对话框。
+ * 批量添加（多行粘贴）—— 个人页与团队编辑态共用的对话框（scope 区分落点）。
  *
  * 三条纪律：
  *  - **逐行识别、逐行给原因**：识别不出来的行如实写明为什么，绝不静默丢弃；
  *  - 识别要对每行做本机探测（路径是否存在），几十行必须限并发 + 给进度；
- *  - 落库走 `addEntries`（一次算完只落一次盘），容量由它统一判——不在这里另立一套。
+ *  - 落库走 store 的批量动作（个人 `addEntries` 一次落盘 / 团队 `createEntries` 一次 mutate
+ *    ＝一步撤销），容量由 store 统一判——不在这里另立一套。
  *
  * 与快捷面板的剪贴板识别**完全分开**：那边只认单行、不做批量；这里是显式打开的对话框。
  */
@@ -13,6 +14,7 @@ import { Button } from '../components/atoms/Button.tsx';
 import { Textarea } from '../components/atoms/Textarea.tsx';
 import { Dialog } from '../components/organisms/Dialog.tsx';
 import { api } from '../bridge/index.ts';
+import { useEdit } from '../store/editStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
 import { useToasts } from '../store/toastStore.tsx';
 
@@ -32,8 +34,9 @@ interface Row {
 
 const TYPE_LABEL: Record<'web' | 'app' | 'folder', string> = { web: '网页', app: '软件', folder: '文件夹' };
 
-export function BatchAddDialogView({ onClose }: { onClose(): void }) {
-  const { config, addEntries } = usePersonal();
+export function BatchAddDialogView({ onClose, scope = 'personal' }: { onClose(): void; scope?: 'personal' | 'team' }) {
+  const personal = usePersonal();
+  const edit = useEdit();
   const { push } = useToasts();
   const [text, setText] = useState('');
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -42,7 +45,7 @@ export function BatchAddDialogView({ onClose }: { onClose(): void }) {
   const [progress, setProgress] = useState(0);
   const [group, setGroup] = useState('');
 
-  const groups = config.groups.map((g) => g.name);
+  const groups = (scope === 'personal' ? personal.config.groups : edit.draft.groups).map((g) => g.name);
 
   const runIdentify = async (): Promise<void> => {
     const lines = text
@@ -93,18 +96,20 @@ export function BatchAddDialogView({ onClose }: { onClose(): void }) {
   const confirm = async (): Promise<void> => {
     const picked = (rows ?? []).filter((r, i) => r.ok && !unchecked.has(i));
     if (picked.length === 0) return;
-    const res = await addEntries(
-      picked.map((r) => ({
-        kind: r.kind ?? 'app',
-        name: r.name ?? '',
-        target: r.target ?? '',
-        sourcePath: r.kind === 'app' ? (r.target ?? null) : null,
-        groupName: group.trim().length > 0 ? group.trim() : undefined,
-      })),
-    );
+    const inputs = picked.map((r) => ({
+      kind: r.kind ?? ('app' as const),
+      name: r.name ?? '',
+      target: r.target ?? '',
+      sourcePath: r.kind === 'app' ? (r.target ?? null) : null,
+    }));
+    const target = group.trim().length > 0 ? group.trim() : undefined;
+    const res = scope === 'personal'
+      ? await personal.addEntries(inputs.map((x) => ({ ...x, groupName: target })))
+      : edit.createEntries(inputs, target);
+    /* 部分加入（放不下）也要说清：added 与 reason 同时出现不是矛盾，是"放下的都加了"。 */
     push(
-      res.ok
-        ? { title: `已添加 ${res.added} 个入口`, tone: 'success' }
+      res.added > 0
+        ? { title: `已添加 ${res.added} 个入口`, detail: res.reason, tone: 'success' }
         : { title: res.reason ?? '没能添加', tone: 'warn' },
     );
     onClose();
@@ -133,7 +138,9 @@ export function BatchAddDialogView({ onClose }: { onClose(): void }) {
       }
     >
       <p className="t-sm mb-2 text-[var(--fg-2)]">
-        一行一个：网址、程序路径（exe / lnk）或文件夹路径，最多 {MAX_LINES} 行。识别成功的一次加入「我的入口」。
+        {scope === 'personal'
+          ? `一行一个：网址、程序路径（exe / lnk）或文件夹路径，最多 ${MAX_LINES} 行。识别成功的一次加入「我的入口」。`
+          : `一行一个：网址、程序路径（exe / lnk）或文件夹路径，最多 ${MAX_LINES} 行。识别成功的加入团队草稿，发布后员工才看得到。`}
       </p>
 
       <Textarea
@@ -161,7 +168,7 @@ export function BatchAddDialogView({ onClose }: { onClose(): void }) {
                 onChange={(e) => setGroup(e.target.value)}
                 className="h-8 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 t-sm text-[var(--fg)]"
               >
-                <option value="">（默认：我的入口）</option>
+                <option value="">{scope === 'personal' ? '（默认：我的入口）' : '（默认：第一个分组）'}</option>
                 {groups.map((g) => (
                   <option key={g} value={g}>
                     {g}

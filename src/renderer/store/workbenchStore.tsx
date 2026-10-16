@@ -44,8 +44,9 @@ export type DialogKey =
   | 'shortcuts'
   | 'announcements'
   | 'importResult'
-  /** 个人页的两个"批量"对话框：多行粘贴 / 扫描本机入口点。 */
+  /** 两个"批量"对话框：多行粘贴 / 扫描本机入口点。前者个人页与团队编辑态各有一个入口。 */
   | 'batchAdd'
+  | 'batchAddTeam'
   | 'scanPicker';
 
 /**

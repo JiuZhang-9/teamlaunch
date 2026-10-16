@@ -58,6 +58,8 @@ export interface SidebarProps {
   /** 个人页的两条批量入口：多行粘贴 / 扫描本机程序（入口点扫描）。 */
   onBatchAddPersonal(): void;
   onScanPersonal(): void;
+  /** 团队编辑态的「批量添加」：同款对话框，落点进草稿（与个人页对称）。 */
+  onBatchAddTeam(): void;
   /**
    * 非空 = 该动作不可用的原因（容量撞上限）。**按动作分开**（2026-10-17 用户反馈）：
    * 「新建分组」只受分组上限约束；「添加入口 / 批量添加 / 扫描程序」只受入口上限约束——
@@ -115,7 +117,7 @@ function SectionCap({ children }: { children: ReactNode }) {
 export function Sidebar(props: SidebarProps) {
   const {
     tab, mode, onTabChange, groups, snapshot, onOpenSettings, onOpenDiagnostics, onRefresh,
-    onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal,
+    onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal, onBatchAddTeam,
     addGroupDisabledReason = null, addEntryDisabledReason = null, onImport, onExport,
     onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false, editLocked = false,
   onGroupAction,
@@ -267,11 +269,36 @@ export function Sidebar(props: SidebarProps) {
               <SidebarAction icon={Undo2} onClick={onUndo}>
                 撤销
               </SidebarAction>
-              <SidebarAction icon={FolderPlus} onClick={onAddGroup}>
+              {/* 团队草稿同样有容量前置门控（2026-10-17）：此前没有守卫，草稿能超到发布才被 413 拦。 */}
+              <SidebarAction
+                icon={FolderPlus}
+                onClick={onAddGroup}
+                softDisabled={Boolean(addGroupDisabledReason)}
+                title={addGroupDisabledReason ?? undefined}
+                aria-describedby={addGroupDisabledReason ? 'tl-capacity-reason-group' : undefined}
+                onDisabledClick={() => blockReason(addGroupDisabledReason)}
+              >
                 新建分组
               </SidebarAction>
-              <SidebarAction icon={Plus} onClick={onAddEntry}>
+              <SidebarAction
+                icon={Plus}
+                onClick={onAddEntry}
+                softDisabled={Boolean(addEntryDisabledReason)}
+                title={addEntryDisabledReason ?? undefined}
+                aria-describedby={addEntryDisabledReason ? 'tl-capacity-reason-entry' : undefined}
+                onDisabledClick={() => blockReason(addEntryDisabledReason)}
+              >
                 新建入口
+              </SidebarAction>
+              <SidebarAction
+                icon={Layers}
+                onClick={onBatchAddTeam}
+                softDisabled={Boolean(addEntryDisabledReason)}
+                title={addEntryDisabledReason ?? undefined}
+                aria-describedby={addEntryDisabledReason ? 'tl-capacity-reason-entry' : undefined}
+                onDisabledClick={() => blockReason(addEntryDisabledReason)}
+              >
+                批量添加
               </SidebarAction>
               {/* 「更多编辑操作」菜单已移除：内容与上方行按钮完全重复。
                   退出编辑有三个入口：上方「编辑模式」开关（再点一次）、Ctrl+Shift+E、底部「放弃改动」。 */}
@@ -329,17 +356,6 @@ export function Sidebar(props: SidebarProps) {
               >
                 扫描程序
               </SidebarAction>
-              {/* 禁用原因必须能被读屏读到：hover 只对鼠标用户存在。 */}
-              {addGroupDisabledReason && (
-                <span id="tl-capacity-reason-group" className="sr-only" role="status">
-                  {addGroupDisabledReason}
-                </span>
-              )}
-              {addEntryDisabledReason && (
-                <span id="tl-capacity-reason-entry" className="sr-only" role="status">
-                  {addEntryDisabledReason}
-                </span>
-              )}
               <SidebarAction icon={FileUp} onClick={onImport}>
                 导入设置
               </SidebarAction>
@@ -347,6 +363,18 @@ export function Sidebar(props: SidebarProps) {
                 导出设置
               </SidebarAction>
             </>
+          )}
+          {/* 禁用原因必须能被读屏读到：hover 只对鼠标用户存在。
+              放在两个模式块之外：个人页与团队编辑态共用同一条容量口径（原因只在对应该模式时非空）。 */}
+          {addGroupDisabledReason && (
+            <span id="tl-capacity-reason-group" className="sr-only" role="status">
+              {addGroupDisabledReason}
+            </span>
+          )}
+          {addEntryDisabledReason && (
+            <span id="tl-capacity-reason-entry" className="sr-only" role="status">
+              {addEntryDisabledReason}
+            </span>
           )}
           </div>
         </ScrollArea>

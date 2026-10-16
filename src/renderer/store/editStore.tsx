@@ -9,8 +9,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api } from '../bridge/index.ts';
 import type { PublishError, PublishOutcome } from '../bridge/types.ts';
 import type { TeamConfig } from '../../shared/schema/config.ts';
-import { SCHEMA_VERSION } from '../../shared/schema/common.ts';
+import { CAPACITY, SCHEMA_VERSION } from '../../shared/schema/common.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
+import { entryLimitCopy, groupLimitCopy } from '../../shared/capacity-copy.ts';
+import { measure } from '../../shared/capacity-usage.ts';
+import { makeEntry, type NewEntryInput } from '../../shared/new-entry.ts';
 import { useSync } from './syncStore.tsx';
 import { useSettings } from './settingsStore.tsx';
 import { useToasts } from './toastStore.tsx';
@@ -51,11 +54,14 @@ interface EditCtx {
    * 语义与个人页 moveEntryToGroup 一致：落点前移除、同组补偿、拖回原位无操作。
    */
   moveEntryToGroup(entryId: string, toGroupId: string, toIndex?: number): void;
-  /** 新建入口落到指定分组；分组不存在时自动建一个默认分组（首跑空草稿的关键路径）。 */
-  createEntry(groupId: string | null, entry: Entry): void;
+  /** 新建入口落到指定分组；分组不存在时自动建一个默认分组（首跑空草稿的关键路径）。
+      入口数撞上限时拒绝并给出原因（此前没有守卫：草稿能超到发布时才被 413 拦）。 */
+  createEntry(groupId: string | null, entry: Entry): { ok: boolean; reason?: string };
+  /** 批量新增（批量添加对话框的团队版）：**一次 mutate = 一步撤销**，放不下的那部分停下并报原因。 */
+  createEntries(inputs: NewEntryInput[], groupName?: string): { ok: boolean; added: number; reason?: string };
   removeEntry(id: string): void;
   moveEntry(id: string, delta: -1 | 1): void;
-  addGroup(): void;
+  addGroup(name?: string): { ok: boolean; reason?: string };
   /** 主页公告（2026-10-05）：编辑态草稿内增删改/排序，走既有发布流程。 */
   addAnnouncement(): string;
   updateAnnouncement(id: string, patch: { title?: string; body?: string; backgroundImageUrl?: string | null }): void;
@@ -281,6 +287,11 @@ export function EditProvider({ children }: { children: ReactNode }) {
      * 已有分组取第一个，完全没有分组则自动建「其他」（PRD 5.1：未分组入口进「其他」组）。
      */
     createEntry(groupId, entry) {
+      /* 容量真守卫（前置禁用只是提示）：入口数到顶时直接拒绝，别拖到发布才 413。 */
+      const usage = measure(base ?? EMPTY_CONFIG);
+      if (usage.entries >= CAPACITY.MAX_ENTRIES) {
+        return { ok: false, reason: entryLimitCopy(usage) };
+      }
       mutate((c) => {
         let groups = c.groups;
         let target = groups.find((g) => g.id === groupId);
@@ -301,6 +312,50 @@ export function EditProvider({ children }: { children: ReactNode }) {
           ),
         };
       });
+      return { ok: true };
+    },
+    /**
+     * 批量新增（团队版「批量添加」）：**一次 mutate = 一步撤销**。
+     * 逐条调 createEntry 会让撤销只能回退最后一条（每次 mutate 都覆盖 undoSnapshot），
+     * 所以这里在 mutate 之外先把整批算完，放不下的部分停下并如实回报。
+     */
+    createEntries(inputs, groupName) {
+      const usageNow = measure(base ?? EMPTY_CONFIG);
+      if (usageNow.entries >= CAPACITY.MAX_ENTRIES) {
+        return { ok: false, added: 0, reason: entryLimitCopy(usageNow) };
+      }
+      /* 在草稿的浅拷贝上算完整批：命中上限就停在"放得下的那几条"，与个人页 addEntries 同语义。 */
+      const groups = (base ?? EMPTY_CONFIG).groups.map((g) => ({ ...g, entries: [...g.entries] }));
+      let total = groups.reduce((n, g) => n + g.entries.length, 0);
+      const wanted = (groupName ?? '').trim() || groups[0]?.name || '其他';
+      let added = 0;
+      let reason: string | undefined;
+      for (const input of inputs) {
+        let group = groups.find((g) => g.name === wanted);
+        if (!group) {
+          if (groups.length >= CAPACITY.MAX_GROUPS) {
+            reason = groupLimitCopy({ groups: groups.length, entries: total });
+            break;
+          }
+          group = { id: `g-new-${Date.now()}`, name: wanted, sort: groups.length, entries: [] };
+          groups.push(group);
+        }
+        if (total >= CAPACITY.MAX_ENTRIES) {
+          reason = entryLimitCopy({ groups: groups.length, entries: total });
+          break;
+        }
+        group.entries.push(
+          makeEntry(input, group.entries.length, `e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, new Date().toISOString()),
+        );
+        total += 1;
+        added += 1;
+      }
+      /* added === 0 时不写草稿：不留一个"纯回退"的撤销步。 */
+      if (added > 0) {
+        const nextGroups = groups;
+        mutate((c) => ({ ...c, groups: nextGroups }));
+      }
+      return { ok: reason === undefined, added, reason };
     },
     removeEntry(id) {
       mutate((c) => ({
@@ -358,19 +413,26 @@ export function EditProvider({ children }: { children: ReactNode }) {
         return { ...c, announcements: list };
       });
     },
-    addGroup() {
+    addGroup(name) {
+      /* 容量真守卫（同 createEntry）：分组数到顶就拒绝并说明，别等发布才被拦。 */
+      const usage = measure(base ?? EMPTY_CONFIG);
+      if (usage.groups >= CAPACITY.MAX_GROUPS) {
+        return { ok: false, reason: groupLimitCopy(usage) };
+      }
+      const trimmed = (name ?? '').trim();
       mutate((c) => ({
         ...c,
         groups: [
           ...c.groups,
           {
             id: `g-new-${Date.now()}`,
-            name: `新分组 ${c.groups.length + 1}`,
+            name: trimmed.length > 0 ? trimmed : `新分组 ${c.groups.length + 1}`,
             sort: c.groups.length,
             entries: [],
           },
         ],
       }));
+      return { ok: true };
     },
 
     /**

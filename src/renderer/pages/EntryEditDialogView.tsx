@@ -9,6 +9,7 @@
  */
 import { useEdit } from '../store/editStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
+import { useToasts } from '../store/toastStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
 import { EntryEditDialog } from '../components/organisms/EntryEditDialog.tsx';
 import type { Entry } from '../../shared/schema/entry.ts';
@@ -17,6 +18,7 @@ export function EntryEditDialogView() {
   const { entryEditor, closeEntryEditor } = useWorkbench();
   const edit = useEdit();
   const personal = usePersonal();
+  const { push } = useToasts();
   if (!entryEditor) return null;
 
   const mode = entryEditor.mode;
@@ -24,12 +26,17 @@ export function EntryEditDialogView() {
   // edit 用原入口；create 的 prefill = 粘贴快捷添加的预填内容（确认时重新生成 id）。
   const initial = entryEditor.mode === 'edit' ? entryEditor.entry : (entryEditor.prefill ?? null);
 
+  /** 写入失败都要说出来（容量撞上限是常见原因）：此前团队侧的结果被丢掉，点了没反应。 */
+  const reportFailure = (r: { ok: boolean; reason?: string }): void => {
+    if (!r.ok && r.reason) push({ title: r.reason, tone: 'warn' });
+  };
+
   const onConfirm = (entry: Entry, groupId: string | null) => {
     if (mode === 'create') {
-      if (scope === 'personal') void personal.addEntryObject(entry, groupId);
-      else edit.createEntry(groupId, entry);
+      if (scope === 'personal') void personal.addEntryObject(entry, groupId).then(reportFailure);
+      else reportFailure(edit.createEntry(groupId, entry));
     } else if (scope === 'personal') {
-      void personal.updateEntryObject(entry, groupId);
+      void personal.updateEntryObject(entry, groupId).then(reportFailure);
     } else {
       edit.saveEntry(entry);
     }

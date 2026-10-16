@@ -8,39 +8,10 @@ import type { PersonalConfig } from '../../shared/schema/local.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
 import { CAPACITY } from '../../shared/schema/common.ts';
 import { entryLimitCopy, groupLimitCopy } from '../../shared/capacity-copy.ts';
+import { makeEntry, type NewEntryInput } from '../../shared/new-entry.ts';
 
 /** 入口 id：本机生成，不依赖网络，也不与团队配置冲突（团队用 e- 前缀）。 */
 const newId = (): string => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-
-/**
- * 由新增入参造一条入口。
- * app / folder 是判别联合的不同分支：url 只有 web 才有，不能出现在前两者上，
- * 否则 zod 校验会直接拒掉（schema 是 discriminatedUnion）。
- */
-function makeEntry(input: NewEntryInput, sort: number): Entry {
-  const common = {
-    id: newId(),
-    name: input.name,
-    sort,
-    icon: { kind: 'local' as const },
-    iconAssetHash: null,
-    updatedAt: new Date().toISOString(),
-  };
-  if (input.kind === 'web') {
-    return { ...common, type: 'web', url: input.target, description: null };
-  }
-  return input.kind === 'app'
-    ? {
-        ...common,
-        type: 'app',
-        target: input.target,
-        sourcePath: input.sourcePath ?? null,
-        args: '',
-        cwd: '',
-        expandEnv: true,
-      }
-    : { ...common, type: 'folder', target: input.target };
-}
 
 /** 逐项决定用的键是**导入文件里**的 id（后端 ImportDecisions.perEntry 的约定）。 */
 export interface ImportConflictItem {
@@ -52,16 +23,8 @@ export interface ImportConflictItem {
 
 export type ImportChoice = 'copy' | 'overwrite' | 'skip';
 
-/** 新增入口的入参。sourcePath 用于保留 .lnk 原始路径，便于将来重新解析。 */
-export interface NewEntryInput {
-  /** web 时 target 放网址（批量粘贴里网址是主要场景，三条新增路径共用一套入参）。 */
-  kind: 'app' | 'folder' | 'web';
-  name: string;
-  target: string;
-  sourcePath?: string | null;
-  /** 归到哪个分组；不传则落到默认分组（不存在时自动创建）。 */
-  groupName?: string;
-}
+/** 新增入口的入参（定义在 shared/new-entry.ts：个人页与团队编辑态共用同一套换算）。 */
+export type { NewEntryInput } from '../../shared/new-entry.ts';
 
 /** 个人入口的默认分组名：全新安装时没有任何分组，必须能自动建出来。 */
 const DEFAULT_GROUP = '我的入口';
@@ -124,7 +87,8 @@ interface PersonalCtx {
    */
   updateEntryObject(entry: Entry, groupId: string | null): Promise<{ ok: boolean; reason?: string }>;
   /** 新建分组（「新分组 N」），容量闸前置。 */
-  addGroup(): Promise<{ ok: boolean; reason?: string }>;
+  /** name 由「新建分组」对话框传入；不传时自动命名（默认「新分组 N」）。 */
+  addGroup(name?: string): Promise<{ ok: boolean; reason?: string }>;
   renameGroup(groupId: string, name: string): Promise<void>;
   /** 分组整体换序；到边界时不动。 */
   moveGroup(groupId: string, delta: -1 | 1): Promise<void>;
@@ -250,7 +214,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
         groups.push(group);
       }
       // app / folder 是判别联合的不同分支：造条目的规则在 makeEntry 里，批量路径共用同一份。
-      group.entries.push(makeEntry(input, group.entries.length));
+      group.entries.push(makeEntry(input, group.entries.length, newId(), new Date().toISOString()));
       await commit({ ...config, groups });
       return { ok: true };
     },
@@ -370,7 +334,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
         } else if (total >= CAPACITY.MAX_ENTRIES) {
           return { ok: added > 0, added, reason: entryLimitCopy({ entries: total, groups: groups.length }) };
         }
-        group.entries.push(makeEntry(input, group.entries.length));
+        group.entries.push(makeEntry(input, group.entries.length, newId(), new Date().toISOString()));
         total += 1;
         added += 1;
       }
@@ -442,14 +406,20 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     [config, commit],
   );
 
+  /** name 由「新建分组」对话框传入（同名与长度已在对话框校验）；不传时仍自动命名。 */
   const addGroup = useCallback(
-    async (): Promise<{ ok: boolean; reason?: string }> => {
+    async (name?: string): Promise<{ ok: boolean; reason?: string }> => {
       if (config.groups.length >= CAPACITY.MAX_GROUPS) {
         return { ok: false, reason: groupLimitCopy(usage) };
       }
       const groups = clone(config).groups;
-      const name = `新分组 ${groups.length + 1}`;
-      groups.push({ id: `g-${newId()}`, name, sort: groups.length, entries: [] });
+      const trimmed = (name ?? '').trim();
+      groups.push({
+        id: `g-${newId()}`,
+        name: trimmed.length > 0 ? trimmed : `新分组 ${groups.length + 1}`,
+        sort: groups.length,
+        entries: [],
+      });
       await commit({ ...config, groups });
       return { ok: true };
     },

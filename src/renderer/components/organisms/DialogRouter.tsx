@@ -84,6 +84,8 @@ export function DialogRouter({
 
       {dialog === 'batchAdd' && <BatchAddDialogView onClose={closeDialog} />}
 
+      {dialog === 'batchAddTeam' && <BatchAddDialogView scope="team" onClose={closeDialog} />}
+
       {dialog === 'scanPicker' && <ScanPickerDialogView onClose={closeDialog} />}
 
       {dialog === 'adminUnlock' && (
