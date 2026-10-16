@@ -25,6 +25,7 @@ import type { Group } from '../../../shared/schema/group.ts';
 import type { SyncSnapshot } from '../../bridge/types.ts';
 import { Button } from '../atoms/Button.tsx';
 import { ScrollArea } from '../atoms/ScrollArea.tsx';
+import { useToasts } from '../../store/toastStore.tsx';
 import { StatusPill } from '../molecules/StatusPill.tsx';
 import { SyncIndicator } from '../molecules/SyncIndicator.tsx';
 import { PageTabs } from './PageTabs.tsx';
@@ -58,11 +59,14 @@ export interface SidebarProps {
   onBatchAddPersonal(): void;
   onScanPersonal(): void;
   /**
-   * 非空 = 「添加」不可用的原因（容量撞上限）。
+   * 非空 = 该动作不可用的原因（容量撞上限）。**按动作分开**（2026-10-17 用户反馈）：
+   * 「新建分组」只受分组上限约束；「添加入口 / 批量添加 / 扫描程序」只受入口上限约束——
+   * 此前四件事共用一个 OR 门控，8 组时连还剩 181 个入口额度也用不了，属过度拦截。
    * 用 softDisabled 而非原生 disabled：按钮留在 tab 序列里，键盘用户能聚焦到它
    * 并读到为什么按不动，否则他只会遇到一个"点了没反应"的按钮。
    */
-  addDisabledReason?: string | null;
+  addGroupDisabledReason?: string | null;
+  addEntryDisabledReason?: string | null;
   onImport(): void;
   onExport(): void;
   /** 团队编辑态 */
@@ -111,10 +115,16 @@ function SectionCap({ children }: { children: ReactNode }) {
 export function Sidebar(props: SidebarProps) {
   const {
     tab, mode, onTabChange, groups, snapshot, onOpenSettings, onOpenDiagnostics, onRefresh,
-    onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal, addDisabledReason, onImport, onExport,
+    onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal,
+    addGroupDisabledReason = null, addEntryDisabledReason = null, onImport, onExport,
     onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false, editLocked = false,
   onGroupAction,
   } = props;
+  const { push } = useToasts();
+  /** 撞上限的按钮点下去要说话：点击被 softDisabled 挡下是设计，但静默就是"点了没反应"。 */
+  const blockReason = (reason?: string | null): void => {
+    if (reason) push({ title: reason, tone: 'warn' });
+  };
   const reduced = useReducedMotion();
   const [syncPop, setSyncPop] = useState(false);
   const popRef = useRef<HTMLDivElement | null>(null);
@@ -283,41 +293,51 @@ export function Sidebar(props: SidebarProps) {
               <SidebarAction
                 icon={FolderPlus}
                 onClick={onAddPersonalGroup}
-                softDisabled={Boolean(addDisabledReason)}
-                title={addDisabledReason ?? undefined}
+                softDisabled={Boolean(addGroupDisabledReason)}
+                title={addGroupDisabledReason ?? undefined}
+                aria-describedby={addGroupDisabledReason ? 'tl-capacity-reason-group' : undefined}
+                onDisabledClick={() => blockReason(addGroupDisabledReason)}
               >
                 新建分组
               </SidebarAction>
               <SidebarAction
                 icon={Plus}
                 onClick={onAddPersonalEntry}
-                softDisabled={Boolean(addDisabledReason)}
-                title={addDisabledReason ?? undefined}
-                aria-describedby={addDisabledReason ? 'tl-capacity-reason' : undefined}
+                softDisabled={Boolean(addEntryDisabledReason)}
+                title={addEntryDisabledReason ?? undefined}
+                aria-describedby={addEntryDisabledReason ? 'tl-capacity-reason-entry' : undefined}
+                onDisabledClick={() => blockReason(addEntryDisabledReason)}
               >
                 添加入口
               </SidebarAction>
-              {/* 两条"批量"入口：贴多行 / 扫本机。撞容量时与"添加入口"同款前置禁用。 */}
+              {/* 两条"批量"入口：贴多行 / 扫本机。只受入口上限约束（与分组数无关）。 */}
               <SidebarAction
                 icon={Layers}
                 onClick={onBatchAddPersonal}
-                softDisabled={Boolean(addDisabledReason)}
-                title={addDisabledReason ?? undefined}
+                softDisabled={Boolean(addEntryDisabledReason)}
+                title={addEntryDisabledReason ?? undefined}
+                onDisabledClick={() => blockReason(addEntryDisabledReason)}
               >
                 批量添加
               </SidebarAction>
               <SidebarAction
                 icon={ScanSearch}
                 onClick={onScanPersonal}
-                softDisabled={Boolean(addDisabledReason)}
-                title={addDisabledReason ?? undefined}
+                softDisabled={Boolean(addEntryDisabledReason)}
+                title={addEntryDisabledReason ?? undefined}
+                onDisabledClick={() => blockReason(addEntryDisabledReason)}
               >
                 扫描程序
               </SidebarAction>
               {/* 禁用原因必须能被读屏读到：hover 只对鼠标用户存在。 */}
-              {addDisabledReason && (
-                <span id="tl-capacity-reason" className="sr-only" role="status">
-                  {addDisabledReason}
+              {addGroupDisabledReason && (
+                <span id="tl-capacity-reason-group" className="sr-only" role="status">
+                  {addGroupDisabledReason}
+                </span>
+              )}
+              {addEntryDisabledReason && (
+                <span id="tl-capacity-reason-entry" className="sr-only" role="status">
+                  {addEntryDisabledReason}
                 </span>
               )}
               <SidebarAction icon={FileUp} onClick={onImport}>

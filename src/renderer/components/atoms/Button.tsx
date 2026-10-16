@@ -24,6 +24,11 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   selected?: boolean;
   /** 禁用但仍可聚焦（aria-disabled），用在中止不了的终态按钮上。 */
   softDisabled?: boolean;
+  /**
+   * softDisabled 时点下去的回声（2026-10-17）：按钮照旧不执行动作，但把"为什么按不动"
+   * 说出来。此前点击被静默吞掉——用户只看到"点了没反应"（零容忍项）。
+   */
+  onDisabledClick?: () => void;
   fullWidth?: boolean;
   children?: ReactNode;
 }
@@ -67,6 +72,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     loading = false,
     selected = false,
     softDisabled = false,
+    onDisabledClick,
     fullWidth = false,
     disabled,
     className = '',
@@ -100,6 +106,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       onClick={(e) => {
         if (isDisabled) {
           e.preventDefault();
+          onDisabledClick?.();
           return;
         }
         onClick?.(e);

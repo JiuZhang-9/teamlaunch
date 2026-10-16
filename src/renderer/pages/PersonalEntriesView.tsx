@@ -21,7 +21,7 @@ import { usePersonal } from '../store/personalStore.tsx';
 import { useSettings } from '../store/settingsStore.tsx';
 import { useToasts } from '../store/toastStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
-import { capacityExceededCopy } from '../../shared/capacity-copy.ts';
+import { entryLimitCopy } from '../../shared/capacity-copy.ts';
 import type { Group } from '../../shared/schema/group.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
 
@@ -51,8 +51,8 @@ export function PersonalEntriesView() {
     ? allGroups.map((g) => ({ ...g, entries: g.entries.filter((e) => typeFilter.includes(e.type)) }))
     : allGroups;
   const total = groups.reduce((n, g) => n + g.entries.length, 0);
-  /** 撞上限时「创建副本」同样会新增入口，必须一起前置禁用。 */
-  const capacityReason = usage.atEntryLimit ? capacityExceededCopy(usage) : null;
+  /** 撞上限时「创建副本」同样会新增入口，必须一起前置禁用。口径只算入口数（与分组数无关）。 */
+  const capacityReason = usage.atEntryLimit ? entryLimitCopy(usage) : null;
 
   /** 与团队编辑态同构：组头 = 「在此组添加」+ ⋯（重命名/换序/删除）。 */
   const headerExtra = (group: Group) => (

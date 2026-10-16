@@ -22,7 +22,7 @@ import { DialogRouter } from './DialogRouter.tsx';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue.ts';
 import { useGlobalHotkeys } from '../../hooks/useGlobalHotkeys.ts';
 import { useToolbarMenus } from '../../hooks/useToolbarMenus.ts';
-import { capacityExceededCopy } from '../../../shared/capacity-copy.ts';
+import { entryLimitCopy, groupLimitCopy } from '../../../shared/capacity-copy.ts';
 import { DEFAULT_APP_HOTKEYS } from '../../../shared/app-hotkeys.ts';
 import { useEntryIcons } from '../../hooks/useEntryIcons.ts';
 import { useEntrySearch } from '../../hooks/useEntrySearch.ts';
@@ -232,7 +232,11 @@ export function MainWindowShell() {
   };
 
   /** 容量前置说明：撞上限时「添加」按钮禁用并把原因挂到 hover / 读屏上。 */
-  const capacityReason = usage.atEntryLimit || usage.atGroupLimit ? capacityExceededCopy(usage) : null;
+  /* 容量门控**按动作分**（2026-10-17 用户反馈：8 个分组时"添加入口 / 批量添加 / 扫描程序"
+     也被一起禁掉，而它们加的是入口、与分组数无关，属过度拦截）：
+     分组数只拦「新建分组」，入口数只拦"加入口"三件套。 */
+  const groupAddReason = usage.atGroupLimit ? groupLimitCopy(usage) : null;
+  const entryAddReason = usage.atEntryLimit ? entryLimitCopy(usage) : null;
 
   const gateBlocking = settings.telemetryNoticeAckedAt === null;
 
@@ -303,7 +307,8 @@ export function MainWindowShell() {
           onAddPersonalEntry={() => openEntryEditor({ mode: 'create', groupId: null, scope: 'personal' })}
           onBatchAddPersonal={() => openDialog('batchAdd')}
           onScanPersonal={() => openDialog('scanPicker')}
-          addDisabledReason={tab === 'personal' ? capacityReason : null}
+          addGroupDisabledReason={tab === 'personal' ? groupAddReason : null}
+          addEntryDisabledReason={tab === 'personal' ? entryAddReason : null}
           onImport={() => fileRef.current?.click()}
           onExport={() => void doExport()}
           onUndo={edit.undo}

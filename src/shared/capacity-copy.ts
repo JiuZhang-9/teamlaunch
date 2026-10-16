@@ -29,6 +29,22 @@ export function capacityExceededCopy(current: CapacityUsage): string {
   );
 }
 
+/**
+ * 分组数撞上限 —— 只该拦住「新建分组」这一件事（2026-10-17 用户反馈）。
+ *
+ * "添加入口 / 批量添加 / 扫描程序"是往**已有分组**里加东西，与分组数无关；
+ * 此前四件事共用一个 OR 门控（任一无额度即全禁），8 组时连还有 181 个入口额度也用不了，
+ * 属过度拦截。两句话分开，各自准确。
+ */
+export function groupLimitCopy(current: CapacityUsage): string {
+  return `分组已达 ${CAPACITY.MAX_GROUPS} 个上限（当前 ${current.groups} 组），请先删除分组后重试`;
+}
+
+/** 入口数撞上限 —— 只该拦住"加入口"类动作（新建分组不受它约束）。 */
+export function entryLimitCopy(current: CapacityUsage): string {
+  return `入口已达 ${CAPACITY.MAX_ENTRIES} 个上限（当前 ${current.entries} 个），请先删减后重试`;
+}
+
 /** 导入文件自身超限：整份拒收，一个字节都不写。 */
 export function importFileTooLargeCopy(file: CapacityUsage): string {
   return (

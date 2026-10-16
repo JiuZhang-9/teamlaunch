@@ -7,7 +7,7 @@ import { api } from '../bridge/index.ts';
 import type { PersonalConfig } from '../../shared/schema/local.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
 import { CAPACITY } from '../../shared/schema/common.ts';
-import { capacityExceededCopy } from '../../shared/capacity-copy.ts';
+import { entryLimitCopy, groupLimitCopy } from '../../shared/capacity-copy.ts';
 
 /** 入口 id：本机生成，不依赖网络，也不与团队配置冲突（团队用 e- 前缀）。 */
 const newId = (): string => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -237,14 +237,14 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     async (input: NewEntryInput): Promise<{ ok: boolean; reason?: string }> => {
       const total = config.groups.reduce((n, g) => n + g.entries.length, 0);
       if (total >= CAPACITY.MAX_ENTRIES) {
-        return { ok: false, reason: capacityExceededCopy({ entries: total, groups: config.groups.length }) };
+        return { ok: false, reason: entryLimitCopy({ entries: total, groups: config.groups.length }) };
       }
       const name = (input.groupName ?? DEFAULT_GROUP).trim() || DEFAULT_GROUP;
       const groups = clone(config).groups;
       let group = groups.find((g) => g.name === name);
       if (!group) {
         if (groups.length >= CAPACITY.MAX_GROUPS) {
-          return { ok: false, reason: capacityExceededCopy({ entries: total, groups: groups.length }) };
+          return { ok: false, reason: groupLimitCopy({ entries: total, groups: groups.length }) };
         }
         group = { id: `g-${newId()}`, name, sort: groups.length, entries: [] };
         groups.push(group);
@@ -282,7 +282,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
         return {
           ok: false,
           added: 0,
-          reason: capacityExceededCopy({ entries: total, groups: config.groups.length }),
+          reason: entryLimitCopy({ entries: total, groups: config.groups.length }),
         };
       }
       const wanted = entryIds.slice(0, room);
@@ -306,7 +306,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       return {
         ok: entryIds.length <= room,
         added,
-        reason: entryIds.length > room ? capacityExceededCopy({ entries: total, groups: config.groups.length }) : undefined,
+        reason: entryIds.length > room ? entryLimitCopy({ entries: total, groups: config.groups.length }) : undefined,
       };
     },
     [config, commit],
@@ -357,13 +357,18 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
         const groupName = (input.groupName ?? DEFAULT_GROUP).trim() || DEFAULT_GROUP;
         let group = groups.find((g) => g.name === groupName);
         if (!group) {
-          if (groups.length >= CAPACITY.MAX_GROUPS || total >= CAPACITY.MAX_ENTRIES) {
-            return { ok: added > 0, added, reason: capacityExceededCopy({ entries: total, groups: groups.length }) };
+          /* 目标分组还不存在（首次导入到自定义组名）：两个上限都可能挡住它，
+             报**真正挡住的那个**，别用合并文案让人自己去猜。 */
+          if (groups.length >= CAPACITY.MAX_GROUPS) {
+            return { ok: added > 0, added, reason: groupLimitCopy({ entries: total, groups: groups.length }) };
+          }
+          if (total >= CAPACITY.MAX_ENTRIES) {
+            return { ok: added > 0, added, reason: entryLimitCopy({ entries: total, groups: groups.length }) };
           }
           group = { id: `g-${newId()}`, name: groupName, sort: groups.length, entries: [] };
           groups.push(group);
         } else if (total >= CAPACITY.MAX_ENTRIES) {
-          return { ok: added > 0, added, reason: capacityExceededCopy({ entries: total, groups: groups.length }) };
+          return { ok: added > 0, added, reason: entryLimitCopy({ entries: total, groups: groups.length }) };
         }
         group.entries.push(makeEntry(input, group.entries.length));
         total += 1;
@@ -383,14 +388,14 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     async (entry: Entry, groupId: string | null): Promise<{ ok: boolean; reason?: string }> => {
       const total = config.groups.reduce((n, g) => n + g.entries.length, 0);
       if (total >= CAPACITY.MAX_ENTRIES) {
-        return { ok: false, reason: capacityExceededCopy({ entries: total, groups: config.groups.length }) };
+        return { ok: false, reason: entryLimitCopy({ entries: total, groups: config.groups.length }) };
       }
       const groups = clone(config).groups;
       let group = groups.find((g) => g.id === groupId);
       if (!group && groups.length > 0) group = groups[0];
       if (!group) {
         if (groups.length >= CAPACITY.MAX_GROUPS) {
-          return { ok: false, reason: capacityExceededCopy({ entries: total, groups: groups.length }) };
+          return { ok: false, reason: groupLimitCopy({ entries: total, groups: groups.length }) };
         }
         group = { id: `g-${newId()}`, name: DEFAULT_GROUP, sort: groups.length, entries: [] };
         groups.push(group);
@@ -440,7 +445,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const addGroup = useCallback(
     async (): Promise<{ ok: boolean; reason?: string }> => {
       if (config.groups.length >= CAPACITY.MAX_GROUPS) {
-        return { ok: false, reason: capacityExceededCopy({ entries: config.groups.reduce((n, g) => n + g.entries.length, 0), groups: config.groups.length }) };
+        return { ok: false, reason: groupLimitCopy(usage) };
       }
       const groups = clone(config).groups;
       const name = `新分组 ${groups.length + 1}`;
@@ -448,7 +453,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       await commit({ ...config, groups });
       return { ok: true };
     },
-    [config, commit],
+    [config, commit, usage],
   );
 
   const renameGroup = useCallback(
