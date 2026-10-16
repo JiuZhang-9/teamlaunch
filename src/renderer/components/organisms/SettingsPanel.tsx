@@ -35,6 +35,7 @@ import { AppHotkeysSection } from './AppHotkeysSection.tsx';
 import type { SettingsSection } from '../../store/workbenchStore.tsx';
 import type { Settings } from '../../../shared/schema/local.ts';
 import { api } from '../../bridge/index.ts';
+import { APP_VERSION } from '../../lib/appVersion.ts';
 import type { AdminStatus, AppUpdateStatus, BrowserInfo } from '../../bridge/types.ts';
 import { formatRevDate } from './EditActionBar.tsx';
 
@@ -573,7 +574,7 @@ export function SettingsPanel({
             </div>
             <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]">
               <dt className="text-[var(--muted)]">应用版本</dt>
-              <dd className="m-0 text-[var(--fg)]">v{__APP_VERSION__}</dd>
+              <dd className="m-0 text-[var(--fg)]">v{APP_VERSION}</dd>
               <dt className="text-[var(--muted)]">团队数据版本</dt>
               <dd className="m-0 text-[var(--fg)]">
                 {teamRevision != null ? `v${teamRevision}${announcedAt ? ' · ' + formatRevDate(announcedAt) : ''}` : '未同步'}

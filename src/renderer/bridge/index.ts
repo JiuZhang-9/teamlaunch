@@ -44,7 +44,7 @@ function createMissingHost(): TeamLaunchApi {
     throw new Error(MISSING_PRELOAD_MESSAGE);
   };
   return new Proxy({} as TeamLaunchApi, {
-    get: (_target, prop) => (prop === 'kind' ? 'electron' : fail),
+    get: (_target, prop) => (prop === 'kind' ? 'electron' : prop === 'appVersion' ? '' : fail),
   });
 }
 

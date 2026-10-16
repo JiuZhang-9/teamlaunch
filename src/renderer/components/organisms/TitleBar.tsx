@@ -8,6 +8,7 @@
 import { PanelLeft, Minus, Square, X, CircleHelp } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { api } from '../../bridge/index.ts';
+import { APP_VERSION } from '../../lib/appVersion.ts';
 import { BrandMark } from '../atoms/BrandMark.tsx';
 
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
@@ -63,7 +64,7 @@ export function TitleBar({ closeDisabled = false, collapsed = false, onToggleSid
         <button
           type="button"
           onClick={onOpenAbout}
-          title={`关于 TeamLaunch（v${__APP_VERSION__}${teamRevision != null ? ` · 团队数据 v${teamRevision}` : ''}）`}
+          title={`关于 TeamLaunch（v${APP_VERSION}${teamRevision != null ? ` · 团队数据 v${teamRevision}` : ''}）`}
           className="flex h-10 shrink-0 select-none items-center gap-2 rounded-[var(--radius-md)] px-1.5 transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
           style={NO_DRAG}
         >
@@ -75,7 +76,7 @@ export function TitleBar({ closeDisabled = false, collapsed = false, onToggleSid
             TeamLaunch
           </span>
           <span className="t-2xs" style={{ color: 'var(--meta)' }}>
-            v{__APP_VERSION__}
+            v{APP_VERSION}
           </span>
         </button>
       ) : (

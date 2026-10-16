@@ -46,6 +46,11 @@ function windowOptions(extra: Electron.BrowserWindowConstructorOptions) {
       nodeIntegration: false,
       sandbox: false,
       spellcheck: false,
+      /* 把**真实运行版本**交给 preload（→ 渲染层界面显示），而不是让界面用构建期常量：
+         构建期常量取自打包时读到的 package.json，一旦"产物没重建就打包"就会与真实版本不一致
+         （2026-10-17 出过一次：跳过 build 直接调 electron-builder，装完界面仍显示旧版本）。
+         走 additionalArguments 不需要新开 IPC 通道。 */
+      additionalArguments: [`--tl-app-version=${app.getVersion()}`],
     },
     ...extra,
   };

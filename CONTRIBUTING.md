@@ -48,6 +48,8 @@ chore: 固化 electron-builder rename 兜底补丁为 postinstall 脚本
 1. `package.json` 升版本号
 2. `CHANGELOG.md` 加条目（新增/修复/变更，面向使用者）
 3. `npm run dist:win`，产物在 `dist/installer/`
+   **不要绕过这一步**：直接调 `electron-builder` 会跳过 `npm run build`，把上一次的前端产物打进安装包
+   （2026-10-17 就因此发生过"装完界面仍显示旧版本"）。`npm run release:gh` 会校验"产物比源码新"。
 4. `npm run release:gh` —— 打 `vX.Y.Z` tag、建 GitHub Release，并把
    **exe + blockmap + `latest.yml` + SHA256SUMS.txt** 一并挂上并校验
 

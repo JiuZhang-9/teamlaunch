@@ -100,6 +100,9 @@ ipcRenderer.on('tl:settings', (_e, settings: Settings) => {
 
 const api: TeamLaunchApi = {
   kind: 'electron',
+  /* 真实运行版本由主进程经 webPreferences.additionalArguments 下发（见 windowManager）；
+     拿不到就是空串，渲染层回落到构建期常量 __APP_VERSION__（浏览器预览 Harness 用）。 */
+  appVersion: process.argv.find((a) => a.startsWith('--tl-app-version='))?.slice('--tl-app-version='.length) ?? '',
 
   entries: {
     open: (entryId) => invoke<OpenResult>('tl:entries-open', entryId),

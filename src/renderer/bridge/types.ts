@@ -244,6 +244,12 @@ export interface DemoControls {
 
 export interface TeamLaunchApi {
   readonly kind: 'electron' | 'mock';
+  /**
+   * 真实运行中的应用版本（主进程经 additionalArguments 下发）。
+   * 空串 = 拿不到（浏览器预览 Harness），调用方回落到构建期常量 `__APP_VERSION__`。
+   * 界面显示版本一律走 `lib/appVersion.ts` 的 APP_VERSION，不要直接用构建期常量。
+   */
+  readonly appVersion: string;
   readonly demo?: DemoControls;
 
   entries: {

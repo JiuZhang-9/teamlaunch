@@ -16,7 +16,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const REPO = 'JiuZhang-9/teamlaunch';
@@ -33,6 +33,17 @@ const assets = [exe, `${exe}.blockmap`, 'latest.yml', 'SHA256SUMS.txt'];
 
 function run(cmd, args) {
   return execFileSync(cmd, args, { cwd: root, encoding: 'utf8' }).trim();
+}
+
+/** 递归取路径下最新的 mtime（文件就是它自己）。 */
+function newestMtime(target) {
+  const st = statSync(target);
+  if (st.isFile()) return st.mtimeMs;
+  let newest = st.mtimeMs;
+  for (const entry of readdirSync(target, { withFileTypes: true })) {
+    newest = Math.max(newest, newestMtime(join(target, entry.name)));
+  }
+  return newest;
 }
 function ok(msg) {
   process.stdout.write(`  ✓ ${msg}\n`);
@@ -61,6 +72,24 @@ if (latestVersion !== version) {
   fail(`latest.yml 的版本是 ${latestVersion}，package.json 是 ${version} —— 产物是旧构建，重跑 npm run dist:win`);
 }
 ok(`latest.yml 版本一致：${version}`);
+
+/* 2.5 构建产物必须比源码新——"忘了 build 就打安装包"是真实发生过的错误：
+   1.0.22 因为改输出目录直接调 electron-builder、跳过 npm run build，装完界面仍显示旧版本号
+   （版本号曾被烘成构建期常量；现在界面改走运行时版本，但漏 build 仍可能发出旧代码）。 */
+const artifactFiles = ['dist/main/index.cjs', 'dist/preload/index.cjs', 'dist/renderer/index.html'];
+for (const rel of artifactFiles) {
+  if (!existsSync(join(root, rel))) fail(`缺少构建产物 ${rel} —— 先跑 npm run build（或 npm run dist:win）`);
+}
+const assetsDir = join(root, 'dist', 'renderer', 'assets');
+const artifactsOldest = Math.min(
+  ...artifactFiles.map((rel) => statSync(join(root, rel)).mtimeMs),
+  ...(existsSync(assetsDir) ? [newestMtime(assetsDir)] : [Infinity]),
+);
+const sourcesNewest = Math.max(newestMtime(join(root, 'src')), statSync(join(root, 'package.json')).mtimeMs);
+if (artifactsOldest < sourcesNewest) {
+  fail('构建产物比源码旧（漏了 npm run build？）—— 先重新构建再发版，别把旧代码发出去');
+}
+ok('产物比源码新（没有漏构建）');
 
 /* 3. 工作区干净、main 已推送（tag 必须指向一个远端存在的提交） */
 if (run('git', ['status', '--porcelain']) !== '') fail('工作区有未提交的改动——先提交再发版');
