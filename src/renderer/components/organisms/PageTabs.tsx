@@ -22,10 +22,15 @@ export interface PageTabsProps {
   onChange(next: TabKey): void;
   /** 竖向用于侧栏导航（选中态为左侧竖条），横向用于顶部标签（底部横条）。 */
   orientation?: 'horizontal' | 'vertical';
+  /** 禁用项（2026-10-17）：视觉置灰、点击无效、方向键/Home/End 都跳过。编辑态锁「我的入口」用。 */
+  disabledKeys?: TabKey[];
+  /** 禁用项的统一提示（title 与 aria 说明为什么要先退出编辑）。 */
+  disabledTitle?: string;
 }
 
-export function PageTabs({ value, onChange, orientation = 'horizontal' }: PageTabsProps) {
+export function PageTabs({ value, onChange, orientation = 'horizontal', disabledKeys = [], disabledTitle }: PageTabsProps) {
   const vertical = orientation === 'vertical';
+  const isDisabled = (key: TabKey) => disabledKeys.includes(key);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [indicator, setIndicator] = useState({ offset: 0, size: 0 });
@@ -52,8 +57,12 @@ export function PageTabs({ value, onChange, orientation = 'horizontal' }: PageTa
     return () => ro.disconnect();
   }, [measure]);
 
+  /** 方向键在「未禁用」的页签之间循环（禁用项直接跳过，不聚焦、不切换）。 */
   const move = (delta: -1 | 1) => {
-    const next = (index + delta + TABS.length) % TABS.length;
+    const enabled = TABS.map((t, i) => (isDisabled(t.key) ? -1 : i)).filter((i) => i >= 0);
+    if (enabled.length === 0) return;
+    const pos = enabled.indexOf(index);
+    const next = pos < 0 ? enabled[0] : enabled[(pos + delta + enabled.length) % enabled.length];
     onChange(TABS[next].key);
     tabRefs.current[next]?.focus();
   };
@@ -78,10 +87,10 @@ export function PageTabs({ value, onChange, orientation = 'horizontal' }: PageTa
         } else if (e.key === prevKey) {
           e.preventDefault();
           move(-1);
-        } else if (e.key === 'Home') {
+        } else if (e.key === 'Home' && !isDisabled('home')) {
           e.preventDefault();
           onChange('home');
-        } else if (e.key === 'End') {
+        } else if (e.key === 'End' && !isDisabled('personal')) {
           e.preventDefault();
           onChange('personal');
         }
@@ -89,6 +98,7 @@ export function PageTabs({ value, onChange, orientation = 'horizontal' }: PageTa
     >
       {TABS.map((t, i) => {
         const selected = t.key === value;
+        const locked = isDisabled(t.key);
         const Glyph = t.icon;
         return (
           <button
@@ -101,6 +111,9 @@ export function PageTabs({ value, onChange, orientation = 'horizontal' }: PageTa
             id={`tl-tab-${t.key}`}
             aria-selected={selected}
             aria-controls={`tl-panel-${t.key}`}
+            disabled={locked}
+            aria-disabled={locked || undefined}
+            title={locked ? disabledTitle : undefined}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(t.key)}
             className={[
@@ -109,9 +122,11 @@ export function PageTabs({ value, onChange, orientation = 'horizontal' }: PageTa
               vertical
                 ? 'h-[var(--sidebar-nav-h)] w-full justify-start px-3'
                 : 'h-7 min-w-[88px] gap-1.5 px-3',
-              selected
-                ? 'bg-[var(--tab-bg-selected)] w-emph'
-                : 'hover:bg-[var(--bg-surface-hover)]',
+              locked
+                ? 'cursor-not-allowed opacity-40'
+                : selected
+                  ? 'bg-[var(--tab-bg-selected)] w-emph'
+                  : 'hover:bg-[var(--bg-surface-hover)]',
             ].join(' ')}
             style={{
               /* 背景必须走类：内联样式会压掉 hover:bg（2026-10-06 用户实测页签无悬停反馈） */

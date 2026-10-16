@@ -2,14 +2,18 @@
  * Sidebar —— 左侧 240px 导航与操作栏（2026-10-02 定稿：V2 工作区条形态）。
  *
  * 自上而下：导航（两入口页，选中态 = 左侧 3px 竖条 + accent tint 底）
- *   → 分组锚点（组名 + 计数，点击平滑滚动到对应组头）
+ *   → 分组锚点（组名 + 计数，点击平滑滚动到对应组头；**分组多了这一段自己滚**，不挤压下面）
  *   → 随模式切换的主操作（team=编辑模式入口；editing=pill+撤销/新建；personal=新建/添加/导入/导出）
  *   → 弹性空白（app-region: drag）
- *   → V2 工作区条：[工作区方块 + 双行文案] ｜ 设置齿轮（点击工作区条弹出窗口内同步弹层）。
+ *   → V2 工作区条：[工作区方块 + 双行文案] ｜ 设置齿轮（点击工作区条弹出窗口内同步弹层）
  *
  * 折叠：collapsed 时整条 width→0 完全消失（非图标栏形态），内部固定 240 宽防挤压；
  * 弹性空白与底部区声明 app-region: drag，与顶部 TitleBar 一起构成"整条左侧都能拖窗口"。
  * 可拖区域内的交互元素必须逐个 no-drag。
+ *
+ * 底部固定（2026-10-17）：工作区条/设置永远可见——**中段（分组 + 操作）整段用 ScrollArea 吸收
+ * 高度**，两侧只留导航、32px 拖拽条与底部条为固定项（480 最小窗高下固定 ≈ 217px）。
+ * 只让分组滚是不够的：固定项本身就会超过最小窗高（实测 474 > 440），底部仍会被推出可视区。
  */
 import { FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, ScanSearch, Settings, Undo2, type LucideIcon } from 'lucide-react';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
@@ -20,6 +24,7 @@ import { syncPresentation } from '../../services/syncCopy.ts';
 import type { Group } from '../../../shared/schema/group.ts';
 import type { SyncSnapshot } from '../../bridge/types.ts';
 import { Button } from '../atoms/Button.tsx';
+import { ScrollArea } from '../atoms/ScrollArea.tsx';
 import { StatusPill } from '../molecules/StatusPill.tsx';
 import { SyncIndicator } from '../molecules/SyncIndicator.tsx';
 import { PageTabs } from './PageTabs.tsx';
@@ -34,6 +39,12 @@ export interface SidebarProps {
   tab: TabKey;
   mode: SidebarMode;
   onTabChange(t: TabKey): void;
+  /**
+   * 编辑态锁（2026-10-17 用户要求）：编辑中「我的入口」页签置灰、点不动。
+   * 逻辑拦截的唯一真源在 workbenchStore.setTab（连 Ctrl+E 与粘贴跳转一起管住），
+   * 这里只是同一条规则的视觉面。
+   */
+  editLocked?: boolean;
   /** 当前页的分组（外壳已按 tab/editing 选好），用于锚点区。 */
   groups: Group[];
   snapshot: SyncSnapshot | null;
@@ -101,7 +112,7 @@ export function Sidebar(props: SidebarProps) {
   const {
     tab, mode, onTabChange, groups, snapshot, onOpenSettings, onOpenDiagnostics, onRefresh,
     onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal, addDisabledReason, onImport, onExport,
-    onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false,
+    onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false, editLocked = false,
   onGroupAction,
   } = props;
   const reduced = useReducedMotion();
@@ -179,38 +190,51 @@ export function Sidebar(props: SidebarProps) {
         style={{ background: 'var(--bg-chrome)' }}
       >
         <nav className="px-[var(--sidebar-pad)] pt-[var(--sidebar-pad)]">
-          <PageTabs orientation="vertical" value={tab} onChange={onTabChange} />
+          <PageTabs
+            orientation="vertical"
+            value={tab}
+            onChange={onTabChange}
+            disabledKeys={editLocked ? ['personal'] : undefined}
+            disabledTitle="编辑中：先退出编辑模式再切换页面"
+          />
         </nav>
 
-        <div
-          className="mt-[var(--space-3)] border-t border-[var(--border-subtle)] px-[var(--sidebar-pad)] pt-[var(--space-2)]"
-          style={mode === 'home' ? { display: 'none' } : undefined}
+        {/* 中段（分组锚点 + 随模式切换的操作）**整段可滚**：窗口小或分组多时由它让出空间，
+            底部工作区条/设置永远钉在可视区里（2026-10-17 用户反馈：分组一多底部就被挤下去）。
+            只让分组滚不够——480 最小窗高下"分组 + 操作区"的固定高度本身就超（474 > 440），
+            所以两段一起滚才是完备解。 */}
+        <ScrollArea
+          className="mt-[var(--space-3)] min-h-0 flex-1"
+          ariaLabel="侧栏中段"
         >
-          <SectionCap>分组</SectionCap>
-          {groups.length === 0 ? (
-            <div className="px-3 pb-1 text-[13px] text-[var(--meta)]">暂无分组</div>
-          ) : (
-            groups.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => goGroup(g.name)}
-                onContextMenu={(e) => {
-                  if (!onGroupAction) return;
-                  e.preventDefault();
-                  setGroupMenu({ x: e.clientX, y: e.clientY, group: g });
-                }}
-                className="flex h-7 w-full items-center gap-2 truncate rounded-[var(--radius-sm)] px-3 text-[13px] text-[var(--fg)] transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
-                title={`定位到分组「${g.name}」`}
-              >
-                <span className="truncate-1">{g.name}</span>
-                <span className="ml-auto text-xs text-[var(--meta)]">{g.entries.length}</span>
-              </button>
-            ))
+          {mode !== 'home' && (
+            <div className="border-t border-[var(--border-subtle)] px-[var(--sidebar-pad)] pt-[var(--space-2)]">
+              <SectionCap>分组</SectionCap>
+              {groups.length === 0 ? (
+                <div className="px-3 pb-1 text-[13px] text-[var(--meta)]">暂无分组</div>
+              ) : (
+                groups.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => goGroup(g.name)}
+                    onContextMenu={(e) => {
+                      if (!onGroupAction) return;
+                      e.preventDefault();
+                      setGroupMenu({ x: e.clientX, y: e.clientY, group: g });
+                    }}
+                    className="flex h-7 w-full items-center gap-2 truncate rounded-[var(--radius-sm)] px-3 text-[13px] text-[var(--fg)] transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
+                    title={`定位到分组「${g.name}」`}
+                  >
+                    <span className="truncate-1">{g.name}</span>
+                    <span className="ml-auto text-xs text-[var(--meta)]">{g.entries.length}</span>
+                  </button>
+                ))
+              )}
+            </div>
           )}
-        </div>
 
-        <div className="mt-[var(--space-3)] flex flex-col gap-1 border-t border-[var(--border-subtle)] px-[var(--sidebar-pad)] pt-[var(--space-2)]">
+          <div className="mt-[var(--space-3)] flex flex-col gap-1 border-t border-[var(--border-subtle)] px-[var(--sidebar-pad)] pt-[var(--space-2)]">
           {mode === 'editing' && (
             <>
               <SectionCap>编辑操作</SectionCap>
@@ -288,7 +312,7 @@ export function Sidebar(props: SidebarProps) {
                 softDisabled={Boolean(addDisabledReason)}
                 title={addDisabledReason ?? undefined}
               >
-                扫描本机程序
+                扫描程序
               </SidebarAction>
               {/* 禁用原因必须能被读屏读到：hover 只对鼠标用户存在。 */}
               {addDisabledReason && (
@@ -297,24 +321,26 @@ export function Sidebar(props: SidebarProps) {
                 </span>
               )}
               <SidebarAction icon={FileUp} onClick={onImport}>
-                导入
+                导入设置
               </SidebarAction>
               <SidebarAction icon={FileDown} onClick={onExport}>
-                导出
+                导出设置
               </SidebarAction>
             </>
           )}
-        </div>
+          </div>
+        </ScrollArea>
 
-        {/* 弹性空白：侧栏中段没有交互元素，整块都可以用来拖窗口。
+        {/* 弹性拖拽条：中段已整段可滚，这里留一条固定高度的空白用来拖窗口。
             注意：收起时必须彻底撤掉 drag 声明：app-region 是几何叠加，overflow 裁剪
             不取消命中——留着的话左列卡片（收起后挪进这 240px）会整块变成拖拽区，
             悬停/点击全被系统吃掉（2026-10-05 用户实测）。 */}
-        <div className="min-h-[var(--space-8)] flex-1" style={collapsed ? undefined : DRAG} />
+        <div className="h-[var(--space-8)] shrink-0" style={collapsed ? undefined : DRAG} />
 
-        {/* V2 工作区条（定稿）：[工作区方块+双行文案] ｜ 设置齿轮 */}
+        {/* V2 工作区条（定稿）：[工作区方块+双行文案] ｜ 设置齿轮
+            shrink-0：这一条与设置永远不能参与收缩——分组多时该让分组区去滚（2026-10-17）。 */}
         <div
-          className="flex items-center gap-1 border-t border-[var(--border-subtle)] p-2"
+          className="flex shrink-0 items-center gap-1 border-t border-[var(--border-subtle)] p-2"
           style={collapsed ? undefined : DRAG}
         >
           <button

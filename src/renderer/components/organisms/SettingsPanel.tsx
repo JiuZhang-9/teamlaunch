@@ -166,7 +166,7 @@ function Row({
   return (
     <div className="flex min-h-[var(--row-h)] items-center gap-3 py-2">
       <div className="min-w-0 flex-1">
-        <p className="t-base text-[var(--fg)]">{title}</p>
+        <p className="t-base w-emph text-[var(--fg)]">{title}</p>
         {detail && <p className="t-xs mt-0.5 text-[var(--muted)]">{detail}</p>}
       </div>
       {control}
@@ -402,36 +402,33 @@ export function SettingsPanel({
 
             <Divider />
             <SectionHead>网页打开方式</SectionHead>
-            <Row
-              title="用哪个浏览器打开网页"
-              detail="默认跟随系统。指定后所有网页入口都用它打开；它不在了会自动回落系统默认并提示（不会静默换掉）"
-              control={
-                <span className="flex min-w-0 items-center gap-2">
-                <select
-                  aria-label="打开网页的浏览器"
-                  value={settings.browserExe ?? ''}
-                  onChange={(e) => void onPatch({ browserExe: e.target.value === '' ? null : e.target.value })}
-                  className="h-8 max-w-[220px] rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 t-sm text-[var(--fg)]"
-                >
-                  <option value="">系统默认浏览器</option>
-                  {browsers.map((b) => (
-                    <option key={b.path} value={b.path}>
-                      {b.name}
-                      {b.isDefault ? '（系统默认）' : ''}
-                    </option>
-                  ))}
-                  {/* 已指定但这次没扫到（被卸载/移动）也要列出来：否则下拉会静默跳回"系统默认"，
-                      看起来像用户的选择被改了（其实没有）。 */}
-                  {settings.browserExe !== null && !browsers.some((b) => b.path === settings.browserExe) && (
-                    <option value={settings.browserExe}>{settings.browserExe}</option>
-                  )}
-                </select>
-                  <Button tone="ghost" size="sm" className="shrink-0" onClick={() => void pickBrowser()}>
-                    浏览…
-                  </Button>
-                </span>
-              }
-            />
+            <p className="t-2xs mb-2 text-[var(--meta)]">
+              默认跟随系统。指定后所有网页入口都用它打开；它不在了会自动回落系统默认并提示（不会静默换掉）
+            </p>
+            <div className="flex items-center gap-2">
+              <select
+                aria-label="打开网页的浏览器"
+                value={settings.browserExe ?? ''}
+                onChange={(e) => void onPatch({ browserExe: e.target.value === '' ? null : e.target.value })}
+                className="h-8 min-w-0 max-w-[320px] flex-1 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 t-sm text-[var(--fg)]"
+              >
+                <option value="">系统默认浏览器</option>
+                {browsers.map((b) => (
+                  <option key={b.path} value={b.path}>
+                    {b.name}
+                    {b.isDefault ? '（系统默认）' : ''}
+                  </option>
+                ))}
+                {/* 已指定但这次没扫到（被卸载/移动）也要列出来：否则下拉会静默跳回"系统默认"，
+                    看起来像用户的选择被改了（其实没有）。 */}
+                {settings.browserExe !== null && !browsers.some((b) => b.path === settings.browserExe) && (
+                  <option value={settings.browserExe}>{settings.browserExe}</option>
+                )}
+              </select>
+              <Button tone="ghost" size="sm" className="shrink-0" onClick={() => void pickBrowser()}>
+                浏览…
+              </Button>
+            </div>
 
             <Divider />
             <SectionHead>连锁启动</SectionHead>

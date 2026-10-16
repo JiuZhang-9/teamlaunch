@@ -38,13 +38,15 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 `docs/design-system/`｜分发与现场排障 `docs/DELIVERY.md`｜开发细节 `docs/DEVELOPMENT.md`｜
 决策与待办登记 `docs/decisions/OPEN-DECISIONS.md` + `docs/decisions/ADR-001..008`
 
-## 当前状态（2026-10-16）
+## 当前状态（2026-10-17）
 
-- v1.0.20 已装用户实机（per-machine 原地升级 + 日志落盘已验；**员工端 per-user 装法仍待真机**）
-- **v1.0.21 已实现、未验收**：自动更新源改为「GitHub Releases 正式源 + 局域网镜像回落」（ADR-009）。
-  按发版纪律，**实机验收通过前不打 tag、不挂 Release**
-- **每个 Release 必须挂 `latest.yml`**（GitHub 源的硬依赖：没挂＝所有人看不到新版，且失败静默）；
-  用 `npm run release:gh` 一步挂齐（exe + blockmap + latest.yml + SHA256SUMS 并校验）
-- 待办集中在 `docs/decisions/OPEN-DECISIONS.md`：O-04 依赖升级（3 high）／O-05 仓库安全开关／
-  O-06 CI 与社区基建／O-07 更新检查的隐私披露与开关
-- 已知未修缺陷：启动缓存竞态（ARCHITECTURE R23，重启即好）；局域网多机同步端到端实测待做
+- **v1.0.21 已发布**：自动更新源改为「GitHub Releases 正式源 + 局域网镜像回落」（ADR-009）——四件套
+  （exe + blockmap + latest.yml + SHA256SUMS）已挂 Release，三层验证通过（latest.yml 200 / 打包版日志
+  `no newer version {"source":"github"}` / 用户实机安装正常）
+- **v1.0.22 已实现、未验收**（批 1 五项：侧栏底部固定+中段滚动、扫描/导入/导出文案、网页打开方式排版与字体、
+  多选序号两路径统一、团队编辑模式页面锁定 + 主页底栏越界修复）。按纪律：**实机验收通过前不打 tag**
+- **每个 Release 必须挂 `latest.yml`**；发版用 `npm run release:gh`（脚本自带四件套回读核对）
+- **本机构建受 360 拦截**（写 d3dcompiler_47.dll / 执行新生成的未签名 exe / 隔离成品）：三步绕过见
+  `%TEMP%` 输出 + `NsisTarget.js` 本机补丁 + 生成后立刻改名 `.bin`；根治要把项目与缓存加进 360 信任区
+- 待办：`docs/decisions/OPEN-DECISIONS.md` O-04 依赖升级／O-05 仓库安全开关／O-06 CI 与社区基建／
+  O-07 更新检查的隐私披露与开关；已知未修：启动缓存竞态（R23，重启即好）、局域网多机同步实测待做

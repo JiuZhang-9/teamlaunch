@@ -48,7 +48,7 @@ const OFFLINE_BANNER_STATES = new Set([
 ]);
 
 export function MainWindowShell() {
-  const { tab, setTab, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, clearSelected, exitSelecting, launchChain, quickAddFromText } =
+  const { tab, setTab, setEditingLock, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, clearSelected, exitSelecting, launchChain, quickAddFromText } =
     useWorkbench();
   const { snapshot, refresh } = useSync();
   const { settings, patch } = useSettings();
@@ -148,6 +148,13 @@ export function MainWindowShell() {
     return () => window.clearTimeout(t);
   }, [locateId]);
 
+  /* 编辑态锁同步进 store（2026-10-17）：页面切换与"打开设置/帮助"的所有入口都收口在
+     workbenchStore（setTab / openDialog），把 editing 的真相交给它才能一处管全——
+     Ctrl+E、侧栏页签、空状态按钮、粘贴强制跳个人页都不会漏。 */
+  useEffect(() => {
+    setEditingLock(editing);
+  }, [editing, setEditingLock]);
+
   const toggleEdit = useCallback(() => {
     if (!unlocked) {
       openDialog('adminUnlock');
@@ -161,8 +168,11 @@ export function MainWindowShell() {
       }
       return;
     }
+    /* 编辑会话属于团队页：在「我的入口」上按快捷键进编辑时先把人带回团队页，
+       否则会停在一个"正在编辑、页面却是个人页"的分裂状态（编辑态锁不允许切到个人页）。 */
+    if (tab === 'personal') setTab('team');
     edit.beginEdit();
-  }, [unlocked, editing, edit, openDialog, push]);
+  }, [unlocked, editing, edit, openDialog, push, tab, setTab]);
 
   /** Ctrl+N：新建入口，行为跟随当前页。个人页直接开编辑器；
       团队页编辑态直接开；未编辑的管理员先进编辑模式；非管理员如实说明。 */
@@ -302,6 +312,7 @@ export function MainWindowShell() {
           showEditEntry={settings.role === 'admin'}
           onToggleEdit={toggleEdit}
           collapsed={settings.sidebarCollapsed}
+          editLocked={editing}
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -405,7 +416,9 @@ export function MainWindowShell() {
             />
           )}
 
-          {editing && tab !== 'personal' && (
+          {/* 底栏只属于团队页（2026-10-17 修）：此前 tab==='home' 也会渲染"发布/放弃改动"，
+              而侧栏在主页已切到 home 模式、内容头也隐藏——底栏成了无主语的动作。 */}
+          {editing && tab === 'team' && (
         <EditActionBar
           dirtyCount={dirtyCount}
           revision={snapshot.revision ?? 0}

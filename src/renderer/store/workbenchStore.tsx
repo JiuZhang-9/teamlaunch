@@ -74,6 +74,13 @@ export interface EntryRuntime {
 interface WorkbenchCtx {
   tab: TabKey;
   setTab(tab: TabKey): void;
+  /**
+   * 编辑态锁（2026-10-17 用户要求）：editing 的真相在 editStore，装配层（MainWindowShell）
+   * 在它变化时同步到这里。锁上之后只允许停在「主页 / 团队入口」，且不许打开设置与帮助——
+   * 所有切换入口（侧栏页签、Ctrl+Q/E、空状态按钮、粘贴强制跳个人页）都经过
+   * setTab / openDialog，所以一条规则就能管全，不会漏。
+   */
+  setEditingLock(locked: boolean): void;
   query: string;
   setQuery(q: string): void;
   runtime: Record<string, EntryRuntime>;
@@ -131,6 +138,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   /** 多选连锁启动（2026-10-05）：selecting=多选模式；selected 按点击顺序排列=启动顺序。 */
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Entry[]>([]);
+  /** 编辑态锁（见接口注释）：只由装配层同步，store 内部所有切换入口统一遵守。 */
+  const [editingLock, setEditingLock] = useState(false);
   const { push } = useToasts();
 
   const toggleTypeFilter = useCallback((t: EntryType) => {
@@ -138,8 +147,15 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   }, []);
   const clearTypeFilter = useCallback(() => setTypeFilter([]), []);
 
-  const setTab = useCallback((next: TabKey) => {
-    setTabRaw(next);
+  const setTab = useCallback(
+    (next: TabKey) => {
+      /* 编辑中只允许在「主页 / 团队入口」之间切换：编辑会话属于团队页，切到个人页会出现
+         "还在编辑里、却在写个人配置"的分裂状态（2026-10-17 用户要求）。 */
+      if (editingLock && next !== 'team' && next !== 'home') {
+        push({ title: '编辑中：先退出编辑模式再切换页面', tone: 'info' });
+        return;
+      }
+      setTabRaw(next);
     /* 本机记忆：从哪一页关掉，下次打开就回到哪一页。只记在这台机器的浏览器存储里——
        不进 settings（那会广播给所有窗口、变成"可同步的偏好"），也不跨机同步，
        否则两台机器会互相顶掉对方的记忆。 */
@@ -147,7 +163,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     setQuery('');
     setSelected([]);
     setSelecting(false);
-  }, []);
+    },
+    [editingLock, push],
+  );
 
   /** 在本机重新定位（分层解析第 5 步）：选一次、本机记住、立刻再开。取消不算失败、不提示。 */
   const relocateEntry = useCallback(
@@ -288,12 +306,27 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     [selected, exitSelecting, push],
   );
 
+  /**
+   * 对话框总闸：编辑中拦设置与帮助，其余对话框照常放行（编辑本身要用大批对话框：
+   * 批量添加、扫描、公告管理、发布……把闸放在这里才不会误伤）。
+   */
+  const openDialog = useCallback(
+    (d: DialogKey) => {
+      if (editingLock && (d === 'settings' || d === 'shortcuts')) {
+        push({ title: '编辑中：先退出编辑模式再打开设置与帮助', tone: 'info' });
+        return;
+      }
+      setDialog(d);
+    },
+    [editingLock, push],
+  );
+
   const openSettings = useCallback(
     (section?: SettingsSection) => {
       if (section) setSettingsSection(section);
-      setDialog('settings');
+      openDialog('settings');
     },
-    [],
+    [openDialog],
   );
 
   const openEntryEditor = useCallback((req: EntryEditorRequest) => setEntryEditor(req), []);
@@ -339,6 +372,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     () => ({
       tab,
       setTab,
+      setEditingLock,
       query,
       setQuery,
       runtime,
@@ -346,7 +380,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       copyTarget,
       copyManyTargets,
       dialog,
-      openDialog: setDialog,
+      openDialog,
       closeDialog: () => setDialog('none'),
       settingsSection,
       openSettings,
@@ -369,7 +403,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       exitSelecting,
       launchChain,
     }),
-    [tab, setTab, query, runtime, openEntry, copyTarget, copyManyTargets, dialog, settingsSection, openSettings, feedbackTargetId, openFeedback, relocateEntry, entryEditor, openEntryEditor, closeEntryEditor, quickAddFromText, typeFilter, toggleTypeFilter, clearTypeFilter, selecting, selected, toggleSelecting, toggleSelected, addSelected, clearSelected, exitSelecting, launchChain],
+    [tab, setTab, setEditingLock, query, runtime, openEntry, copyTarget, copyManyTargets, dialog, settingsSection, openSettings, openDialog, feedbackTargetId, openFeedback, relocateEntry, entryEditor, openEntryEditor, closeEntryEditor, quickAddFromText, typeFilter, toggleTypeFilter, clearTypeFilter, selecting, selected, toggleSelecting, toggleSelected, addSelected, clearSelected, exitSelecting, launchChain],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

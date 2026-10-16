@@ -88,7 +88,7 @@ export function GroupSections({
                     failure={rt?.failure}
                     drag={focus.drag}
                     selecting={selecting}
-                    selectionOrder={selecting && selectionOrderOf ? selectionOrderOf(entry.id) : null}
+                    selectionOrder={selectionOrderOf ? selectionOrderOf(entry.id) : null}
                     onToggleSelect={onToggleSelect ? () => onToggleSelect(entry) : undefined}
                     favorite={isFavoriteOf ? isFavoriteOf(entry.id) : false}
                     onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(entry) : undefined}

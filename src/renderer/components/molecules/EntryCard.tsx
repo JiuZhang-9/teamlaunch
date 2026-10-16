@@ -26,7 +26,6 @@ export interface EntryCardProps {
   failure?: import('../../bridge/types.ts').OpenFailure;
   /** HTML5 拖拽束（个人页与编辑态）：由 CardGrid 提供处理器与落点指示。 */
   drag?: import('../molecules/CardGrid.tsx').CardDragProps;
-  selected?: boolean;
   disabled?: boolean;
   pendingFeedback?: boolean;
   tabIndex?: number;
@@ -53,7 +52,6 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
     phase = 'idle',
     failure,
     drag,
-    selected = false,
     disabled = false,
     pendingFeedback = false,
     tabIndex = -1,
@@ -83,9 +81,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
     ? '1px solid var(--danger-solid)'
     : editing
       ? '1px solid var(--card-border-editing)'
-      : selected
-        ? '2px solid var(--accent)'
-        : '1px solid var(--card-border)';
+      : '1px solid var(--card-border)';
 
   return (
     <button
@@ -93,7 +89,6 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       type="button"
       tabIndex={disabled ? 0 : tabIndex}
       aria-disabled={disabled || undefined}
-      aria-selected={selected || undefined}
       data-mode={mode}
       data-state={failed ? 'error' : loading ? 'loading' : 'default'}
       draggable={selecting ? false : drag?.draggable}
@@ -132,7 +127,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         'transition-[background-color,border-color,box-shadow,transform] duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
         'focus-visible:shadow-[var(--ring-focus)]',
         disabled ? 'cursor-not-allowed' : 'cursor-pointer',
-        selected ? '' : 'active:bg-[var(--card-bg-active)]',
+        'active:bg-[var(--card-bg-active)]',
         failed ? '' : 'hover:-translate-y-0.5 hover:bg-[var(--card-bg-hover)] hover:shadow-[var(--card-elev-hover)]',
         drag?.dragging ? 'opacity-40' : '',
       ].join(' ')}
@@ -143,7 +138,9 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
     >
       {/* 多选徽标（左上角，唯一一处）：未选中 = 空心圆；选中 = 主题色实底 + **它是第几个被选中的**
           （序号＝点击顺序＝连锁启动顺序）。z-10 压在图标之上——此前它被图标盖住（用户实测）。
-          右侧不再重复显示序号：一处信息说清一件事。 */}
+          两条进清单的路径显示完全一致：序号只看"在不在清单里"，不受多选模式开关影响
+          （Ctrl+点击不开多选模式，此前这条路径没有任何卡片级反馈 —— 2026-10-17 统一）；
+          空心圆只在多选模式下出现。右侧不再重复显示序号：一处信息说清一件事。 */}
       {(selecting || selectionOrder != null) && (
         <span
           aria-hidden
