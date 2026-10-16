@@ -34,6 +34,11 @@ export interface GlobalHotkeyHandlers {
   onNewEntry(): void;
   /** Ctrl+B：展开 / 收起侧边栏（持久化在 settings.sidebarCollapsed）。 */
   onToggleSidebar(): void;
+  /**
+   * Ctrl+A：全选卡片（两级：先本组、再整页、第三次清空）。
+   * **焦点在输入框里时这条键不会被接管**（守卫在下面），输入框的"全选文本"必须保持原生。
+   */
+  onSelectAll(): void;
   /** Ctrl+/：快捷键速查面板。 */
   onShowShortcuts(): void;
   /** Ctrl+Enter / Ctrl+Shift+E 这类"有条件生效"的键位，由调用方给出当前是否可用 */
@@ -46,6 +51,7 @@ export function useGlobalHotkeys(h: GlobalHotkeyHandlers): void {
   const {
     onTabTeam, onTabPersonal, onRefresh, onToggleMini,
     onOpenSettings, onToggleEdit, onPublish, onNewEntry, onToggleSidebar, onShowShortcuts, canPublish, appHotkeys,
+    onSelectAll,
   } = h;
 
   useEffect(() => {
@@ -88,6 +94,16 @@ export function useGlobalHotkeys(h: GlobalHotkeyHandlers): void {
             e.preventDefault();
             onToggleEdit();
             return;
+          case 'selectAll': {
+            /* 输入框/文本域/可编辑区里的 Ctrl+A 是"全选文本"，必须留给系统。
+               其余键位保持既有行为（它们是无歧义的应用命令，且用户已按现状使用）——
+               这条守卫只服务 Ctrl+A，见 2026-10-17 的批 4 说明。 */
+            const target = e.target as HTMLElement | null;
+            if (target && target.closest('input, textarea, [contenteditable="true"]')) return;
+            e.preventDefault();
+            onSelectAll();
+            return;
+          }
           case 'publish':
             // 有条件生效：没有未发布改动时放行给其他绑定（通常没有），不做任何事。
             if (!canPublish()) return;

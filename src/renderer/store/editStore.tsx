@@ -14,6 +14,7 @@ import type { Entry } from '../../shared/schema/entry.ts';
 import { entryLimitCopy, groupLimitCopy } from '../../shared/capacity-copy.ts';
 import { measure } from '../../shared/capacity-usage.ts';
 import { makeEntry, type NewEntryInput } from '../../shared/new-entry.ts';
+import { moveEntries } from '../../shared/move-entries.ts';
 import { useSync } from './syncStore.tsx';
 import { useSettings } from './settingsStore.tsx';
 import { useToasts } from './toastStore.tsx';
@@ -54,6 +55,8 @@ interface EditCtx {
    * 语义与个人页 moveEntryToGroup 一致：落点前移除、同组补偿、拖回原位无操作。
    */
   moveEntryToGroup(entryId: string, toGroupId: string, toIndex?: number): void;
+  /** 多选整块移动（2026-10-17 批 4）：一次 mutate＝一步撤销。 */
+  moveEntriesToGroup(entryIds: string[], toGroupId: string, toIndex?: number): void;
   /** 新建入口落到指定分组；分组不存在时自动建一个默认分组（首跑空草稿的关键路径）。
       入口数撞上限时拒绝并给出原因（此前没有守卫：草稿能超到发布时才被 413 拦）。 */
   createEntry(groupId: string | null, entry: Entry): { ok: boolean; reason?: string };
@@ -246,41 +249,13 @@ export function EditProvider({ children }: { children: ReactNode }) {
       }));
     },
     /** 拖拽落点：跨组移动 / 组内重排（个人页同款语义）。 */
+    /* 单条与整块移动共用 shared/move-entries 的唯一实现（补偿索引只有一处）。 */
     moveEntryToGroup(entryId, toGroupId, toIndex) {
-      mutate((c) => {
-        const groups = clone(c).groups;
-        let moved: Entry | null = null;
-        let fromIndex = -1;
-        let fromGroupId: string | null = null;
-        for (const g of groups) {
-          const idx = g.entries.findIndex((e) => e.id === entryId);
-          if (idx >= 0) {
-            moved = g.entries.splice(idx, 1)[0];
-            fromIndex = idx;
-            fromGroupId = g.id;
-            break;
-          }
-        }
-        const target = groups.find((g) => g.id === toGroupId);
-        if (!moved || !target) return c;
-
-        const sameGroup = fromGroupId === toGroupId;
-        let insertAt = toIndex ?? target.entries.length;
-        if (sameGroup) {
-          if (insertAt === fromIndex) return c;
-          if (insertAt > fromIndex) insertAt -= 1;
-        }
-        insertAt = Math.max(0, Math.min(insertAt, target.entries.length));
-        target.entries.splice(insertAt, 0, moved);
-        return {
-          ...c,
-          groups: groups.map((g, k) => ({
-            ...g,
-            sort: k,
-            entries: g.entries.map((e, i) => ({ ...e, sort: i })),
-          })),
-        };
-      });
+      mutate((c) => ({ ...c, groups: moveEntries(c.groups, [entryId], toGroupId, toIndex) }));
+    },
+    /** 多选整块移动（拖拽整块 / 批量菜单）：一次 mutate = 一步撤销。 */
+    moveEntriesToGroup(entryIds, toGroupId, toIndex) {
+      mutate((c) => ({ ...c, groups: moveEntries(c.groups, entryIds, toGroupId, toIndex) }));
     },
     /**
      * 新建入口落到指定分组；groupId 为空或不存在时依次回退：

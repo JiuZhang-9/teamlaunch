@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { extractIcon, openEntry, openUrl, type OpenTarget, type RelocateResult } from './opener.ts';
 import { resolveAppCandidates, saveOverride } from './appResolver.ts';
 import { fetchPageTitle } from './pageTitle.ts';
+import { scanBookmarks } from './bookmarks.ts';
 import { recordEntryOpen, recordFeature, type UsageFeature } from './usageStats.ts';
 import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './updater.ts';
 import { syncService } from './syncBridge.ts';
@@ -123,6 +124,10 @@ export function registerIpc(deps: IpcDeps): void {
     else return false;
     return true;
   });
+
+  // 浏览器书签扫描（2026-10-17）：只在用户显式打开「导入书签」时调一次；
+  // **只读本机文件、只经 IPC 交给界面**，绝不进入同步/上报链路（见 main/bookmarks.ts）。
+  ipcMain.handle('tl:bookmarks-scan', () => scanBookmarks());
 
   // 「在这台电脑上重新定位」（分层解析第 5 步）：选一次、本机记住（app-overrides.json，
   // 永不同步）、立刻尝试打开。取消不算失败，界面保持原状。

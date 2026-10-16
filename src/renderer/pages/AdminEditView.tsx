@@ -23,7 +23,7 @@ import type { Group } from '../../shared/schema/group.ts';
 import { CAPACITY } from '../../shared/schema/common.ts';
 
 export function AdminEditView() {
-  const { draft, removeEntry, moveEntry, moveEntryToGroup, renameGroup, moveGroup, removeGroup } = useEdit();
+  const { draft, removeEntry, moveEntry, moveEntriesToGroup, renameGroup, moveGroup, removeGroup } = useEdit();
   const { runtime, openEntry, copyTarget, openEntryEditor, relocateEntry, openDialog, selected, toggleSelected } = useWorkbench();
   const { pendingIds } = useFeedback();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -102,7 +102,13 @@ export function AdminEditView() {
         draggable
         isFavoriteOf={isFavorite}
         onToggleFavorite={(entry) => void toggleFavorite(entry.id)}
-        onDropEntry={(id, toGroupId, toIndex) => moveEntryToGroup(id, toGroupId, toIndex)}
+        onDropEntry={(id, toGroupId, toIndex) => {
+          /* 多选整块拖拽（与我的入口页同款）：整块一次 mutate ＝ 一步撤销。 */
+          const ids = selected.some((e) => e.id === id) && selected.length > 1
+            ? selected.map((e) => e.id)
+            : [id];
+          moveEntriesToGroup(ids, toGroupId, toIndex);
+        }}
         pendingFeedbackIds={pendingIds}
       />
 

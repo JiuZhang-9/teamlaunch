@@ -91,7 +91,8 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       aria-disabled={disabled || undefined}
       data-mode={mode}
       data-state={failed ? 'error' : loading ? 'loading' : 'default'}
-      draggable={selecting ? false : drag?.draggable}
+      /* 多选态同样可拖（整块移动由调用方处理）——此前 selecting 时彻底禁拖。 */
+      draggable={drag?.draggable}
       onDragStart={drag?.onDragStart}
       onDragOver={drag?.onDragOver}
       onDrop={drag?.onDrop}

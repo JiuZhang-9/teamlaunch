@@ -9,6 +9,7 @@ import type { Entry } from '../../shared/schema/entry.ts';
 import { CAPACITY } from '../../shared/schema/common.ts';
 import { entryLimitCopy, groupLimitCopy } from '../../shared/capacity-copy.ts';
 import { makeEntry, type NewEntryInput } from '../../shared/new-entry.ts';
+import { moveEntries } from '../../shared/move-entries.ts';
 
 /** 入口 id：本机生成，不依赖网络，也不与团队配置冲突（团队用 e- 前缀）。 */
 const newId = (): string => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -103,7 +104,8 @@ interface PersonalCtx {
    */
   moveEntryToGroup(entryId: string, toGroupId: string, toIndex?: number): Promise<void>;
   /** 批量移动到同一个分组（多选）：按清单顺序追加到目标组末尾，一次落盘。 */
-  moveEntriesToGroup(entryIds: string[], toGroupId: string): Promise<void>;
+  /** 多选整块移动（右键批量菜单与拖拽整块）：可带目标位置，语义同单条移动。 */
+  moveEntriesToGroup(entryIds: string[], toGroupId: string, toIndex?: number): Promise<void>;
   exportJson(): Promise<{ ok: true; path: string; count: number } | { ok: false; reason: string }>;
   /** 两段式的第一段：预览，不改任何数据。 */
   beginImport(text: string): Promise<ImportOutcome>;
@@ -277,29 +279,10 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   );
 
   /** 批量移动到同一个分组：按清单顺序追加到目标组末尾，一次落盘。 */
+  /** 多选批量移动（右键批量菜单与拖拽整块都走它）：一次落盘、按页面顺序追加/插入。 */
   const moveEntriesToGroup = useCallback(
-    async (entryIds: string[], toGroupId: string) => {
-      const wanted = new Set(entryIds);
-      const groups = clone(config).groups;
-      const target = groups.find((g) => g.id === toGroupId);
-      if (!target) return;
-      const moving: Entry[] = [];
-      for (const g of groups) {
-        g.entries = g.entries.filter((e) => {
-          if (!wanted.has(e.id)) return true;
-          moving.push(e);
-          return false;
-        });
-      }
-      // 目标组内的先后 = 清单里的顺序（用户勾选的顺序），而不是各自原来在组里的位置。
-      const order = new Map(entryIds.map((id, i) => [id, i]));
-      moving.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-      target.entries.push(...moving);
-      const next = groups.map((g, k) => ({
-        ...g,
-        sort: k,
-        entries: g.entries.map((e, i) => ({ ...e, sort: i })),
-      }));
+    async (entryIds: string[], toGroupId: string, toIndex?: number) => {
+      const next = moveEntries(clone(config).groups, entryIds, toGroupId, toIndex);
       await commit({ ...config, groups: next });
     },
     [config, commit],
@@ -466,38 +449,10 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     [config, commit],
   );
 
+  /* 单条与整块移动共用 shared/move-entries 的唯一实现（补偿索引这类细节只有一处）。 */
   const moveEntryToGroup = useCallback(
     async (entryId: string, toGroupId: string, toIndex?: number) => {
-      const groups = clone(config).groups;
-      let moved: Entry | null = null;
-      let fromIndex = -1;
-      let fromGroupId: string | null = null;
-      for (const g of groups) {
-        const idx = g.entries.findIndex((e) => e.id === entryId);
-        if (idx >= 0) {
-          moved = g.entries.splice(idx, 1)[0];
-          fromIndex = idx;
-          fromGroupId = g.id;
-          break;
-        }
-      }
-      const target = groups.find((g) => g.id === toGroupId);
-      if (!moved || !target) return;
-
-      const sameGroup = fromGroupId === toGroupId;
-      let insertAt = toIndex ?? target.entries.length;
-      if (sameGroup) {
-        // 拖回原位 = 无操作；移除使后续索引左移一位，需要补偿。
-        if (insertAt === fromIndex) return;
-        if (insertAt > fromIndex) insertAt -= 1;
-      }
-      insertAt = Math.max(0, Math.min(insertAt, target.entries.length));
-      target.entries.splice(insertAt, 0, moved);
-      const next = groups.map((g, k) => ({
-        ...g,
-        sort: k,
-        entries: g.entries.map((e, i) => ({ ...e, sort: i })),
-      }));
+      const next = moveEntries(clone(config).groups, [entryId], toGroupId, toIndex);
       await commit({ ...config, groups: next });
     },
     [config, commit],

@@ -2,16 +2,16 @@
  * HomePageView —— 主页（2026-10-05）：公告轮播 + 收藏表。
  *
  * 公告：管理员在编辑态发布（随团队配置同步），本视图只读展示；
- * 收藏：本机各存各的（favoriteStore），按收藏时间倒序展示，点击行即打开入口。
+ * 收藏：本机各存各的（favoriteStore），按收藏时间倒序展示为**图标格**（2026-10-17 起），点击即打开。
  * 轮播：手动左右箭头 + 圆点指示（用户定稿：不自动轮播）。
  */
-import { ArrowLeft, ArrowRight, Megaphone, Star, StarOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Megaphone, Star } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '../components/atoms/Button.tsx';
 import { EmptyBlock } from '../components/molecules/EmptyBlock.tsx';
-import { TypeTag } from '../components/atoms/Tag.tsx';
+import { CardGrid } from '../components/molecules/CardGrid.tsx';
+import { FavoriteTile } from '../components/molecules/FavoriteTile.tsx';
 import { renderMarkdown } from '../lib/markdown.ts';
-import { TYPE_META } from '../lib/entry.ts';
 import { useEdit } from '../store/editStore.tsx';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
@@ -185,53 +185,32 @@ export function HomePageView() {
             />
           </div>
         ) : (
-          <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)]">
-            <div
-              className="flex h-9 items-center gap-3 border-b border-[var(--border-subtle)] px-3 t-2xs text-[var(--meta)]"
-              aria-hidden
-            >
-              <span className="w-[42px]">类型</span>
-              <span className="min-w-0 flex-1">名称</span>
-              <span className="w-[72px]">来源</span>
-              <span className="w-[96px] text-right">操作</span>
-            </div>
-            {favRows.map(({ entry, source }) => {
-              const rt = runtime[entry.id];
-              return (
-                <div
-                  key={entry.id}
-                  className="flex h-11 items-center gap-3 border-b border-[var(--border-subtle)] px-3 last:border-b-0"
-                >
-                  <span className="w-[42px] shrink-0">
-                    <TypeTag label={TYPE_META[entry.type].label} />
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => openFav(entry)}
-                    className="t-sm min-w-0 flex-1 truncate-1 text-left text-[var(--fg)] transition-colors duration-[var(--motion-fast)] hover:text-[var(--accent-text)]"
-                    title={runtime[entry.id]?.phase === 'failed' ? failureText(rt?.failure) : '打开「' + entry.name + '」'}
-                  >
-                    {entry.name}
-                  </button>
-                  <span className="w-[72px] shrink-0 text-[13px] text-[var(--muted)]">
-                    {source === 'team' ? '团队' : '本机'}
-                  </span>
-                  <span className="flex w-[96px] shrink-0 items-center justify-end gap-1">
-                    <Button tone="secondary" size="sm" onClick={() => openFav(entry)}>
-                      打开
-                    </Button>
-                    <Button
-                      tone="ghost"
-                      size="sm"
-                      aria-label={'取消收藏 ' + entry.name}
-                      icon={isFavorite(entry.id) ? StarOff : Star}
-                      onClick={() => void toggleFavorite(entry.id)}
-                    />
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          /* 图标格（2026-10-17 批 4）：列表改成一格一个图标，省空间也好扫；
+             键盘导航沿用 CardGrid 的 roving tabindex。 */
+          <CardGrid
+            items={favRows}
+            getKey={(row) => row.entry.id}
+            ariaLabel="收藏"
+            minColumnPx={120}
+            onActivate={(row) => openFav(row.entry)}
+            render={(row, focus) => (
+              <FavoriteTile
+                ref={focus.cardRef}
+                entry={row.entry}
+                source={row.source}
+                favorite={isFavorite(row.entry.id)}
+                statusText={
+                  runtime[row.entry.id]?.phase === 'failed'
+                    ? failureText(runtime[row.entry.id]?.failure)
+                    : `打开「${row.entry.name}」`
+                }
+                tabIndex={focus.tabIndex}
+                onKeyDown={focus.onKeyDown}
+                onOpen={() => openFav(row.entry)}
+                onToggleFavorite={() => void toggleFavorite(row.entry.id)}
+              />
+            )}
+          />
         )}
       </section>
     </div>

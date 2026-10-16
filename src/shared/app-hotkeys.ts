@@ -17,6 +17,7 @@ export type AppHotkeyAction =
   | 'toggleEdit'
   | 'publish'
   | 'toggleSidebar'
+  | 'selectAll'
   | 'shortcuts';
 
 export const DEFAULT_APP_HOTKEYS: Record<AppHotkeyAction, string> = {
@@ -29,6 +30,7 @@ export const DEFAULT_APP_HOTKEYS: Record<AppHotkeyAction, string> = {
   toggleEdit: 'Ctrl+Shift+E',
   publish: 'Ctrl+Enter',
   toggleSidebar: 'Ctrl+B',
+  selectAll: 'Ctrl+A',
   shortcuts: 'Ctrl+/',
 };
 
@@ -42,6 +44,7 @@ export const APP_HOTKEY_LABELS: Record<AppHotkeyAction, string> = {
   toggleEdit: '进出编辑模式',
   publish: '发布（有未发布改动时）',
   toggleSidebar: '展开或收起侧边栏',
+  selectAll: '全选卡片（先本组、再整页、第三次清空）',
   shortcuts: '快捷键速查',
 };
 

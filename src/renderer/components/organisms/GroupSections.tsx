@@ -64,7 +64,9 @@ export function GroupSections({
               items={g.entries}
               getKey={(e) => e.id}
               onReorder={onReorder}
-              dragEnabled={draggable && !filtering && !selecting}
+              /* 多选态也允许拖拽（2026-10-17 批 4）：拖任意一张已选卡＝整块移动，
+                 连锁清单顺序不因此改变；筛选态仍禁拖（过滤后索引与全量对不上）。 */
+              dragEnabled={draggable && !filtering}
               onDropEntry={onDropEntry ? (id, idx) => onDropEntry(id, g.id, idx) : undefined}
               onDragStartEntry={(id) => {
                 draggingIdRef.current = id;

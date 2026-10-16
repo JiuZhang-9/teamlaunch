@@ -18,6 +18,7 @@ import { MiniPaletteView } from '../../pages/MiniPaletteView.tsx';
 import { AnnouncementsEditorDialog } from './AnnouncementsEditorDialog.tsx';
 import { BatchAddDialogView } from '../../pages/BatchAddDialogView.tsx';
 import { ScanPickerDialogView } from '../../pages/ScanPickerDialogView.tsx';
+import { BookmarkImportDialogView } from '../../pages/BookmarkImportDialogView.tsx';
 import { HelpDialog } from './HelpDialog.tsx';
 import { PublishDialogView } from '../../pages/PublishDialogView.tsx';
 import { SettingsPanelView } from '../../pages/SettingsPanelView.tsx';
@@ -87,6 +88,8 @@ export function DialogRouter({
       {dialog === 'batchAddTeam' && <BatchAddDialogView scope="team" onClose={closeDialog} />}
 
       {dialog === 'scanPicker' && <ScanPickerDialogView onClose={closeDialog} />}
+
+      {dialog === 'bookmarks' && <BookmarkImportDialogView onClose={closeDialog} />}
 
       {dialog === 'adminUnlock' && (
         <AdminUnlockDialogView

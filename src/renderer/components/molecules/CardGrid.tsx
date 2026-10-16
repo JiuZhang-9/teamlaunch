@@ -50,6 +50,8 @@ export interface CardGridProps<T> {
   render(item: T, focus: CardFocusProps, index: number): ReactNode;
   onActivate(item: T): void;
   ariaLabel?: string;
+  /** 列宽下限（px）。默认走 --card-w-min（入口卡片 140）；主页的图标格用更小的值。 */
+  minColumnPx?: number;
   /**
    * Alt+↑/↓ 重排序（组内换位）。提供时方向键在 Alt 修饰下从"移动焦点"变为"移动卡片"。
    * 整理顺序提示文案承诺的就是这个行为——此前从未接线，点了没反应。
@@ -76,6 +78,7 @@ export function CardGrid<T>({
   render,
   onActivate,
   ariaLabel,
+  minColumnPx,
   onReorder,
   dragEnabled = false,
   onDropEntry,
@@ -249,7 +252,10 @@ export function CardGrid<T>({
       role="list"
       aria-label={ariaLabel}
       className="grid"
-      style={{ gap: 'var(--grid-gap)', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--card-w-min), 1fr))' }}
+      style={{
+        gap: 'var(--grid-gap)',
+        gridTemplateColumns: `repeat(auto-fill, minmax(${minColumnPx !== undefined ? `${minColumnPx}px` : 'var(--card-w-min)'}, 1fr))`,
+      }}
       onDragOver={gridDragOver}
       onDrop={gridDrop}
     >

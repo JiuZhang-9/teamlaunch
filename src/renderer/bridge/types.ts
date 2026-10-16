@@ -112,6 +112,21 @@ export interface FavoriteItem {
   addedAt: string;
 }
 
+/**
+ * 浏览器书签（Chrome / Edge，2026-10-17）：只在用户显式打开「导入书签」时读一次本机文件。
+ * 书签含个人隐私（标题与网址）——**只经 IPC 交给界面供勾选，绝不进入同步/上报链路**。
+ */
+export interface BookmarkItem {
+  title: string;
+  url: string;
+}
+
+export interface BookmarkSource {
+  browser: string;
+  profile: string;
+  path: string;
+  items: BookmarkItem[];
+}
 /* ------------------------------------------------------------------ *
  * 反馈投递三态（AC-13 / AC-13a）：PENDING 落盘即成立，SENT 仅服务端确认
  * ------------------------------------------------------------------ */
@@ -303,6 +318,14 @@ export interface TeamLaunchApi {
    */
   usage: {
     bump(event: { kind: 'entry' | 'feature'; key: string; ok?: boolean }): Promise<boolean>;
+  };
+
+  /**
+   * 浏览器书签扫描（Chrome / Edge）：只读本机文件、只在打开「导入书签」时调一次；
+   * 结果只给界面勾选用，不写任何同步/上报通道。
+   */
+  bookmarks: {
+    scan(): Promise<BookmarkSource[]>;
   };
 
   /** 自动更新（打包版才有行为；开发态 install 不会被执行——入口根本不启动）。 */

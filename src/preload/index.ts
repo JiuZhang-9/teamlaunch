@@ -11,6 +11,7 @@ import type {
   BrowserInfo,
   AppUpdateEvent,
   DiagnosticSnapshot,
+  BookmarkSource,
   FavoriteItem,
   FeedbackDelivery,
   ImportCommitResult,
@@ -261,6 +262,10 @@ const api: TeamLaunchApi = {
   /* 本机用量统计（仅落本机文件、不上报、不进 UI）：失败静默，绝不影响功能。 */
   usage: {
     bump: (event) => invoke<boolean>('tl:usage-bump', event),
+  },
+  /* 浏览器书签扫描（Chrome / Edge）：只读本机文件、只在打开「导入书签」时调一次。 */
+  bookmarks: {
+    scan: () => invoke<BookmarkSource[]>('tl:bookmarks-scan'),
   },
 };
 

@@ -15,7 +15,7 @@
  * 高度**，两侧只留导航、32px 拖拽条与底部条为固定项（480 最小窗高下固定 ≈ 217px）。
  * 只让分组滚是不够的：固定项本身就会超过最小窗高（实测 474 > 440），底部仍会被推出可视区。
  */
-import { FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, ScanSearch, Settings, Undo2, type LucideIcon } from 'lucide-react';
+import { Bookmark, FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, ScanSearch, Settings, Undo2, type LucideIcon } from 'lucide-react';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -60,6 +60,8 @@ export interface SidebarProps {
   onScanPersonal(): void;
   /** 团队编辑态的「批量添加」：同款对话框，落点进草稿（与个人页对称）。 */
   onBatchAddTeam(): void;
+  /** 从浏览器书签导入（个人页，只读本机书签文件）。 */
+  onImportBookmarks(): void;
   /**
    * 非空 = 该动作不可用的原因（容量撞上限）。**按动作分开**（2026-10-17 用户反馈）：
    * 「新建分组」只受分组上限约束；「添加入口 / 批量添加 / 扫描程序」只受入口上限约束——
@@ -117,7 +119,7 @@ function SectionCap({ children }: { children: ReactNode }) {
 export function Sidebar(props: SidebarProps) {
   const {
     tab, mode, onTabChange, groups, snapshot, onOpenSettings, onOpenDiagnostics, onRefresh,
-    onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal, onBatchAddTeam,
+    onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal, onBatchAddTeam, onImportBookmarks,
     addGroupDisabledReason = null, addEntryDisabledReason = null, onImport, onExport,
     onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false, editLocked = false,
   onGroupAction,
@@ -355,6 +357,16 @@ export function Sidebar(props: SidebarProps) {
                 onDisabledClick={() => blockReason(addEntryDisabledReason)}
               >
                 扫描程序
+              </SidebarAction>
+              {/* 从浏览器书签导入（2026-10-17）：同样只受入口上限约束。 */}
+              <SidebarAction
+                icon={Bookmark}
+                onClick={onImportBookmarks}
+                softDisabled={Boolean(addEntryDisabledReason)}
+                title={addEntryDisabledReason ?? undefined}
+                onDisabledClick={() => blockReason(addEntryDisabledReason)}
+              >
+                导入书签
               </SidebarAction>
               <SidebarAction icon={FileUp} onClick={onImport}>
                 导入设置

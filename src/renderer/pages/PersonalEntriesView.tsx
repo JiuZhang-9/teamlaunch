@@ -233,7 +233,18 @@ export function PersonalEntriesView() {
         isFavoriteOf={isFavorite}
         onToggleFavorite={(entry) => void toggleFavorite(entry.id)}
         draggable={!filtering}
-        onDropEntry={filtering ? undefined : (id, toGroupId, toIndex) => void moveEntryToGroup(id, toGroupId, toIndex)}
+        onDropEntry={
+          filtering
+            ? undefined
+            : (id, toGroupId, toIndex) => {
+                /* 多选整块拖拽（2026-10-17 批 4）：被拖的卡在连锁清单里且不止一张 → 整块移动
+                   （保持页面顺序）；连锁清单本身的顺序不因此改变。 */
+                const ids = selected.some((e) => e.id === id) && selected.length > 1
+                  ? selected.map((e) => e.id)
+                  : [id];
+                void moveEntriesToGroup(ids, toGroupId, toIndex);
+              }
+        }
         filtering={filtering}
         pendingFeedbackIds={pendingIds}
       />

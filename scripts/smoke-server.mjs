@@ -29,6 +29,7 @@ import { ChallengeService } from '../src/services/challenge.service.ts';
 import { AUTH, BEACON_MAGIC, UDP_DISCOVERY_PORT, DISCOVERY_PERSIST_THROTTLE_MS, PREFERRED_TCP_PORT } from '../src/shared/constants.ts';
 import { assertTrustedKdf, deriveVerifier, isTrustedKdf, scryptMemoryBytes, UntrustedKdfError } from '../src/shared/kdf.ts';
 import { compareVersions, isVersionNewer } from '../src/shared/version.ts';
+import { moveEntries } from '../src/shared/move-entries.ts';
 import { SettingsRepository } from '../src/repositories/settings.repository.ts';
 import { PersonalRepository } from '../src/repositories/personal.repository.ts';
 import { PersonalService } from '../src/services/personal.service.ts';
@@ -985,6 +986,47 @@ async function main() {
     const ok = checkPersonalSave({ schemaVersion: 1, groups: [] });
     assert(ok.ok === true, '合法配置不该被拒');
     return '容量 → 结构 顺序正确：三种输入各自拿到对的那句话';
+  });
+
+
+  // 整块移动（批 4 的多选拖拽）：补偿索引写错的后果是"拖完少一条"，必须由 smoke 钉住。
+  await step('入口移动：单条等价 / 整块保序 / 同组拖回原位无操作', async () => {
+    const e = (id) => ({ id, name: id, type: 'web', url: 'https://example.com', sort: 0, description: null, icon: { kind: 'fallback' }, iconAssetHash: null, updatedAt: '2026-01-01T00:00:00.000Z' });
+    const mk = (groups) => groups.map(([id, ids], k) => ({ id, sort: k, entries: ids.map(e) }));
+    const ids = (groups) => groups.map((g) => g.id + ':' + g.entries.map((x) => x.id).join(',')).join(' | ');
+
+    // 1. 跨组单条：追加到组尾（等价于旧的 moveEntryToGroup）
+    let g = mk([['a', ['1', '2']], ['b', ['3']]]);
+    g = moveEntries(g, ['2'], 'b');
+    assert(ids(g) === 'a:1 | b:3,2', `跨组单条追加错：${ids(g)}`);
+
+    // 2. 跨组整块：块内相对顺序按页面顺序保住
+    g = mk([['a', ['1', '2', '3']], ['b', ['9']]]);
+    g = moveEntries(g, ['1', '3'], 'b', 0);
+    assert(ids(g) === 'a:2 | b:1,3,9', `整块插入错：${ids(g)}`);
+
+    // 3. 同组前移：落点补偿（把 3 拖到 1 之前）
+    g = mk([['a', ['1', '2', '3']]]);
+    g = moveEntries(g, ['3'], 'a', 0);
+    assert(ids(g) === 'a:3,1,2', `同组前移错：${ids(g)}`);
+
+    // 4. 同组整块前移：块内顺序不变、落点补偿正确
+    g = mk([['a', ['1', '2', '3', '4']]]);
+    g = moveEntries(g, ['3', '4'], 'a', 0);
+    assert(ids(g) === 'a:3,4,1,2', `同组整块前移错：${ids(g)}`);
+
+    // 5. 拖回原位（落点落在块自身上）→ 完全无操作（引用都不变）
+    g = mk([['a', ['1', '2', '3']]]);
+    const same = moveEntries(g, ['2'], 'a', 2);
+    assert(same === g, '拖回原位应返回原数组（无操作）');
+    const same2 = moveEntries(g, ['2'], 'a', 1);
+    assert(same2 === g, '紧邻自身两侧的落点也应无操作');
+
+    // 6. sort 重排：移动后组与入口的 sort 必须按位置归零递增
+    g = mk([['a', ['1', '2']], ['b', []]]);
+    g = moveEntries(g, ['1'], 'b');
+    assert(g[1].entries[0].sort === 0, '移动后入口 sort 应重排为 0');
+    return '跨组追加/整块插入/同组补偿/原地无操作/sort 重排 全部符合预期';
   });
 
   // 选源判定（ADR-009）：两个更新源谁报的版本新，决定去问谁。判错的后果是

@@ -55,7 +55,7 @@ const OFFLINE_BANNER_STATES = new Set([
 ]);
 
 export function MainWindowShell() {
-  const { tab, setTab, setEditingLock, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, clearSelected, exitSelecting, launchChain, quickAddFromText } =
+  const { tab, setTab, setEditingLock, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, addSelected, clearSelected, exitSelecting, launchChain, quickAddFromText } =
     useWorkbench();
   const { snapshot, refresh } = useSync();
   const { settings, patch } = useSettings();
@@ -229,6 +229,39 @@ export function MainWindowShell() {
   /** 应用内快捷键：内置默认 + 用户覆盖（settings.appHotkeys 只存改过的动作）。 */
   const appHotkeys = useMemo(() => ({ ...DEFAULT_APP_HOTKEYS, ...settings.appHotkeys }), [settings.appHotkeys]);
 
+  /**
+   * Ctrl+A 两级全选（2026-10-17 用户要求）：第一次全选**当前分组**、第二次全选**整页**、第三次**清空**。
+   * 「当前分组」按按下时的滚动位置取（分组头 id 是 `tl-group-*`，用它们的视口位置判断最上方可见组），
+   * 刻意不引入常驻 scroll-spy——这条键按下时才读一次 DOM。只作用于卡片页；编辑态与主页不参与。
+   */
+  const selectAllCards = useCallback(() => {
+    if (tab === 'home' || editing || groups.length === 0) return;
+    const scroller = document.querySelector(`#tl-panel-${tab} .tl-scroll`);
+    let currentName: string | null = null;
+    if (scroller !== null) {
+      const top = scroller.getBoundingClientRect().top;
+      for (const el of scroller.querySelectorAll('[id^="tl-group-"]')) {
+        // 只认"已经在视口顶之上"的分组头；DOM 序遍历 → 最后一个即最上方的可见组。
+        if (el.getBoundingClientRect().top - top <= 1) currentName = el.id.slice('tl-group-'.length);
+      }
+      if (currentName !== null) currentName = decodeURIComponent(currentName);
+    }
+    const current =
+      (currentName === null ? undefined : groups.find((g) => g.name === currentName)) ?? groups[0];
+    const ids = new Set(selected.map((e) => e.id));
+    const groupDone = current.entries.length > 0 && current.entries.every((e) => ids.has(e.id));
+    if (!groupDone) {
+      addSelected(current.entries);
+      return;
+    }
+    const all = groups.flatMap((g) => g.entries);
+    if (all.length > 0 && !all.every((e) => ids.has(e.id))) {
+      addSelected(all);
+      return;
+    }
+    clearSelected();
+  }, [tab, editing, groups, selected, addSelected, clearSelected]);
+
   /* 快捷面板的「加为入口」：主进程收起面板后把文本转到这里，
      走与 Ctrl+V 粘贴添加完全同一条流程（识别与预填在 workbenchStore）。 */
   useEffect(() => api.events.onQuickAdd((text) => void quickAddFromText(text)), [quickAddFromText]);
@@ -243,6 +276,7 @@ export function MainWindowShell() {
     onPublish: () => openDialog('publish'),
     onNewEntry: newEntryForCurrentTab,
     onToggleSidebar: () => void patch({ sidebarCollapsed: !settings.sidebarCollapsed }),
+    onSelectAll: selectAllCards,
     onShowShortcuts: () => openDialog('shortcuts'),
     canPublish: () => editing && dirtyCount > 0,
     appHotkeys,
@@ -357,6 +391,7 @@ export function MainWindowShell() {
           onBatchAddPersonal={() => openDialog('batchAdd')}
           onScanPersonal={() => openDialog('scanPicker')}
           onBatchAddTeam={() => openDialog('batchAddTeam')}
+          onImportBookmarks={() => openDialog('bookmarks')}
           addGroupDisabledReason={groupAddReason}
           addEntryDisabledReason={entryAddReason}
           onImport={() => fileRef.current?.click()}

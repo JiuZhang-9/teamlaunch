@@ -28,6 +28,7 @@ export type UsageFeature =
   | 'multiSelect'
   | 'batchAdd'
   | 'scanAdd'
+  | 'bookmarkImport'
   | 'newGroup'
   | 'newEntry';
 
