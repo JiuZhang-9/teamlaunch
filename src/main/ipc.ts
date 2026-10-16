@@ -9,6 +9,8 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { extractIcon, openEntry, openUrl, type OpenTarget, type RelocateResult } from './opener.ts';
 import { resolveAppCandidates, saveOverride } from './appResolver.ts';
+import { fetchPageTitle } from './pageTitle.ts';
+import { recordEntryOpen, recordFeature, type UsageFeature } from './usageStats.ts';
 import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './updater.ts';
 import { syncService } from './syncBridge.ts';
 import { serverPort } from './serverPort.ts';
@@ -107,6 +109,20 @@ export function registerIpc(deps: IpcDeps): void {
 
   // 粘贴快捷添加（方案 A）的识别端：这段文本能不能直接成入口、是什么形态。只识别不落库。
   ipcMain.handle('tl:entries-identify', async (_e, text: string) => identifyAsEntry(String(text ?? '')));
+  // 网页名称自动识别（2026-10-17）：只对"用户正在添加的那一个网址"取一次标题；
+  // 失败/超时/非 HTML 一律返回 null，调用方回落到域名（纪律见 main/pageTitle.ts）。
+  ipcMain.handle('tl:entries-page-title', async (_e, url: unknown) => fetchPageTitle(String(url ?? '')));
+  // 本机用量统计（仅落本机文件、不上报、不进 UI）：入口点击结果 / 功能使用次数。
+  // 负载只做最小校验；写失败静默（见 main/usageStats.ts）。
+  ipcMain.handle('tl:usage-bump', async (_e, raw: unknown) => {
+    const payload = raw as { kind?: unknown; key?: unknown; ok?: unknown } | null;
+    const key = String(payload?.key ?? '').slice(0, 64);
+    if (key.length === 0) return false;
+    if (payload?.kind === 'entry') await recordEntryOpen(key, payload.ok !== false);
+    else if (payload?.kind === 'feature') await recordFeature(key as UsageFeature);
+    else return false;
+    return true;
+  });
 
   // 「在这台电脑上重新定位」（分层解析第 5 步）：选一次、本机记住（app-overrides.json，
   // 永不同步）、立刻尝试打开。取消不算失败，界面保持原状。

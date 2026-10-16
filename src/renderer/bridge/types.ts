@@ -282,6 +282,11 @@ export interface TeamLaunchApi {
     scanStartMenu(): Promise<ScanResult>;
     /** 剪贴板快捷添加（方案 A）：识别一段文本可否快速成入口；kind=none 时给可读原因。 */
     identify(text: string): Promise<IdentifyResult>;
+    /**
+     * 取网页标题（新建网页入口时把名称从域名升级成真实标题用）。
+     * 超时 5 秒、只读前 64KB；**任何失败都返回 null**，调用方回落到域名。
+     */
+    pageTitle(url: string): Promise<string | null>;
     /** 在本机重新定位应用入口：选一次、本机记住、立刻尝试打开。 */
     relocate(entry: Entry): Promise<RelocateResult>;
   };
@@ -290,6 +295,14 @@ export interface TeamLaunchApi {
   favorites: {
     get(): Promise<FavoriteItem[]>;
     save(list: FavoriteItem[]): Promise<void>;
+  };
+
+  /**
+   * 本机用量统计（2026-10-17 用户拍板"仅本机记录"）：入口点击结果与功能使用次数，
+   * 只写 userData/config/usage-stats.json——**不上报、不进 UI**。失败静默（绝不连累打开入口）。
+   */
+  usage: {
+    bump(event: { kind: 'entry' | 'feature'; key: string; ok?: boolean }): Promise<boolean>;
   };
 
   /** 自动更新（打包版才有行为；开发态 install 不会被执行——入口根本不启动）。 */

@@ -11,6 +11,7 @@ import path from 'node:path';
 import { probe as probePath } from './opener.ts';
 // K-12：控制台输出（reg.exe）必须按系统代码页解码——实现集中在 winConsole.ts，别在这里用 utf8 直读。
 import { decodeConsoleOutput, regQueryBytes } from './winConsole.ts';
+import { defaultWebName } from '../shared/web-name.ts';
 
 export interface PickResult {
   ok: boolean;
@@ -78,13 +79,8 @@ export type IdentifyResult =
 export async function identifyAsEntry(raw: string): Promise<IdentifyResult> {
   const text = String(raw ?? '').trim();
   if (/^https?:\/\/\S+\.\S+/i.test(text)) {
-    let host = text;
-    try {
-      host = new URL(text).hostname.replace(/^www\./i, '');
-    } catch {
-      // 取不到主机名就用原链接兜底展示
-    }
-    return { kind: 'web', url: text, name: host };
+    // 默认名 = 去 www 的 hostname（与渲染层共用同一条规则；取不到时用原链接兜底展示）。
+    return { kind: 'web', url: text, name: defaultWebName(text) ?? text };
   }
   if (!/^(?:[A-Za-z]:[\\/]|\\)/.test(text)) {
     return { kind: 'none', reason: '剪贴板里没有可识别的网址或路径' };

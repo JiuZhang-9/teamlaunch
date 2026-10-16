@@ -56,4 +56,14 @@ export const localStore = {
   saveFavorites(value: unknown): Promise<void> {
     return writeJsonAtomic(path.join('config', 'favorites.json'), value);
   },
+  /**
+   * 本机用量统计（2026-10-17）：入口点击成功/失败次数 + 功能使用次数。
+   * **只落本机、不上报、不进 UI**；用户自己可以打开看或删掉（见 docs/DELIVERY.md §7）。
+   */
+  usageStats<T>(fallback: T): Promise<T> {
+    return readJson(path.join('config', 'usage-stats.json'), fallback);
+  },
+  saveUsageStats(value: unknown): Promise<void> {
+    return writeJsonAtomic(path.join('config', 'usage-stats.json'), value);
+  },
 };

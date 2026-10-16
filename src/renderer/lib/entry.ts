@@ -29,6 +29,19 @@ export const TYPE_META: Record<EntryTypeKey, TypeMeta> = {
   web: { label: '网页', icon: Globe, tint: 'var(--type-link-tint)' },
 };
 
+/**
+ * 类型标签的**选择语域**（编译器单选 / 批量识别结果标签 / 类型筛选）：口语化的「软件」。
+ *
+ * 与显示语域 `TYPE_META`（「桌面应用」，卡片角标与统计条用）并存——两个语域都是刻意的
+ * （选项里说"软件"更顺口，标签上写全称更准确），但**字面量只能有这一处**：
+ * 此前 EntryEditDialog / BatchAddDialogView / TypeFilterButton 各写了一份，改一处必漏两处。
+ */
+export const TYPE_CHOICE_LABEL: Record<EntryTypeKey, string> = {
+  app: '软件',
+  folder: '文件夹',
+  web: '网页',
+};
+
 /** 原本/target/url 的可读摘要：卡片 Display 用。 */
 export function targetSummary(entry: Entry): string {
   switch (entry.type) {

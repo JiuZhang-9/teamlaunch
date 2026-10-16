@@ -8,6 +8,7 @@ import { api } from '../bridge/index.ts';
 import { useEntryPicker } from '../hooks/useEntryPicker.ts';
 import { Button } from '../components/atoms/Button.tsx';
 import { GroupActionsDialog } from '../components/organisms/GroupActionsDialog.tsx';
+import { CardStatsBar } from '../components/molecules/CardStatsBar.tsx';
 import { GroupSections } from '../components/organisms/GroupSections.tsx';
 import { ConfirmDialog } from '../components/organisms/SimpleDialog.tsx';
 import { Dialog } from '../components/organisms/Dialog.tsx';
@@ -208,6 +209,9 @@ export function PersonalEntriesView() {
         // hover 说明只对鼠标用户存在；撞上限是持久状态，必须常驻可见。
         <Banner tone="warn" title={capacityReason} className="mb-3 rounded-[var(--radius-md)] border" />
       )}
+
+      {/* 卡片统计（2026-10-17）：总数 + 按类型分列；筛选生效时显示筛选后的数量。 */}
+      <CardStatsBar groups={groups} />
 
       <GroupSections
         groups={groups}

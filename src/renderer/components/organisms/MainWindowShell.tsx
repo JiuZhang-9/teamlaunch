@@ -22,6 +22,7 @@ import { ChainLaunchBar } from './ChainLaunchBar.tsx';
 import { DialogRouter } from './DialogRouter.tsx';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue.ts';
 import { useGlobalHotkeys } from '../../hooks/useGlobalHotkeys.ts';
+import { readMemoryList, writeMemoryList } from '../../lib/localMemory.ts';
 import { useToolbarMenus } from '../../hooks/useToolbarMenus.ts';
 import { entryLimitCopy, groupLimitCopy } from '../../../shared/capacity-copy.ts';
 import { measure } from '../../../shared/capacity-usage.ts';
@@ -42,6 +43,9 @@ import { PersonalEntriesView } from '../../pages/PersonalEntriesView.tsx';
 import { AdminEditView } from '../../pages/AdminEditView.tsx';
 import { HomePageView } from '../../pages/HomePageView.tsx';
 import type { Group } from '../../../shared/schema/group.ts';
+
+/** 本机记忆键：已提示过的公告 id（见 lib/localMemory.ts 的三条边界）。 */
+const ANNOUNCEMENTS_SEEN_KEY = 'announcements-seen';
 
 const OFFLINE_BANNER_STATES = new Set([
   'OFFLINE_CACHED',
@@ -137,6 +141,32 @@ export function MainWindowShell() {
     if (prev != null && now != null && now > prev) setUpdateBanner(`团队入口已更新至 v${now}`);
     lastRevision.current = now;
   }, [snapshot.revision]);
+
+  /* 隐私门未确认时，一律不打扰（零上报状态下也不弹业务提示）。声明提前到这里：
+     下面的公告广播 effect 与粘贴处理都要用，而 effect 的依赖必须在它之前可见。 */
+  const gateBlocking = settings.telemetryNoticeAckedAt === null;
+
+  /* 主页公告广播（2026-10-17 用户要求"让所有人知晓"）：挑出"没提示过的公告"，右下角提示一次。
+     每篇只提示一次（本机记 id、最多留 100 条）；关掉提示不影响公告本身——主页上一直看得到。
+     首次装机的存量公告也会提示一次：这正是"让所有人知晓"的意图。 */
+  useEffect(() => {
+    if (gateBlocking || !settings.announcementNotify) return;
+    const list = snapshot.config?.announcements ?? [];
+    if (list.length === 0) return;
+    const seen = new Set(readMemoryList(ANNOUNCEMENTS_SEEN_KEY));
+    const fresh = list.filter((a) => !seen.has(a.id));
+    if (fresh.length === 0) return;
+    for (const a of fresh) seen.add(a.id);
+    writeMemoryList(ANNOUNCEMENTS_SEEN_KEY, [...seen]);
+    const latest = fresh[fresh.length - 1];
+    push({
+      title: `新公告：${latest.title}`,
+      detail: latest.body.replace(/\s+/g, ' ').trim().slice(0, 80) || undefined,
+      tone: 'info',
+      duration: 8000,
+      actions: [{ label: '去主页看', onSelect: () => setTab('home') }],
+    });
+  }, [snapshot.config, settings.announcementNotify, gateBlocking, push, setTab]);
 
   useEffect(() => {
     if (!updateBanner) return;
@@ -258,8 +288,6 @@ export function MainWindowShell() {
   const newGroupGroups = (scope: 'personal' | 'team') => (scope === 'personal' ? personal.groups : edit.draft.groups);
   const newGroupDefault =
     newGroupScope === null ? '' : `新分组 ${newGroupGroups(newGroupScope).length + 1}`;
-
-  const gateBlocking = settings.telemetryNoticeAckedAt === null;
 
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
@@ -493,6 +521,8 @@ export function MainWindowShell() {
             void (async () => {
               const r = scope === 'personal' ? await addPersonalGroup(name) : edit.addGroup(name);
               if (!r.ok && r.reason) push({ title: r.reason, tone: 'warn' });
+              // 本机用量统计（仅落本机、不上报）：新建分组的次数（成功才算）。
+              else void api.usage.bump({ kind: 'feature', key: 'newGroup' });
             })();
           }}
           onCancel={() => setNewGroupScope(null)}

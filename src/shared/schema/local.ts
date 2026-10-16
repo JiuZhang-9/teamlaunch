@@ -78,6 +78,11 @@ export const SettingsSchema = z.object({
   telemetryEnabled: z.boolean().default(true),
   /** null = 隐私说明未确认。此状态下必须零记录、零上报（AC-18）。 */
   telemetryNoticeAckedAt: IsoDateTimeSchema.nullable().default(null),
+  /**
+   * 主页公告提醒（2026-10-17）：管理员发布新公告时，在右下角提示一次（每篇只提示一次）。
+   * 关掉只是不再弹提示——公告本身仍在主页上，随时能看。
+   */
+  announcementNotify: z.boolean().default(true),
   /** 界面缩放（百分比）。浏览器式缩放：窗口不变，字体与内部 UI 等比放大重排。 */
   uiZoom: z.int().min(80).max(150).default(100),
   /**

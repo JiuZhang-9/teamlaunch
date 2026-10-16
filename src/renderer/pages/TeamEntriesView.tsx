@@ -11,6 +11,7 @@
 import { CloudOff, LayoutGrid } from 'lucide-react';
 import { api } from '../bridge/index.ts';
 import { Button } from '../components/atoms/Button.tsx';
+import { CardStatsBar } from '../components/molecules/CardStatsBar.tsx';
 import { GroupSections } from '../components/organisms/GroupSections.tsx';
 import type { ContextMenuItem } from '../components/molecules/ContextMenu.tsx';
 import { EmptyBlock } from '../components/molecules/EmptyBlock.tsx';
@@ -172,23 +173,27 @@ export function TeamEntriesView() {
   }
 
   return (
-    <GroupSections
-      groups={groups}
-      source="team"
-      mode="readonly"
-      runtime={runtime}
-      onOpen={(entry) => void openEntry(entry)}
-      menuFor={menuFor}
-      filtering={filtering}
-      selecting={selecting && !filtering}
-      selectionOrderOf={(id) => {
-        const i = selected.findIndex((e) => e.id === id);
-        return i >= 0 ? i + 1 : null;
-      }}
-      onToggleSelect={toggleSelected}
-      isFavoriteOf={isFavorite}
-      onToggleFavorite={(entry) => void toggleFavorite(entry.id)}
-      pendingFeedbackIds={pendingIds}
-    />
+    <>
+      {/* 卡片统计（2026-10-17）：总数 + 按类型分列；筛选生效时显示筛选后的数量。 */}
+      <CardStatsBar groups={groups} />
+      <GroupSections
+        groups={groups}
+        source="team"
+        mode="readonly"
+        runtime={runtime}
+        onOpen={(entry) => void openEntry(entry)}
+        menuFor={menuFor}
+        filtering={filtering}
+        selecting={selecting && !filtering}
+        selectionOrderOf={(id) => {
+          const i = selected.findIndex((e) => e.id === id);
+          return i >= 0 ? i + 1 : null;
+        }}
+        onToggleSelect={toggleSelected}
+        isFavoriteOf={isFavorite}
+        onToggleFavorite={(entry) => void toggleFavorite(entry.id)}
+        pendingFeedbackIds={pendingIds}
+      />
+    </>
   );
 }

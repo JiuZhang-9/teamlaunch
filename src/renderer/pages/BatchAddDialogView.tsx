@@ -32,7 +32,7 @@ interface Row {
   reason?: string;
 }
 
-const TYPE_LABEL: Record<'web' | 'app' | 'folder', string> = { web: '网页', app: '软件', folder: '文件夹' };
+import { TYPE_CHOICE_LABEL } from '../lib/entry.ts';
 
 export function BatchAddDialogView({ onClose, scope = 'personal' }: { onClose(): void; scope?: 'personal' | 'team' }) {
   const personal = usePersonal();
@@ -106,6 +106,8 @@ export function BatchAddDialogView({ onClose, scope = 'personal' }: { onClose():
     const res = scope === 'personal'
       ? await personal.addEntries(inputs.map((x) => ({ ...x, groupName: target })))
       : edit.createEntries(inputs, target);
+    // 本机用量统计（仅落本机、不上报）：批量添加的次数。
+    void api.usage.bump({ kind: 'feature', key: 'batchAdd' });
     /* 部分加入（放不下）也要说清：added 与 reason 同时出现不是矛盾，是"放下的都加了"。 */
     push(
       res.added > 0
@@ -212,7 +214,7 @@ export function BatchAddDialogView({ onClose, scope = 'personal' }: { onClose():
                       <>
                         <span className="block truncate-1">{r.name}</span>
                         <span className="block truncate-1 t-2xs text-[var(--muted)]">
-                          {TYPE_LABEL[r.kind ?? 'app']} · {r.target}
+                          {TYPE_CHOICE_LABEL[r.kind ?? 'app']} · {r.target}
                         </span>
                       </>
                     ) : (

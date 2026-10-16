@@ -74,6 +74,10 @@ identity.json          匿名设备标识
 credential.json        仅管理员：口令派生参数（删除它即可重设口令）
 cache\team-current.json  团队配置缓存
 config\personal.json     个人入口（本机，不上网）
+config\favorites.json    主页收藏（本机）
+config\usage-stats.json  本机用量统计（2026-10-17 起：入口点击成功/失败次数 + 功能使用次数）
+                         **只落本机、不上报、界面不展示**；删掉它即归零
+config\app-overrides.json 本机重新定位缓存（per-machine）
 revisions\              发布历史与快照（滚动 20 条）
 assets\                 图标缓存
 outbox\feedback.jsonl   待发送反馈

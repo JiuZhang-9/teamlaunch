@@ -75,6 +75,8 @@ export function useEntryPicker(): EntryPicker {
       const res = await addEntries(
         picked.map((p) => ({ kind: 'app' as const, name: p.name, target: p.target, sourcePath: p.sourcePath })),
       );
+      // 本机用量统计（仅落本机、不上报）：扫描添加的次数（真加进去才算）。
+      if (res.added > 0) void api.usage.bump({ kind: 'feature', key: 'scanAdd' });
       push({
         title: res.added > 0 ? `已添加 ${res.added} 个程序` : (res.reason ?? '没有添加任何程序'),
         tone: res.added > 0 ? 'success' : 'danger',

@@ -11,6 +11,7 @@ import { useEdit } from '../store/editStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
 import { useToasts } from '../store/toastStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
+import { api } from '../bridge/index.ts';
 import { EntryEditDialog } from '../components/organisms/EntryEditDialog.tsx';
 import type { Entry } from '../../shared/schema/entry.ts';
 
@@ -33,6 +34,8 @@ export function EntryEditDialogView() {
 
   const onConfirm = (entry: Entry, groupId: string | null) => {
     if (mode === 'create') {
+      // 本机用量统计（仅落本机、不上报）：新建入口的次数。
+      void api.usage.bump({ kind: 'feature', key: 'newEntry' });
       if (scope === 'personal') void personal.addEntryObject(entry, groupId).then(reportFailure);
       else reportFailure(edit.createEntry(groupId, entry));
     } else if (scope === 'personal') {

@@ -189,6 +189,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       // 直接按对象打开（主进程仍做 schema 校验）：团队已发布入口、个人入口、
       // 以及尚未发布的编辑态草稿都能开——此前草稿入口按 id 解析必然失败。
       const result = await api.entries.openObject(entry);
+      /* 本机用量统计（仅落本机文件、不上报）：记成功/失败各一次；统计失败不影响打开（主进程侧静默）。 */
+      void api.usage.bump({ kind: 'entry', key: entry.id, ok: result.ok });
       if (result.ok) {
         setRuntime((r) => ({ ...r, [entry.id]: { phase: 'idle' } }));
         // 最近打开只记"真的打开了"的（面板空查询要显示它，失败的不算）。
@@ -262,6 +264,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const toggleSelecting = useCallback(() => {
     setSelecting((v) => {
       if (v) setSelected([]);
+      else void api.usage.bump({ kind: 'feature', key: 'multiSelect' });
       return !v;
     });
   }, []);
@@ -285,6 +288,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       const list = selected;
       exitSelecting();
       if (list.length === 0) return;
+      void api.usage.bump({ kind: 'feature', key: 'chainLaunch' });
       const failed: string[] = [];
       for (let i = 0; i < list.length; i += 1) {
         const entry = list[i];

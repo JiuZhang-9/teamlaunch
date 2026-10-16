@@ -6,7 +6,7 @@
  * 这里补齐三类型统一编辑：软件/文件夹走系统选择框，网页手填 URL。
  */
 import { FolderOpen, Globe, Image as ImageIcon, MonitorSmartphone, Smile } from 'lucide-react';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../bridge/index.ts';
 import { Button } from '../atoms/Button.tsx';
 import { Input } from '../atoms/Input.tsx';
@@ -14,6 +14,8 @@ import { Textarea } from '../atoms/Textarea.tsx';
 import { Dialog } from './Dialog.tsx';
 import type { Entry } from '../../../shared/schema/entry.ts';
 import { EMOJI_GROUPS } from '../../../shared/emoji-palette.ts';
+import { defaultWebName } from '../../../shared/web-name.ts';
+import { TYPE_CHOICE_LABEL } from '../../lib/entry.ts';
 
 export type EditorEntryType = 'app' | 'folder' | 'web';
 
@@ -37,10 +39,11 @@ export interface EntryEditDialogProps {
   onCancel(): void;
 }
 
+/** 类型单选的文案走共享的"选择语域"（lib/entry.ts）——字面量只允许有一处。 */
 const TYPE_OPTIONS: Array<{ value: EditorEntryType; label: string; icon: ReactNode }> = [
-  { value: 'app', label: '软件', icon: <MonitorSmartphone size={16} strokeWidth={2} aria-hidden /> },
-  { value: 'folder', label: '文件夹', icon: <FolderOpen size={16} strokeWidth={2} aria-hidden /> },
-  { value: 'web', label: '网页', icon: <Globe size={16} strokeWidth={2} aria-hidden /> },
+  { value: 'app', label: TYPE_CHOICE_LABEL.app, icon: <MonitorSmartphone size={16} strokeWidth={2} aria-hidden /> },
+  { value: 'folder', label: TYPE_CHOICE_LABEL.folder, icon: <FolderOpen size={16} strokeWidth={2} aria-hidden /> },
+  { value: 'web', label: TYPE_CHOICE_LABEL.web, icon: <Globe size={16} strokeWidth={2} aria-hidden /> },
 ];
 
 function urlValid(url: string): boolean {
@@ -78,6 +81,34 @@ export function EntryEditDialog({ mode, scope = 'team', initial, groupOptions, i
   const isWeb = type === 'web';
   const targetFilled = isWeb ? urlValid(url) : target.trim().length > 0;
   const canConfirm = trimmedName.length > 0 && targetFilled;
+
+  /* 网页名称自动识别（2026-10-17 用户拍板"自动联网取标题"）：只在**名称还没被手写过**时取一次标题——
+     "没手写过"= 空（手工新建时名称初始为空）或等于该网址的域名默认值（粘贴识别预填的就是它）。
+     取到就替换、取不到保持现状；取标题期间用户改了名也不覆盖。防抖 600ms：边输网址边不要每敲一个
+     字符就发请求。 */
+  useEffect(() => {
+    if (!isWeb) return;
+    const trimmedUrl = url.trim();
+    if (!urlValid(trimmedUrl)) return;
+    const host = defaultWebName(trimmedUrl);
+    if (host === null) return;
+    const untouched = (value: string): boolean => {
+      const v = value.trim();
+      return v.length === 0 || v === host;
+    };
+    if (!untouched(name)) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void api.entries.pageTitle(trimmedUrl).then((title) => {
+        if (cancelled || title === null) return;
+        setName((cur) => (untouched(cur) ? title : cur));
+      });
+    }, 600);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isWeb, url, name]);
 
   const browse = async () => {
     setPicking(true);

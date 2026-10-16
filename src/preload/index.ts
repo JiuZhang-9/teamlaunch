@@ -131,6 +131,8 @@ const api: TeamLaunchApi = {
     pick: (kind) => invoke<PickResult>('tl:entries-pick', kind),
     scanStartMenu: () => invoke<ScanResult>('tl:entries-scan'),
     identify: (text) => invoke<IdentifyResult>('tl:entries-identify', text),
+    /* 网页名称自动识别：只对正在添加的那一个网址取一次标题；null 表示取不到（回落域名）。 */
+    pageTitle: (url) => invoke<string | null>('tl:entries-page-title', url),
     relocate: (entry) => {
       // 与 openObject 同一闸：入口对象过 schema 再交给主进程。
       const gate = EntrySchema.safeParse(entry);
@@ -255,6 +257,10 @@ const api: TeamLaunchApi = {
   favorites: {
     get: () => invoke<FavoriteItem[]>('tl:favorites-get'),
     save: (list) => invoke<void>('tl:favorites-save', list),
+  },
+  /* 本机用量统计（仅落本机文件、不上报、不进 UI）：失败静默，绝不影响功能。 */
+  usage: {
+    bump: (event) => invoke<boolean>('tl:usage-bump', event),
   },
 };
 

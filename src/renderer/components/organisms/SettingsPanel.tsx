@@ -386,6 +386,18 @@ export function SettingsPanel({
               }
             />
 
+            <Row
+              title="主页公告提醒"
+              detail="管理员发布新公告时，右下角提示一次（每篇只提示一次）；关掉后主页上仍然能看"
+              control={
+                <Switch
+                  ariaLabel="主页公告提醒"
+                  checked={settings.announcementNotify}
+                  onChange={(next) => onPatch({ announcementNotify: next })}
+                />
+              }
+            />
+
             <Divider />
             <SectionHead>UI 缩放</SectionHead>
             <p className="t-2xs mb-2 text-[var(--meta)]">放大字体与界面元素，窗口大小不变；主窗口立即生效并记住选择</p>

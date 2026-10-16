@@ -28,3 +28,20 @@ export function writeMemoryString(key: string, value: string): void {
     // 写不进去只损失记忆本身，不影响当前操作
   }
 }
+
+/** 读一个短字符串列表记忆（如"已提示过的公告 id"）；解析失败按空列表——记忆坏了不该影响功能。 */
+export function readMemoryList(key: string): string[] {
+  const raw = readMemoryString(key);
+  if (raw === null) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 写列表记忆；只保留最近 cap 条，防止长期运行无限增长。 */
+export function writeMemoryList(key: string, list: string[], cap = 100): void {
+  writeMemoryString(key, JSON.stringify(list.slice(-cap)));
+}

@@ -9,11 +9,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '../atoms/Button.tsx';
 import { MenuItem } from '../molecules/MenuItem.tsx';
 import type { EntryType } from '../../../shared/schema/entry.ts';
+import { TYPE_CHOICE_LABEL } from '../../lib/entry.ts';
 
 const TYPES: Array<{ value: EntryType; label: string }> = [
-  { value: 'app', label: '软件' },
-  { value: 'folder', label: '文件夹' },
-  { value: 'web', label: '网页' },
+  { value: 'app', label: TYPE_CHOICE_LABEL.app },
+  { value: 'folder', label: TYPE_CHOICE_LABEL.folder },
+  { value: 'web', label: TYPE_CHOICE_LABEL.web },
 ];
 
 export interface TypeFilterButtonProps {
