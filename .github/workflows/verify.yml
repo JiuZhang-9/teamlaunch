@@ -1,0 +1,51 @@
+# 门禁全绿（Windows）—— 与本地 `npm run` 同一套，不引入第二套标准。
+#
+# 为什么必须跑在 windows-latest：项目是 Windows 桌面应用，门禁里真的会读注册表、
+# 控制台代码页与 PowerShell 探针（K-12/诊断巡检），换 Linux 跑等于换了套环境测。
+#
+# 覆盖范围（与 CONTRIBUTING「提交前必须全绿」一致）：
+#   verify:all（含 p0 扫描 / 令牌 / 图标 / openapi / schema / 依赖锚定 / guard / smoke / sync / wiring）
+#   verify:qa（六条独立验证，含 qa-http）→ typecheck → lint
+#   不单独列 verify:deps —— 它已经是 verify:all 的一环，重复跑只是噪音。
+#
+# ⚠️ postinstall 会执行 scripts/patch-builder.cjs（给 electron-builder 打 rename→cp 兜底补丁）：
+#    脚本对"上游结构变化 / 没装 electron-builder"都是安全跳过，不阻断 CI。
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gates:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+          cache: npm
+
+      # verify:p0 是 Python 写的扫描器（emoji/渐变/模板文案/乱码/缓动），必须显式装
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 全量门禁 verify:all
+        run: npm run verify:all
+
+      - name: QA 独立验证 verify:qa
+        run: npm run verify:qa
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint

@@ -1,0 +1,29 @@
+name: 功能建议
+description: 想要的新能力或改进（先说说你的使用场景）
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        TeamLaunch 的取舍原则：**只做"团队入口"这一件事**——集中、共享、可维护。
+        聊天、审批、文档编辑这类协同套件能力明确不做（见 docs/PRD.md 的排除表）。
+  - type: textarea
+    id: scene
+    attributes:
+      label: 使用场景
+      description: 你（或同事）在什么情况下需要它？现在是怎么绕过去的？
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 期望的样子
+      description: 越具体越好（放哪个页面、点什么、看到什么）
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 你考虑过的替代办法（可选）
+    validations:
+      required: false

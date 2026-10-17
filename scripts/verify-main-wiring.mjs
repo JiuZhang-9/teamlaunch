@@ -71,6 +71,45 @@ try {
   const verified = await port.verifyAdmin('whatever');
   check('未设置口令时校验不通过', verified === false, `verified=${verified}`);
 
+  /* UDP 信标必须由**真实装配路径**起起来（2026-10-17）：此前信标只在 smoke 里被 new 过，
+     应用本体从未启动它 —— 而安装包/卸载器一直在为它建 `TeamLaunch Discovery UDP` 入站规则，
+     L2 发现（员工广播询问 → 管理员单播应答）实际是死的。这里从装配结果上钉住它。 */
+  {
+    const { createSocket } = await import('node:dgram');
+    const { BEACON_MAGIC, UDP_DISCOVERY_PORT } = await import('../src/shared/constants.ts');
+    const nonce = `wiring-${Date.now()}`;
+    const socket = createSocket({ type: 'udp4', reuseAddr: true });
+    const offer = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), 2500);
+      socket.on('message', (msg) => {
+        clearTimeout(timer);
+        try {
+          resolve(JSON.parse(msg.toString('utf8')));
+        } catch {
+          resolve(null);
+        }
+      });
+      socket.bind(0, '127.0.0.1', () => {
+        const query = Buffer.from(
+          JSON.stringify({ magic: BEACON_MAGIC, type: 'query', nonce, anonDeviceId: 'wiring-device' }),
+          'utf8',
+        );
+        socket.send(query, 0, query.length, UDP_DISCOVERY_PORT, '127.0.0.1');
+      });
+    });
+    socket.close();
+    const ok =
+      offer !== null && offer.type === 'offer' && offer.nonce === nonce
+      && typeof offer.httpPort === 'number' && offer.httpPort > 0;
+    check(
+      'UDP 信标：真实装配后应答广播询问（含实时漂移端口）',
+      ok,
+      offer === null
+        ? `未在 2.5 秒内收到应答（UDP ${UDP_DISCOVERY_PORT}）—— 装配路径没有起信标`
+        : `httpPort=${offer.httpPort}，addrs=${Array.isArray(offer.addrs) ? offer.addrs.length : 0} 个`,
+    );
+  }
+
   await stopEmbeddedService();
   check('优雅关闭无异常', true);
 } finally {

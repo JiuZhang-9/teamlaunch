@@ -224,4 +224,7 @@ try {
 
 console.log('');
 console.log(`合计 ${failed === 0 ? '全部通过' : `${failed} 项失败`}。`);
+/* Windows 上 process.exit 会与仍在收尾的句柄（Fastify/undici 的连接）赛跑，偶发 libuv 断言噪音
+   并以 127 退出（结论早已打印）。等一拍让它们收干净——这是退出时序，不是测试逻辑。 */
+await new Promise((resolve) => setTimeout(resolve, 400));
 process.exit(failed === 0 ? 0 : 1);

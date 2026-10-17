@@ -124,9 +124,11 @@
 
 | 项 | 内容 |
 |---|---|
-| 状态 | **Open**（待维护者决定是否补齐、补到什么程度） |
-| 现状 | 已有 README / LICENSE / SECURITY / CONTRIBUTING；缺 `.github/workflows`（verify 门禁无 CI 兜底，外部 PR 无法自证全绿）、Issue/PR 模板、`CODE_OF_CONDUCT.md` |
-| 说明 | 单人维护阶段可接受；若开放外部贡献，CI 至少跑 `verify:all + verify:qa + typecheck + lint`（Windows 环境注意 postinstall 会执行 `scripts/patch-builder.cjs`，脚本在无 electron-builder 或上游重构时安全跳过） |
+| 状态 | **Closed —— 2026-10-17 一次性补齐**（用户指示"先清欠账"，原"待维护者决定补到什么程度"随之裁定：按外部贡献者所需的最小完整集补齐） |
+| 已执行 | ① `.github/workflows/verify.yml`：在 **windows-latest**（门禁真的读注册表 / 控制台代码页 / PowerShell 探针，换 Linux 等于换一套环境测）跑 `npm ci` + `verify:all` + `verify:qa` + `typecheck` + `lint`；Node 22.18 + Python 3.12（`verify:p0` 是 Python 扫描器）；② `.github/ISSUE_TEMPLATE/bug_report.yml`（必填版本 / 角色 / 安装方式 / 现象，附"日志在哪、怎么贴"的指引）与 `feature_request.yml`；③ `.github/pull_request_template.md`（自查清单＝本项目硬规矩：shared 纯函数、设计令牌、openapi 同步、版本写死、CHANGELOG、K-12 编码、失败要诚实）；④ `CODE_OF_CONDUCT.md`（Contributor Covenant 2.1 中文，执行渠道指向 SECURITY 的私有报告） |
+| 守边界 | **不引入第二套标准**：CI 跑的命令与本地 `npm run verify:*` 完全相同；不添加构建 / 自动发布（发版仍走本地手工流程，避免与"实机验收后才 tag"的发版纪律打架） |
+| 验证 | 随 v1.0.30 推送后观察 Actions 首跑是否全绿；此后每次 push / PR 自动跑 |
+| 后续可选（未做） | Dependabot 版本更新（安全更新见 O-05）、Scorecard、自动 Release —— 需要时再议 |
 
 ### O-07 更新检查的隐私披露与开关（ADR-009 的遗留项）
 
@@ -163,5 +165,5 @@
 ## 4. 维护规则
 
 1. **触发即回归**：D-01..D-05 任一触发条件达成，先改本文件状态，再动代码，最后更新对应 ADR。
-2. **Open 项不得带病进入开发**：O-01..O-06 已有默认实现或处置路径，开发不阻塞；一旦 PM 裁定或执行完毕，立即更新本文件与对应文档。
+2. **Open 项不得带病进入开发**：O-01..O-03 / O-05 / O-07 / O-08 已有默认实现或处置路径，开发不阻塞；一旦 PM 裁定或执行完毕，立即更新本文件与对应文档。
 3. **新增条目规则**：任何"现在决定、将来可能变"的事项都要登记；只写"决定"不写"触发条件"的条目无效。

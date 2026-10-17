@@ -1,0 +1,64 @@
+name: 缺陷报告
+description: 装/用 TeamLaunch 遇到的问题（打不开、同步不上、更新不对……）
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢反馈。请尽量把下面几项填全——**这台电脑上的日志是最有力的证据**，
+        没有它我只能靠猜。
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本
+      description: 设置 → 关于 → 「应用版本」那一行（形如 v1.0.28）
+      placeholder: v1.0.28
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: 这台电脑的角色
+      options:
+        - 员工机（只用团队入口）
+        - 管理员机（维护并发布团队入口）
+        - 不清楚
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: 安装方式
+      options:
+        - 为所有用户安装（需要管理员密码，装在 Program Files 一类目录）
+        - 仅为当前用户安装（不需要管理员密码）
+        - 直接用源码跑（npm run electron:dev）
+        - 不清楚
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 具体现象
+      description: 你点了什么、期望什么、实际发生什么（有截图更好）
+      placeholder: 例：点团队入口里的「OA 系统」没反应，没有提示；重启应用后仍然如此
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志（重要）
+      description: |
+        把 `%APPDATA%\TeamLaunch\logs\main.log` 的最后 50 行左右贴上来。
+        （Win+R 粘贴 `%APPDATA%\TeamLaunch\logs` 回车即可打开目录；没有这个文件也请说明。）
+      render: text
+    validations:
+      required: false
+  - type: input
+    id: os
+    attributes:
+      label: Windows 版本
+      description: Win+R 输入 winver 可看
+      placeholder: Windows 10 22H2 / Windows 11 24H2
+    validations:
+      required: false

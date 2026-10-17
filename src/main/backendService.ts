@@ -26,8 +26,11 @@ import { NEVER_SYNCED_SNAPSHOT, type SyncServicePort } from './syncBridge.ts';
 import { runCommand } from '../platform/process-runner.ts';
 import { ensureDeviceIdentity } from './deviceIdentity.ts';
 import { setUpdateFeedBase } from './updateFeed.ts';
+import { DiscoveryBeacon } from '../server/beacon.ts';
+import { UDP_DISCOVERY_PORT } from '../shared/constants.ts';
 
 let server: SyncServer | null = null;
+let beacon: DiscoveryBeacon | null = null;
 let ctx: ServiceContext | null = null;
 let deviceId = 'unknown';
 
@@ -71,12 +74,33 @@ export async function startEmbeddedService(userDataRoot: string, role: string | 
   await server.start();
   // 管理员机的更新源就是自己（回环地址，端口可能漂移，以实际监听为准）。
   setUpdateFeedBase(`http://127.0.0.1:${server.listen.port}`);
+
+  /* UDP 信标（ADR-002 服务端侧）：员工机广播询问、管理员机单播应答——员工端因此零配置。
+     2026-10-17 修：**此前这里漏了**，信标只在 smoke 测试里起过，真实应用从未跑过它，
+     而安装包/卸载器却一直在为它建 `TeamLaunch Discovery UDP` 入站规则——L2 发现一直是死的。
+     起不来不阻断服务：只损失"广播发现"这一层，员工端还有 L0 手动端点 / L1 记忆 / L3 网段扫描。 */
+  try {
+    beacon = new DiscoveryBeacon({
+      serviceId: server.ctx.serviceId,
+      instanceId: server.ctx.instanceId,
+      // 端口会漂移：每次应答都取实时值，绝不缓存装配时的快照。
+      httpPortOf: () => server?.listen.port ?? 0,
+      revisionOf: () => server?.ctx.teamConfig.revision ?? 0,
+      port: UDP_DISCOVERY_PORT,
+    });
+    await beacon.start();
+  } catch {
+    beacon = null;
+  }
   return true;
 }
 
 export async function stopEmbeddedService(): Promise<void> {
   if (!server) return;
   try {
+    // 先收信标：否则停了服务还会继续应答广播（对着一个已经关掉的端口发 offer）。
+    await beacon?.stop();
+    beacon = null;
     await server.stop();
   } finally {
     server = null;
