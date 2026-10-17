@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { extractIcon, openEntry, openUrl, type OpenTarget, type RelocateResult } from './opener.ts';
 import { resolveAppCandidates, saveOverride } from './appResolver.ts';
 import { fetchPageTitle } from './pageTitle.ts';
-import { scanBookmarks } from './bookmarks.ts';
+import { listBookmarkBrowsers, scanBookmarks } from './bookmarks.ts';
 import { recordEntryOpen, recordFeature, type UsageFeature } from './usageStats.ts';
 import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './updater.ts';
 import { syncService } from './syncBridge.ts';
@@ -144,9 +144,12 @@ export function registerIpc(deps: IpcDeps): void {
     return true;
   });
 
-  // 浏览器书签扫描（2026-10-17）：只在用户显式打开「导入书签」时调一次；
-  // **只读本机文件、只经 IPC 交给界面**，绝不进入同步/上报链路（见 main/bookmarks.ts）。
-  ipcMain.handle('tl:bookmarks-scan', () => scanBookmarks());
+  /* 浏览器书签（2026-10-17 起；2026-10-18 按用户要求拆成两步）：
+     先「识别本机装了哪些 Chromium 系浏览器」（只 stat 目录，不读书签内容），
+     用户选定某个浏览器后再读它那一份。**只读本机文件、只经 IPC 交给界面**，
+     绝不进入同步/上报链路（见 main/bookmarks.ts）。 */
+  ipcMain.handle('tl:bookmarks-browsers', () => listBookmarkBrowsers());
+  ipcMain.handle('tl:bookmarks-scan', (_e, browserId: unknown) => scanBookmarks(browserId));
 
   // 更新日志（2026-10-17 批 5）：读随包的 CHANGELOG.md 交给设置·关于页渲染。
   // 打包版在 resources/CHANGELOG.md（extraResources），开发态读仓库根目录；读不到就返回 null，

@@ -15,7 +15,7 @@
  * 高度**，两侧只留导航、32px 拖拽条与底部条为固定项（480 最小窗高下固定 ≈ 217px）。
  * 只让分组滚是不够的：固定项本身就会超过最小窗高（实测 474 > 440），底部仍会被推出可视区。
  */
-import { Bookmark, FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, ScanSearch, Settings, Undo2, type LucideIcon } from 'lucide-react';
+import { Bookmark, Download, FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, RefreshCw, RotateCw, ScanSearch, Settings, Stethoscope, SunMoon, Undo2, type LucideIcon } from 'lucide-react';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -25,6 +25,10 @@ import type { Group } from '../../../shared/schema/group.ts';
 import type { SyncSnapshot } from '../../bridge/types.ts';
 import { Button } from '../atoms/Button.tsx';
 import { ScrollArea } from '../atoms/ScrollArea.tsx';
+import { MenuItem } from '../molecules/MenuItem.tsx';
+import { ProgressRing } from '../molecules/ProgressRing.tsx';
+import { ThemePicker } from '../molecules/ThemePicker.tsx';
+import { useSettings } from '../../store/settingsStore.tsx';
 import { useToasts } from '../../store/toastStore.tsx';
 import { StatusPill } from '../molecules/StatusPill.tsx';
 import { SyncIndicator } from '../molecules/SyncIndicator.tsx';
@@ -88,6 +92,16 @@ export interface SidebarProps {
    * 菜单位置的禁用只是表象，真正的写入守卫在 editStore（非编辑态不写草稿）。
    */
   onGroupAction?(group: Group, action: 'open' | 'up' | 'down' | 'sortByName'): void;
+  /**
+   * 应用更新（2026-10-18 用户要求）：有新版时在工作区条上方的小窗里提示 + 圆形下载进度。
+   * null = 没有可用更新。`updateSignal` 每次"该提醒一次"时自增，小窗据此自动弹出。
+   */
+  update?: { version: string; percent: number | null; ready: boolean } | null;
+  updateSignal?: number;
+  onInstallUpdate?(): void;
+  onCheckUpdate?(): void;
+  /** 正在跑一轮手动检查（小窗里那一行改成"正在检测…"）。 */
+  updateChecking?: boolean;
 }
 
 /** 侧栏里的行式操作按钮：整行可点、左对齐、主文字色（用户反馈"太细不够亮"后的定稿）。 */
@@ -123,7 +137,9 @@ export function Sidebar(props: SidebarProps) {
     addGroupDisabledReason = null, addEntryDisabledReason = null, onImport, onExport,
     onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false, editLocked = false,
   onGroupAction,
+    update = null, updateSignal = 0, onInstallUpdate, onCheckUpdate, updateChecking = false,
   } = props;
+  const { settings, patch } = useSettings();
   const { push } = useToasts();
   /** 撞上限的按钮点下去要说话：点击被 softDisabled 挡下是设计，但静默就是"点了没反应"。 */
   const blockReason = (reason?: string | null): void => {
@@ -138,6 +154,15 @@ export function Sidebar(props: SidebarProps) {
   useEffect(() => {
     if (collapsed) setSyncPop(false);
   }, [collapsed]);
+
+  /* 更新提示（2026-10-18）：外壳每次"该说一声"就自增 updateSignal，小窗自动弹出来一次。
+     收起侧栏时不弹（小窗与工作区条一起消失，弹了也看不见），指示点仍留在展开后的条上。 */
+  const lastUpdateSignal = useRef(0);
+  useEffect(() => {
+    if (updateSignal === lastUpdateSignal.current) return;
+    lastUpdateSignal.current = updateSignal;
+    if (!collapsed) setSyncPop(true);
+  }, [updateSignal, collapsed]);
 
   useEffect(() => {
     if (!syncPop) return;
@@ -408,16 +433,31 @@ export function Sidebar(props: SidebarProps) {
             id="tl-wbar"
             aria-expanded={syncPop}
             aria-haspopup="dialog"
+            aria-label={update ? `工作区（有新版本 v${update.version}${update.ready ? '，可安装' : '，正在下载'}）` : undefined}
+            title={update ? `新版本 v${update.version}${update.ready ? '已就绪' : '正在后台下载'}` : undefined}
             onClick={() => setSyncPop((v) => !v)}
             className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-md)] px-2.5 text-left transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
             style={NO_DRAG}
           >
-            <span
-              className="grid h-5 w-5 shrink-0 place-items-center rounded-[6px] text-[11px] font-[var(--weight-emphasize)]"
-              style={{ background: 'var(--accent-tint)', color: 'var(--accent-text)' }}
-              aria-hidden
-            >
-              工
+            <span className="relative">
+              <span
+                className="grid h-5 w-5 shrink-0 place-items-center rounded-[6px] text-[11px] font-[var(--weight-emphasize)]"
+                style={{ background: 'var(--accent-tint)', color: 'var(--accent-text)' }}
+                aria-hidden
+              >
+                工
+              </span>
+              {/* 有更新时的常驻指示点（不靠颜色区分状态：形状与文案在 title / 小窗里给全）。 */}
+              {update && (
+                <span
+                  aria-hidden
+                  className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-[var(--radius-pill)]"
+                  style={{
+                    background: update.ready ? 'var(--success-fg)' : 'var(--accent)',
+                    boxShadow: '0 0 0 1.5px var(--bg-chrome)',
+                  }}
+                />
+              )}
             </span>
             <span className="flex min-w-0 flex-col items-start">
               <span className="text-[13px] font-[var(--weight-emphasize)] leading-tight text-[var(--fg)]">工作区</span>
@@ -461,21 +501,51 @@ export function Sidebar(props: SidebarProps) {
           } as CSSProperties}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* 更新区（2026-10-18）：有新版就排在最上面——这是唯一"要用户做点什么"的事。
+              进度环 + 一句话，下载完再长出「立即更新并重启」。 */}
+          {update && (
+            <>
+              <div className="flex items-center gap-3 px-2 pb-2 pt-1">
+                <ProgressRing
+                  percent={update.ready ? 100 : (update.percent ?? 0)}
+                  label={`新版本 v${update.version} 下载进度`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="t-sm w-emph m-0 truncate-1 text-[var(--fg)]">新版本 v{update.version}</p>
+                  <p className="t-2xs m-0 text-[var(--fg-2)]">
+                    {update.ready ? '已下载完成，可以立即安装' : '正在后台下载，你可以继续用'}
+                  </p>
+                </div>
+              </div>
+              {update.ready && (
+                <Button
+                  tone="primary"
+                  size="sm"
+                  fullWidth
+                  icon={Download}
+                  className="mb-1"
+                  onClick={onInstallUpdate}
+                >
+                  立即更新并重启
+                </Button>
+              )}
+              <div className="mx-1 my-1.5 h-px bg-[var(--border-subtle)]" />
+            </>
+          )}
+
           <div className="t-2xs mb-1.5 px-1 text-[var(--meta)]">同步状态</div>
           {mode !== 'personal' && snapshot ? (
             <>
               <SyncIndicator snapshot={snapshot} />
               <div className="px-2 pb-2 pt-1 text-xs text-[var(--muted)]">{syncPresentation(snapshot).line2 ?? '本机已缓存'}</div>
-              <button
-                type="button"
-                onClick={() => {
+              <MenuItem
+                icon={RotateCw}
+                label="刷新团队入口"
+                onSelect={() => {
                   setSyncPop(false);
                   onRefresh();
                 }}
-                className="flex h-8 w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 text-[13px] text-[var(--fg)] transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
-              >
-                ↻ 刷新团队入口
-              </button>
+              />
             </>
           ) : (
             <div className="px-2 py-1 text-[13px] text-[var(--fg)]">
@@ -483,16 +553,32 @@ export function Sidebar(props: SidebarProps) {
             </div>
           )}
           <div className="mx-1 my-1.5 h-px bg-[var(--border-subtle)]" />
-          <button
-            type="button"
-            onClick={() => {
+
+          {/* 明暗主题（2026-10-18 用户要求）：与 设置·通用 用同一个控件（ThemePicker），
+              窄容器里走图标态，文字进 aria-label / title。 */}
+          <div className="flex h-8 w-full items-center gap-2 px-3 text-[var(--fg)]">
+            <SunMoon size={16} strokeWidth={2} aria-hidden className="shrink-0" />
+            <span className="t-sm min-w-0 flex-1">明暗主题</span>
+            <ThemePicker value={settings.theme} onChange={(v) => void patch({ theme: v })} compact />
+          </div>
+          <MenuItem
+            icon={RefreshCw}
+            label={updateChecking ? '正在检测…' : '检测版本更新'}
+            disabled={updateChecking}
+            ariaLabel={updateChecking ? '正在检测版本更新' : '检测版本更新'}
+            onSelect={() => {
+              setSyncPop(false);
+              onCheckUpdate?.();
+            }}
+          />
+          <MenuItem
+            icon={Stethoscope}
+            label="查看诊断"
+            onSelect={() => {
               setSyncPop(false);
               onOpenDiagnostics();
             }}
-            className="flex h-8 w-full items-center rounded-[var(--radius-sm)] px-2 text-[13px] text-[var(--fg)] transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
-          >
-            查看诊断
-          </button>
+          />
 
         </div>,
         document.body

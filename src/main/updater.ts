@@ -40,6 +40,7 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 export type AppUpdateEvent =
   | { type: 'available'; version: string }
+  | { type: 'progress'; version: string; percent: number }
   | { type: 'downloaded'; version: string };
 
 /** 更新源：github = 正式源（GitHub Releases）；mirror = 局域网镜像（管理员机 feed）。 */
@@ -60,6 +61,11 @@ export interface AppUpdateStatus {
   availableVersion: string | null;
   /** 下载完成、等待用户确认安装。 */
   readyToInstall: boolean;
+  /**
+   * 新版本包的后台下载进度（0–100）；null = 当前没有在下载。
+   * 工作区小窗的圆形进度环读它（打开小窗时能立刻显示进度，不必等下一次 progress 事件）。
+   */
+  downloadPercent: number | null;
   /** 最近一轮失败的可读原因；null = 本轮没失败（旧错误会被清零，免得误导）。 */
   lastError: string | null;
   /** 最近一次检查完成时间（ISO）；null = 还没跑过一轮。 */
@@ -75,8 +81,10 @@ let configReady: Promise<void> | null = null;
 const debug = process.env.TL_UPD_DEBUG === '1';
 /** 自动检查（设置项 autoCheckUpdates，默认开）：关掉后连定时器都不留；手点检查不受它限制。 */
 let autoCheckEnabled = true;
-/** 首个自动检查是否已跑过：决定下一次的间隔用"启动延迟"还是"周期"。 */
+/** 首次自动检查是否已跑过：决定下一次的间隔用"启动延迟"还是"周期"。 */
 let autoCheckedOnce = false;
+/** 上次推送下载进度的时刻（节流用；见 download-progress 处理器）。 */
+let lastProgressAt = 0;
 let autoTimer: NodeJS.Timeout | null = null;
 
 const status = {
@@ -84,6 +92,7 @@ const status = {
   lastResult: null as 'latest' | 'unreachable' | null,
   availableVersion: null as string | null,
   readyToInstall: false,
+  downloadPercent: null as number | null,
   lastError: null as string | null,
   lastCheckedAt: null as string | null,
 };
@@ -256,14 +265,29 @@ export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
   autoUpdater.on('update-available', (info) => {
     status.availableVersion = info.version;
     status.readyToInstall = false;
+    // 新一轮下载开始：进度归零（否则小窗会先亮上一轮的旧百分比）。
+    status.downloadPercent = 0;
     // 同版本只播报一次：检查是周期性的，别把提示变成整点报时。
     if (announcedVersion === info.version) return;
     announcedVersion = info.version;
     emit({ type: 'available', version: info.version });
   });
+  /* 下载进度（2026-10-18 用户要求小窗里有圆形进度条）：electron-updater 分块回调得很密，
+     节流到约 4 次/秒再推给渲染层——进度环不需要更高刷新率，IPC 也不该被它刷屏；
+     100% 与 0% 永远放行（首尾两个状态不能因为节流丢掉）。 */
+  autoUpdater.on('download-progress', (p) => {
+    const percent = Math.max(0, Math.min(100, Math.round(p.percent)));
+    status.downloadPercent = percent;
+    const now = Date.now();
+    if (percent !== 100 && now - lastProgressAt < 250) return;
+    lastProgressAt = now;
+    emit({ type: 'progress', version: status.availableVersion ?? '', percent });
+    log('progress:', `${percent}%`, `${Math.round(p.bytesPerSecond / 1024)} KB/s`);
+  });
   autoUpdater.on('update-downloaded', (info) => {
     status.availableVersion = info.version;
     status.readyToInstall = true;
+    status.downloadPercent = 100;
     emit({ type: 'downloaded', version: info.version });
   });
   autoUpdater.on('error', (err) => {
@@ -292,6 +316,7 @@ export function getUpdateStatus(): AppUpdateStatus {
     lastResult: status.lastResult,
     availableVersion: status.availableVersion,
     readyToInstall: status.readyToInstall,
+    downloadPercent: status.downloadPercent,
     lastError: status.lastError,
     lastCheckedAt: status.lastCheckedAt,
   };

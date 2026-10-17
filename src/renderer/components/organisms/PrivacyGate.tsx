@@ -106,6 +106,14 @@ export function PrivacyGate({
           数据保存在管理员电脑上，不经过外部服务器。可随时在「设置」里关闭。
         </p>
 
+        {/* 更新检查的如实披露（2026-10-18 用户拍板；OPEN-DECISIONS O-07① 由此关闭）：
+            这是在此之前**唯一没被说出口**的外网出口——它不属于上面那套使用数据，
+            所以必须单独说明；否则"不经过外部服务器"这句会被读成"应用完全不连外网"。 */}
+        <p className="t-xs mt-2 text-left text-[var(--muted)]">
+          另外，应用会定期访问 GitHub 检查是否有新版本（用于自动更新）；不携带设备标识，也与上面这些使用数据无关。
+          不需要的话，可在「设置 · 关于」里关掉自动检查。
+        </p>
+
         <div className="mt-4 flex items-center justify-center gap-2">
           <Button
             ref={denyRef}

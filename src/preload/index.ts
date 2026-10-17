@@ -11,6 +11,7 @@ import type {
   BrowserInfo,
   AppUpdateEvent,
   DiagnosticSnapshot,
+  BookmarkBrowser,
   BookmarkSource,
   FavoriteItem,
   FeedbackDelivery,
@@ -278,7 +279,10 @@ const api: TeamLaunchApi = {
   },
   /* 浏览器书签扫描（Chrome / Edge）：只读本机文件、只在打开「导入书签」时调一次。 */
   bookmarks: {
-    scan: () => invoke<BookmarkSource[]>('tl:bookmarks-scan'),
+    /** 第一步：识别本机装了的 Chromium 系浏览器（只 stat 目录，不读书签内容）。 */
+    browsers: () => invoke<BookmarkBrowser[]>('tl:bookmarks-browsers'),
+    /** 第二步：读用户选定的那一个浏览器的书签。 */
+    scan: (browserId) => invoke<BookmarkSource[]>('tl:bookmarks-scan', browserId),
   },
   /* 设置·关于页：随包的更新日志（打包版读 resources/CHANGELOG.md）。 */
   about: {

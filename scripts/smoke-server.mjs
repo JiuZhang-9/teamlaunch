@@ -29,6 +29,7 @@ import { ChallengeService } from '../src/services/challenge.service.ts';
 import { AUTH, BEACON_MAGIC, UDP_DISCOVERY_PORT, DISCOVERY_PERSIST_THROTTLE_MS, PREFERRED_TCP_PORT } from '../src/shared/constants.ts';
 import { assertTrustedKdf, deriveVerifier, isTrustedKdf, scryptMemoryBytes, UntrustedKdfError } from '../src/shared/kdf.ts';
 import { compareVersions, isVersionNewer } from '../src/shared/version.ts';
+import { updateStatusLine } from '../src/shared/update-copy.ts';
 import { moveEntries } from '../src/shared/move-entries.ts';
 import { SettingsRepository } from '../src/repositories/settings.repository.ts';
 import { PersonalRepository } from '../src/repositories/personal.repository.ts';
@@ -1043,6 +1044,44 @@ async function main() {
     assert(isVersionNewer('latest', '1.0.20') === false, '畸形状不得被当成新版本');
     assert(compareVersions('1.0.20.1', '1.0.20') === 1, '多余段按数值比（1.0.20.1 > 1.0.20）');
     return '1.0.9<1.0.10、预发布低于同核心正式版、畸形输入不误判为新版本';
+  });
+
+  /* 更新状态文案（2026-10-18）：设置·关于的状态行与工作区小窗共用同一份（shared/update-copy.ts）——
+     优先级写反了会骗人（"已就绪"被"正在下载"盖住，用户就以为还得等）。 */
+  await step('更新状态文案：优先级与百分比（关于页 / 工作区小窗共用）', async () => {
+    const base = {
+      active: true,
+      autoCheck: true,
+      source: 'github',
+      lastResult: null,
+      availableVersion: null,
+      readyToInstall: false,
+      downloadPercent: null,
+      lastError: null,
+      lastCheckedAt: null,
+    };
+    assert(
+      /已是最新版本/.test(updateStatusLine({ ...base, lastResult: 'latest', lastCheckedAt: '2026-10-18T00:00:00.000Z' })),
+      '已是最新：要明确说出来',
+    );
+    assert(
+      /正在后台下载 42%/.test(updateStatusLine({ ...base, availableVersion: '1.0.33', downloadPercent: 42 })),
+      '下载中必须带百分比',
+    );
+    assert(
+      /正在后台下载$/.test(updateStatusLine({ ...base, availableVersion: '1.0.33', downloadPercent: null })),
+      '进度未知时不编造百分比',
+    );
+    assert(
+      /已下载/.test(updateStatusLine({ ...base, availableVersion: '1.0.33', readyToInstall: true, downloadPercent: 100 })),
+      '已就绪必须压过"下载中"，否则用户以为还得等',
+    );
+    assert(/自动检查已关闭/.test(updateStatusLine({ ...base, autoCheck: false })), '关掉自动检查要如实说，不能冒充"已是最新"');
+    assert(
+      /GitHub/.test(updateStatusLine({ ...base, lastResult: 'latest', lastCheckedAt: '2026-10-18T00:00:00.000Z' })),
+      '状态行要写出来源',
+    );
+    return '已就绪 > 下载中(带%) > 够不着 > 失败 > 自动检查已关 > 尚未检查 > 已是最新';
   });
 
   // ServerOptions.port 曾被静默忽略（漂移循环恒定从首选常量起跳），调用方以为

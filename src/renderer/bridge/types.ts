@@ -78,7 +78,11 @@ export type IdentifyResult =
 export type RelocateResult = { ok: true } | { ok: false; reason: 'cancelled' | OpenFailure };
 
 /** 自动更新事件（与 main/updater.ts 的 AppUpdateEvent 结构一致，改两处要同步）。 */
-export type AppUpdateEvent = { type: 'available' | 'downloaded'; version: string };
+export type AppUpdateEvent =
+  | { type: 'available'; version: string }
+  /** 后台下载进度（主进程已节流到约 4 次/秒；100% 与 0% 永远放行）。 */
+  | { type: 'progress'; version: string; percent: number }
+  | { type: 'downloaded'; version: string };
 
 /** 更新源（与 main/updater.ts 的 UpdateSource 一致，改两处要同步）。 */
 export type UpdateSource = 'github' | 'mirror';
@@ -102,6 +106,8 @@ export interface AppUpdateStatus {
   availableVersion: string | null;
   /** 下载完成、等待用户确认安装。 */
   readyToInstall: boolean;
+  /** 后台下载进度（0–100）；null = 当前没有在下载。工作区小窗的进度环读它。 */
+  downloadPercent: number | null;
   /** 最近一轮失败的可读原因；null = 本轮没失败。 */
   lastError: string | null;
   /** 最近一次检查完成时间（ISO）。 */
@@ -128,6 +134,16 @@ export interface BookmarkSource {
   profile: string;
   path: string;
   items: BookmarkItem[];
+}
+
+/**
+ * 检测到的 Chromium 系浏览器（2026-10-18 用户要求"先识别浏览器，再选择读取"）。
+ * 这一步**只看目录结构**：`profiles` 为空的浏览器是"装了但还没产生书签文件"。
+ */
+export interface BookmarkBrowser {
+  id: string;
+  name: string;
+  profiles: string[];
 }
 /* ------------------------------------------------------------------ *
  * 反馈投递三态（AC-13 / AC-13a）：PENDING 落盘即成立，SENT 仅服务端确认
@@ -331,11 +347,13 @@ export interface TeamLaunchApi {
   };
 
   /**
-   * 浏览器书签扫描（Chrome / Edge）：只读本机文件、只在打开「导入书签」时调一次；
-   * 结果只给界面勾选用，不写任何同步/上报通道。
+   * 浏览器书签（Chromium 系）：两步走——先识别装了哪些浏览器（不读书签内容），
+   * 用户选定后再读那一个浏览器的书签。全程**只读**，结果只给界面勾选用，
+   * 不写任何同步/上报通道。
    */
   bookmarks: {
-    scan(): Promise<BookmarkSource[]>;
+    browsers(): Promise<BookmarkBrowser[]>;
+    scan(browserId: string): Promise<BookmarkSource[]>;
   };
 
   /** 设置·关于页：随包分发的内容（目前只有更新日志）。读不到返回 null，界面如实说明。 */

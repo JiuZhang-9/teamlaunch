@@ -15,11 +15,8 @@ import {
   Keyboard,
   KeyRound,
   Monitor,
-  MonitorCog,
-  Moon,
   RefreshCw,
   SlidersHorizontal,
-  Sun,
   TriangleAlert,
   Wrench,
   type LucideIcon,
@@ -30,6 +27,8 @@ import { Input } from '../atoms/Input.tsx';
 import { Switch } from '../atoms/Switch.tsx';
 import { BrandMark } from '../atoms/BrandMark.tsx';
 import { ScrollArea } from '../atoms/ScrollArea.tsx';
+import { Segmented } from '../molecules/Segmented.tsx';
+import { ThemePicker } from '../molecules/ThemePicker.tsx';
 import { Dialog } from './Dialog.tsx';
 import { AppHotkeysSection } from './AppHotkeysSection.tsx';
 import type { SettingsSection } from '../../store/workbenchStore.tsx';
@@ -37,6 +36,7 @@ import type { Settings } from '../../../shared/schema/local.ts';
 import { api } from '../../bridge/index.ts';
 import { APP_VERSION } from '../../lib/appVersion.ts';
 import type { AdminStatus, AppUpdateStatus, BrowserInfo } from '../../bridge/types.ts';
+import { updateStatusLine as statusLine } from '../../../shared/update-copy.ts';
 import { formatRevDate } from './EditActionBar.tsx';
 
 export type ZoomLevel = 90 | 100 | 105 | 110;
@@ -53,36 +53,11 @@ const SECTIONS: Array<{ id: SettingsSection; label: string; icon: LucideIcon }> 
 // eslint-disable-next-line no-restricted-syntax -- 这些 hex 是"用户可选的数据选项"，不是样式引用；样式一律走 --accent* 派生变量。
 const ACCENT_PRESETS = ['#106696', '#db2777', '#ea580c', '#12805c', '#0284c7', '#6d5ae0', '#c2344a', '#b45309'] as const;
 
-/** 更新源的显示名（关于页状态行）。 */
-function updateSourceLabel(source: AppUpdateStatus['source']): string {
-  if (source === 'github') return 'GitHub';
-  if (source === 'mirror') return '局域网镜像';
-  return '来源未知';
-}
-
 /**
  * 更新状态的一句话（关于页状态行）。
- *
- * 顺序即优先级：已就绪 > 下载中 > 两个源都够不着 > 本轮失败 > 自动检查已关 > 尚未检查 > 已是最新。
- * 刻意不给"够不着"加红色/感叹号——公开用户没有局域网镜像、公司网封 GitHub 都是这个
- * 部署形态的常态，界面不该把它说成故障（与同步状态的保守回落同一纪律）。
+ * 文案本体在 `shared/update-copy.ts`——工作区小窗也要说同一句话，两处必须一字不差。
  */
-function updateStatusLine(s: AppUpdateStatus | null): string {
-  if (s === null) return '更新状态未知（读取失败）';
-  if (!s.active) return '开发态运行：更新检查未启用';
-  if (s.readyToInstall && s.availableVersion) return `v${s.availableVersion} 已下载，点右侧按钮安装并重启`;
-  if (s.availableVersion) return `发现 v${s.availableVersion}（${updateSourceLabel(s.source)}），正在后台下载`;
-  if (s.lastResult === 'unreachable') return '暂时连不上更新源（不影响使用）';
-  if (s.lastError !== null) return `上次检查未成功：${s.lastError}`;
-  /* 关掉自动检查不隐瞒、也不冒充"已是最新"：如实说它没在自动查（O-07）。 */
-  if (!s.autoCheck) {
-    return s.lastCheckedAt === null
-      ? '自动检查已关闭（仍可点右侧手动检查）'
-      : `自动检查已关闭 · 上次检查 ${new Date(s.lastCheckedAt).toLocaleString()}`;
-  }
-  if (s.lastCheckedAt === null) return '尚未检查';
-  return `已是最新版本 · 来源 ${updateSourceLabel(s.source)} · ${new Date(s.lastCheckedAt).toLocaleString()}`;
-}
+const updateStatusLine = statusLine;
 
 export interface SettingsPanelProps {
   settings: Settings;
@@ -120,47 +95,6 @@ export interface SettingsPanelProps {
   announcedAt?: string | null;
   /** 外部指定的落点分区（标题栏版本号 → about；热键横幅 → hotkeys）。 */
   initialSection: SettingsSection;
-}
-
-function Segmented<T extends string | number>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: Array<{ value: T; label: string; icon?: ReactNode }>;
-  onChange(v: T): void;
-}) {
-  return (
-    <div role="radiogroup" aria-label={label} className="flex items-center gap-1">
-      {options.map((o) => {
-        const selected = o.value === value;
-        return (
-          <button
-            key={String(o.value)}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            onClick={() => onChange(o.value)}
-            className={[
-              'flex h-8 items-center gap-1.5 rounded-[var(--radius-md)] px-3 t-sm',
-              'transition-colors duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
-              selected ? 'w-emph' : 'hover:bg-[var(--bg-surface-hover)]',
-            ].join(' ')}
-            style={{
-              background: selected ? 'var(--tab-bg-selected)' : 'transparent',
-              color: selected ? 'var(--fg)' : 'var(--fg-2)',
-            }}
-          >
-            {o.icon}
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 function Row({
@@ -323,16 +257,7 @@ export function SettingsPanel({
 
             <Divider />
             <SectionHead>外观</SectionHead>
-            <Segmented
-              label="外观"
-              value={settings.theme}
-              onChange={(v) => onPatch({ theme: v })}
-              options={[
-                { value: 'light', label: '浅色', icon: <Sun size={16} strokeWidth={2} aria-hidden /> },
-                { value: 'dark', label: '深色', icon: <Moon size={16} strokeWidth={2} aria-hidden /> },
-                { value: 'system', label: '跟随系统', icon: <MonitorCog size={16} strokeWidth={2} aria-hidden /> },
-              ]}
-            />
+            <ThemePicker value={settings.theme} onChange={(v) => onPatch({ theme: v })} />
 
             {/*
              * 主题色（定稿 2026-10-02）：8 预设 + 色盘自选；只用于点缀位（选中竖条/tint 底、

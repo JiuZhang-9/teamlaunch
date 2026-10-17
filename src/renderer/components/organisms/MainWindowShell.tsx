@@ -43,6 +43,7 @@ import { PersonalEntriesView } from '../../pages/PersonalEntriesView.tsx';
 import { AdminEditView } from '../../pages/AdminEditView.tsx';
 import { HomePageView } from '../../pages/HomePageView.tsx';
 import type { Group } from '../../../shared/schema/group.ts';
+import { updateStatusLine } from '../../../shared/update-copy.ts';
 
 /** 本机记忆键：已提示过的公告 id（见 lib/localMemory.ts 的三条边界）。 */
 const ANNOUNCEMENTS_SEEN_KEY = 'announcements-seen';
@@ -68,8 +69,14 @@ export function MainWindowShell() {
   const [confirmExit, setConfirmExit] = useState(false);
   const [importOutcome, setImportOutcome] = useState<ImportOutcome>(null);
   const [updateBanner, setUpdateBanner] = useState<string | null>(null);
-  /** 应用自更新：已下载待安装的版本号（常驻横幅，关掉不装也行——下次启动会再提示）。 */
-  const [appUpdate, setAppUpdate] = useState<string | null>(null);
+  /**
+   * 应用自更新（2026-10-18 改版）：有新版时不再顶部挂横幅，而是在工作区按钮上方的小窗里提示
+   * ——小窗里有圆形下载进度；下载完成后那里长出「立即更新并重启」。
+   * `updateSignal` 每次"该说一声"时自增，侧栏据此把弹层自动弹出来一次。
+   */
+  const [appUpdate, setAppUpdate] = useState<{ version: string; percent: number | null; ready: boolean } | null>(null);
+  const [updateSignal, setUpdateSignal] = useState(0);
+  const [updateChecking, setUpdateChecking] = useState(false);
   /** 热键注册状态只信主进程推送：此前这里写死 true + 按默认键名猜测，横幅常年说谎。 */
   const [hotkeyConflict, setHotkeyConflict] = useState(false);
   const [locateId, setLocateId] = useState<string | null>(null);
@@ -95,28 +102,65 @@ export function MainWindowShell() {
     };
   }, []);
 
-  /* 自动更新：available 一次轻提示（几秒自散）；downloaded 常驻横幅 + 一键安装。
-     装与重启刻意不自动做（主进程 autoInstallOnAppQuit=false）——用户不确认就不动他的机器。 */
+  /* 自动更新：发现新版/下载完成都在工作区小窗里说（2026-10-18 用户要求），
+     不再往内容区顶部塞横幅；每次"该说一声"自增 updateSignal 让侧栏把小窗弹出来一次。
+     装与重启仍不自动做（主进程 autoInstallOnAppQuit=false）——用户不确认就不动他的机器。 */
   useEffect(() => {
     const off = api.events.onAppUpdate((event) => {
       if (event.type === 'available') {
-        push({ title: `发现新版本 v${event.version}，正在后台下载`, tone: 'info' });
+        setAppUpdate({ version: event.version, percent: 0, ready: false });
+        setUpdateSignal((n) => n + 1);
         return;
       }
-      setAppUpdate(event.version);
+      if (event.type === 'progress') {
+        setAppUpdate((prev) => {
+          const version = event.version || prev?.version || '';
+          // 版本号都拿不到时不动状态：宁可不显示进度，也不显示"新版本 v"这种半截话。
+          if (version === '') return prev;
+          return { version, percent: event.percent, ready: false };
+        });
+        return;
+      }
+      setAppUpdate({ version: event.version, percent: 100, ready: true });
+      setUpdateSignal((n) => n + 1);
     });
     return off;
-  }, [push]);
+  }, []);
 
-  /* 启动时先捞一次状态：上次会话已下载好的更新不必等 30 秒后的周期检查才亮横幅。 */
+  /* 启动时先捞一次状态：上次会话已下载好的更新不必等 30 秒后的周期检查才露面。
+     刻意**不**在这条路径上自增 updateSignal——那会变成"每次开应用都弹一次小窗"。 */
   useEffect(() => {
     void api.updater
       .status()
       .then((s) => {
-        if (s.readyToInstall && s.availableVersion) setAppUpdate(s.availableVersion);
+        if (s.availableVersion !== null) {
+          setAppUpdate({ version: s.availableVersion, percent: s.downloadPercent, ready: s.readyToInstall });
+        }
       })
       .catch(() => undefined);
   }, []);
+
+  /** 小窗里的「检测版本更新」：跑完一轮用 toast 把结论说清楚（点了必须有回声）。 */
+  const checkUpdate = useCallback(async () => {
+    setUpdateChecking(true);
+    try {
+      const s = await api.updater.check();
+      setAppUpdate(
+        s.availableVersion !== null
+          ? { version: s.availableVersion, percent: s.downloadPercent, ready: s.readyToInstall }
+          : null,
+      );
+      push({
+        title: updateStatusLine(s),
+        tone: s.lastError !== null || s.lastResult === 'unreachable' ? 'warn' : 'info',
+        duration: 6000,
+      });
+    } catch {
+      push({ title: '检查更新没能完成，可以稍后再试', tone: 'warn' });
+    } finally {
+      setUpdateChecking(false);
+    }
+  }, [push]);
 
   const groups: Group[] = useMemo(() => {
     if (tab === 'home') return [];
@@ -403,6 +447,11 @@ export function MainWindowShell() {
           onToggleEdit={toggleEdit}
           collapsed={settings.sidebarCollapsed}
           editLocked={editing}
+          update={appUpdate}
+          updateSignal={updateSignal}
+          onInstallUpdate={() => void api.updater.install()}
+          onCheckUpdate={() => void checkUpdate()}
+          updateChecking={updateChecking}
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -437,16 +486,6 @@ export function MainWindowShell() {
           )}
 
           {updateBanner && <Banner tone="success" title={updateBanner} />}
-
-          {appUpdate && (
-            <Banner
-              tone="success"
-              title={`新版本 v${appUpdate} 已就绪`}
-              detail="安装会关闭并重启应用：仅为当前用户安装的机器直接装好；为所有用户安装的机器会要一次管理员确认。"
-              action={{ label: '立即更新并重启', onSelect: () => void api.updater.install() }}
-              onDismiss={() => setAppUpdate(null)}
-            />
-          )}
 
           <div
             id={`tl-panel-${tab}`}
