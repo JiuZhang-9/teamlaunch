@@ -27,6 +27,14 @@ import re
 import sys
 from pathlib import Path
 
+# 同 scan-p0.py：中文结论必须按 UTF-8 写，否则英文区域机器（CI）上会
+# UnicodeEncodeError —— 那是脚本编码问题，不是 token 表有问题。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 FILE = Path(__file__).with_name("design-tokens.json")
 THEMES = ("light", "dark")
 SYSTEM_COLOR_KEYWORDS = {

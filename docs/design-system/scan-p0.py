@@ -33,6 +33,15 @@ import re
 import sys
 from pathlib import Path
 
+# 本脚本的结论是中文的，而 Python 的 stdout 默认按**控制台代码页**编码：
+# 英文区域机器（CI 的 windows-latest 就是 cp1252）直接 print 中文会
+# UnicodeEncodeError 崩掉，把"扫描失败"伪装成"脚本坏了"。显式按 UTF-8 写。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # 老解释器或非标准输出流：按原样走，不要因此中断校验
+    pass
+
 ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = ROOT.parent.parent
 EXEMPT = "扫描豁免"
