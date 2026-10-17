@@ -328,6 +328,11 @@ export interface TeamLaunchApi {
     scan(): Promise<BookmarkSource[]>;
   };
 
+  /** 设置·关于页：随包分发的内容（目前只有更新日志）。读不到返回 null，界面如实说明。 */
+  about: {
+    changelog(): Promise<string | null>;
+  };
+
   /** 自动更新（打包版才有行为；开发态 install 不会被执行——入口根本不启动）。 */
   updater: {
     /**

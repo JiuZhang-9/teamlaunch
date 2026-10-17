@@ -267,6 +267,10 @@ const api: TeamLaunchApi = {
   bookmarks: {
     scan: () => invoke<BookmarkSource[]>('tl:bookmarks-scan'),
   },
+  /* 设置·关于页：随包的更新日志（打包版读 resources/CHANGELOG.md）。 */
+  about: {
+    changelog: () => invoke<string | null>('tl:app-changelog'),
+  },
 };
 
 contextBridge.exposeInMainWorld('tl', api);

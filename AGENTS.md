@@ -42,8 +42,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 
 - **v1.0.23 ~ v1.0.26 四个 Release 均已发布**（latest = v1.0.26）；**自动更新闭环已在实机跑通两次**
   （日志证据链：`目标 1.0.2x（源 github）` → 下载 → 用户点「立即更新并重启」→ `--updated,/S` 安装 → 重启后版本已升）
-- **v1.0.27 已实现、未验收**（批 4 四项：Ctrl+A 两级全选 / 浏览器书签导入 / 主页收藏图标格 / 多选整块拖拽）。
-  按纪律：实机验收通过后再打 tag；**本批同样走 Release 自动更新送达**
+- **v1.0.23 ~ v1.0.27 五个 Release 均已发布**（latest = v1.0.27）；**批 4 已实机验收通过**
+- **v1.0.28 已实现、未验收**（批 5：关于页增强——仓库地址 / 内嵌更新日志（随包）/ 技术栈 / 免责声明）。
+  **本轮 15 项需求 + 追加项到此全部交付**；按纪律实机验收通过后再打 tag，本批同样走 Release 自动更新送达
 - **本机构建受 360 拦截**（三步绕过：输出到 `%TEMP%` → `NsisTarget.js` 重试补丁 → 生成后立刻改名 `.bin`）；
   根治要把项目目录 + `%LOCALAPPDATA%\electron-builder\Cache` 加信任区
 - 每批固定流程：门禁五项全绿（`verify:qa-http` 单独补跑）→ **完整 `npm run build`** → electron-builder 到 `%TEMP%` →

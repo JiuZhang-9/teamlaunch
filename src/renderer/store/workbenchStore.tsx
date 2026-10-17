@@ -49,7 +49,9 @@ export type DialogKey =
   | 'batchAddTeam'
   | 'scanPicker'
   /** 从浏览器书签导入（2026-10-17）：只读本机书签文件，勾选后加进「我的入口」。 */
-  | 'bookmarks';
+  | 'bookmarks'
+  /** 设置·关于 →「查看更新日志」：渲染随包分发的 CHANGELOG.md。 */
+  | 'changelog';
 
 /**
  * 设置对话框内的分区（左侧栏四页：通用/快捷键/高级/关于）。

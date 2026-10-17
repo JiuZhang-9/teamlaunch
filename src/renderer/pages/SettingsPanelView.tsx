@@ -253,6 +253,7 @@ export function SettingsPanelView({ onClose, hotkeyConflict = false }: SettingsP
           onClose();
           openDialog('privacy');
         }}
+        onOpenChangelog={() => openDialog('changelog')}
         onCopyDeviceId={() => {
           void api.clipboard.write(deviceId).then((ok) => {
             push({ title: ok ? '本机设备标识已复制' : '没能写入剪贴板，请手动选择文本复制', tone: ok ? 'success' : 'danger' });

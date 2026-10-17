@@ -87,6 +87,8 @@ export interface SettingsPanelProps {
   zoom: number;
   onZoom(z: number): void;
   onCopyDeviceId(): void;
+  /** 设置·关于 →「查看更新日志」（读随包的 CHANGELOG.md 渲染）。 */
+  onOpenChangelog(): void;
   /** 真实的管理员口令/角色状态（api.admin.status），由视图层查询与刷新。 */
   adminStatus: AdminStatus | null;
   /** 本机角色的即时值（settings.role）：开关直接反映用户意图，不等异步重装完成。 */
@@ -184,7 +186,7 @@ function Divider() {
 }
 
 export function SettingsPanel({
-  settings, onPatch, onClose, onViewPrivacy, zoom, onZoom, onCopyDeviceId,
+  settings, onPatch, onClose, onViewPrivacy, zoom, onZoom, onCopyDeviceId, onOpenChangelog,
   adminStatus, roleAdmin, onToggleAdmin, onSetOrChangePassphrase, onOpenUpdatesFolder,
   onCheckUpdate, updateChecking = false, updateStatus, announcedAt,
   hotkeyConflict = false, teamRevision, deviceId, initialSection,
@@ -598,6 +600,44 @@ export function SettingsPanel({
                 检查更新
               </Button>
             </div>
+
+            {/* 批 5（2026-10-17）：仓库 / 技术栈 / 更新日志 / 免责声明 */}
+            <Divider />
+            <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13px]">
+              <dt className="text-[var(--muted)]">仓库</dt>
+              <dd className="m-0 flex items-center gap-2">
+                <span className="t-xs t-mono min-w-0 flex-1 truncate-1 text-[var(--fg)]">github.com/JiuZhang-9/teamlaunch</span>
+                <Button
+                  size="sm"
+                  tone="ghost"
+                  onClick={() => void api.entries.openExternal('https://github.com/JiuZhang-9/teamlaunch')}
+                >
+                  打开
+                </Button>
+                <Button
+                  size="sm"
+                  tone="ghost"
+                  icon={Copy}
+                  onClick={() => void api.clipboard.write('https://github.com/JiuZhang-9/teamlaunch')}
+                >
+                  复制
+                </Button>
+              </dd>
+              <dt className="text-[var(--muted)]">更新日志</dt>
+              <dd className="m-0 flex items-center gap-2">
+                <span className="t-xs min-w-0 flex-1 text-[var(--fg-2)]">随安装包附带，离线也能看</span>
+                <Button size="sm" tone="secondary" onClick={onOpenChangelog}>
+                  查看更新日志
+                </Button>
+              </dd>
+            </dl>
+            <p className="t-2xs mt-3 mb-0 text-[var(--muted)]">
+              技术栈：Electron · React · TypeScript · Vite · Tailwind CSS · Fastify
+            </p>
+            <p className="t-2xs mt-2 mb-0 text-[var(--muted)]">
+              免责声明：本软件按「现状」提供（MIT 许可证），不附带任何明示或暗示的担保；安装包未做代码签名，
+              请只从官方 Releases 页下载。团队入口内容由管理员发布，使用时请遵守所在组织的规定。
+            </p>
             <p className="t-xs mt-4 mb-0 text-[var(--muted)]">
               把团队与个人常用入口集中在一处：点击即启动，管理员统一维护团队入口，本机入口只存在你自己的电脑上。
             </p>

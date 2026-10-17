@@ -5,7 +5,7 @@
  * 因此本文件是"能力边界"：任何新能力先在这里定义通道，再在 preload 暴露。
  */
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { extractIcon, openEntry, openUrl, type OpenTarget, type RelocateResult } from './opener.ts';
 import { resolveAppCandidates, saveOverride } from './appResolver.ts';
@@ -128,6 +128,21 @@ export function registerIpc(deps: IpcDeps): void {
   // 浏览器书签扫描（2026-10-17）：只在用户显式打开「导入书签」时调一次；
   // **只读本机文件、只经 IPC 交给界面**，绝不进入同步/上报链路（见 main/bookmarks.ts）。
   ipcMain.handle('tl:bookmarks-scan', () => scanBookmarks());
+
+  // 更新日志（2026-10-17 批 5）：读随包的 CHANGELOG.md 交给设置·关于页渲染。
+  // 打包版在 resources/CHANGELOG.md（extraResources），开发态读仓库根目录；读不到就返回 null，
+  // 界面如实说明"随包版本读不到"而不是装作没有更新日志。
+  ipcMain.handle('tl:app-changelog', async () => {
+    const file = app.isPackaged
+      ? join(process.resourcesPath, 'CHANGELOG.md')
+      : join(app.getAppPath(), 'CHANGELOG.md');
+    try {
+      const text = await readFile(file, 'utf8');
+      return text.length > 400_000 ? text.slice(0, 400_000) : text;
+    } catch {
+      return null;
+    }
+  });
 
   // 「在这台电脑上重新定位」（分层解析第 5 步）：选一次、本机记住（app-overrides.json，
   // 永不同步）、立刻尝试打开。取消不算失败，界面保持原状。

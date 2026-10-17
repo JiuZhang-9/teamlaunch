@@ -19,6 +19,9 @@ files:
 extraResources:
   - from: build/tray.ico
     to: tray.ico
+  # 更新日志随包分发（设置·关于 →「查看更新日志」直接读它渲染，离线也能看）
+  - from: CHANGELOG.md
+    to: CHANGELOG.md
 win:
   target:
     - target: nsis

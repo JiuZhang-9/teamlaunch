@@ -19,6 +19,7 @@ import { AnnouncementsEditorDialog } from './AnnouncementsEditorDialog.tsx';
 import { BatchAddDialogView } from '../../pages/BatchAddDialogView.tsx';
 import { ScanPickerDialogView } from '../../pages/ScanPickerDialogView.tsx';
 import { BookmarkImportDialogView } from '../../pages/BookmarkImportDialogView.tsx';
+import { ChangelogDialogView } from '../../pages/ChangelogDialogView.tsx';
 import { HelpDialog } from './HelpDialog.tsx';
 import { PublishDialogView } from '../../pages/PublishDialogView.tsx';
 import { SettingsPanelView } from '../../pages/SettingsPanelView.tsx';
@@ -90,6 +91,8 @@ export function DialogRouter({
       {dialog === 'scanPicker' && <ScanPickerDialogView onClose={closeDialog} />}
 
       {dialog === 'bookmarks' && <BookmarkImportDialogView onClose={closeDialog} />}
+
+      {dialog === 'changelog' && <ChangelogDialogView onClose={closeDialog} />}
 
       {dialog === 'adminUnlock' && (
         <AdminUnlockDialogView
