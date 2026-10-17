@@ -262,6 +262,14 @@ export interface DemoControls {
 export interface TeamLaunchApi {
   readonly kind: 'electron' | 'mock';
   /**
+   * 预热完成信号（R23，2026-10-17）。
+   *
+   * `settings.get()` / `personal.get()` / `sync.snapshot()` 是**同步**读缓存；
+   * 首帧早于 preload 预热完成时，读到的是默认值（隐私门重弹、「我的入口」空白）。
+   * 渲染层挂载后 `await api.ready` 再重取一次缓存即可对齐真值——首帧仍不挂 loading。
+   */
+  readonly ready: Promise<void>;
+  /**
    * 真实运行中的应用版本（主进程经 additionalArguments 下发）。
    * 空串 = 拿不到（浏览器预览 Harness），调用方回落到构建期常量 `__APP_VERSION__`。
    * 界面显示版本一律走 `lib/appVersion.ts` 的 APP_VERSION，不要直接用构建期常量。
@@ -382,6 +390,14 @@ export interface TeamLaunchApi {
      */
     previewImport(text: string, current: PersonalConfig): Promise<ImportPreviewResult>;
     commitImport(text: string, decisions: ImportDecisions): Promise<ImportCommitResult>;
+    /**
+     * 文件损坏诊断（R25，2026-10-17）。
+     *
+     * `config/personal.json` 被手改坏时（少字段 / 字段名写错），`get()` 会返回**空配置**
+     * ——那和"本来就没有个人入口"在界面上完全一样。这条通道给界面一个如实说明的机会：
+     * 磁盘上的原文件没有被改动，修好它再重启即可恢复。
+     */
+    corruption(): Promise<{ corrupt: boolean; reason: string | null }>;
   };
 
   feedback: {

@@ -43,8 +43,12 @@ function createMissingHost(): TeamLaunchApi {
   const fail = (): never => {
     throw new Error(MISSING_PRELOAD_MESSAGE);
   };
+  /* `ready` 也要给个值：任一 store 的挂载副作用都会 await 它，抛错会把错误页的故障
+     变成二次异常（真正要报的故障信息是 MISSING_PRELOAD_MESSAGE 本身）。 */
+  const inert = (prop: string | symbol): unknown =>
+    prop === 'kind' ? 'electron' : prop === 'appVersion' ? '' : prop === 'ready' ? Promise.resolve() : fail();
   return new Proxy({} as TeamLaunchApi, {
-    get: (_target, prop) => (prop === 'kind' ? 'electron' : prop === 'appVersion' ? '' : fail),
+    get: (_target, prop) => inert(prop) as never,
   });
 }
 

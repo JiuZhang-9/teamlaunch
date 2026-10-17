@@ -2,7 +2,7 @@
  * 我的入口（personal.json）—— 本机可编辑，永不跨设备同步。
  * 导入导出走的两条铁律在 actions 里落实：非法文件不改现有数据（AC-14）、冲突不静默覆盖（AC-15）。
  */
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from '../bridge/index.ts';
 import type { PersonalConfig } from '../../shared/schema/local.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
@@ -121,6 +121,18 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<PersonalConfig>(() => api.personal.get());
   /** 最近一次通过预览的待导入**原文**。提交前不落盘（AC-14 / AC-15）。 */
   const pendingText = useRef<string | null>(null);
+
+  /* R23（2026-10-17）：首帧读缓存可能早于 preload 预热完成——那时「我的入口」是空的
+     （重启即好）。预热完成后重取一次；缓存被每次保存实时更新，不会覆盖用户刚做的改动。 */
+  useEffect(() => {
+    let cancelled = false;
+    void api.ready.then(() => {
+      if (!cancelled) setConfig(api.personal.get());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const usage = useMemo<CapacityUsage>(() => {
     const entries = config.groups.reduce((n, g) => n + g.entries.length, 0);

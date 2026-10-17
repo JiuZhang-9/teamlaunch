@@ -75,7 +75,14 @@ const cache: {
   personal: PersonalConfigSchema.parse({ groups: [] }),
 };
 
-void (async () => {
+/**
+ * 预热完成信号（R23，2026-10-17）。
+ *
+ * 预热是异步的，而渲染层首帧**同步**读缓存——首帧早于预热完成时读到的是默认值
+ * （表现为隐私门重弹、「我的入口」空白，重启即好）。渲染层挂载后 await 这个 promise
+ * 再重取一次缓存，就能在不给首帧挂 loading 的前提下保证最终显示的是真值。
+ */
+const ready: Promise<void> = (async () => {
   try {
     const [s, st, p] = await Promise.all([
       invoke<SyncSnapshot | null>('tl:sync-snapshot'),
@@ -101,6 +108,8 @@ ipcRenderer.on('tl:settings', (_e, settings: Settings) => {
 
 const api: TeamLaunchApi = {
   kind: 'electron',
+  /* 预热完成信号（R23）：同步 getter 在首帧可能返回缓存默认值，挂载后 await 它再重取。 */
+  ready,
   /* 真实运行版本由主进程经 webPreferences.additionalArguments 下发（见 windowManager）；
      拿不到就是空串，渲染层回落到构建期常量 __APP_VERSION__（浏览器预览 Harness 用）。 */
   appVersion: process.argv.find((a) => a.startsWith('--tl-app-version='))?.slice('--tl-app-version='.length) ?? '',
@@ -179,6 +188,10 @@ const api: TeamLaunchApi = {
     },
     exportJson: () =>
       invoke<{ ok: true; path: string; count: number } | { ok: false; reason: string }>('tl:personal-export'),
+    /* 文件损坏诊断（R25）：损坏时 get() 返回的是**空配置**，和"本来就没有入口"长得一样，
+       界面必须靠这条通道如实说明。每次现问主进程（不走缓存）：它只在页面挂载时问一次。 */
+    corruption: () =>
+      invoke<{ corrupt: boolean; reason: string | null }>('tl:personal-corruption'),
     // 导入两段式：先预览（不落盘），冲突逐项决定后再提交。顺序不可颠倒。
     previewImport: (text: string, current: PersonalConfig) =>
       invoke<ImportPreviewResult>('tl:personal-import-preview', { text, current }),

@@ -868,6 +868,8 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 2. 预览新增/覆盖/冲突数量；
 3. ID 或 target 冲突按 `deletedConflictPolicy` 处理，默认 `ask`，**绝不静默覆盖**。
 
+**读路径也必须过校验（R25，2026-10-17 实测补）**：`tl:personal-get` 走 `PersonalService.load()`（schema 校验 + 损坏诊断），**不得**用 `localStore.personal` 裸读。实测后果：手改坏的 personal.json（少字段/字段名写错）被裸读原样交给渲染层，渲染入口时 `.replace` 抛错 → **主窗口整体白屏**，无错误页、无提示。现在的口径是三层：① 读回落成空配置（不抛错，不白屏）；② `tl:personal-corruption` 把"文件读不出来 + 原因"如实交给界面，个人页顶部常驻一条 Banner（**禁止把失败画成"你本来就没有入口"**）；③ 导出遇到损坏文件直接拒绝并说明原因——导出"空配置"会被读成"我的入口本来就是空的"，比说清楚更糟。原文件全程零改动，用户可自行修回。
+
 ### 5.6 索引策略（JSON 存储的等效做法与边界）
 
 - **内存即主索引**：进程启动时把 `team-current.json` / `personal.json` 全量读入并建立 `Map<groupId, Group>` 与 `Map<entryId, Entry>`，以及搜索用的倒序联想表（名称/关键词/分组名/路径末级/域名，均做小写 + 去符号归一化）。
@@ -1044,8 +1046,9 @@ SyncService 总预算 3 s 未获可用响应
 | R20 | 埋点模块意外产生外网出口 | **中** | 运行时 RFC1918 目标校验 + CI 禁止写死外网 URL + 依赖白名单，三层防线（§11.1） |
 | R21 | `sampleJudgable` 长期为 false（遥测在当前管理员在线模式下不可用） | **中** | **既定产品处置路径：回到 P1「管理员内容健康中心 + 逐项人工确认」，而不是改用云端方案**（见下方 R21 专项说明） |
 | R22 | 用残缺样本硬判定入口健康，导致管理员删改本属正常的入口 | **中高** | 已通过 PM 的"条件判定"机制根除：`sampleJudgable=false` 时入口健康不设硬门槛，只做参考（ADR-008 §样本残缺与可判定性） |
-| R23 | 启动缓存竞态：preload 异步预热慢于渲染层首帧，Provider 以默认值固化（隐私门重弹＋「我的入口」空白），重启即好 | **低** | 试点期实机复现记录，**未修**（重启即自愈）；修复方向＝预热完成前保持加载态或挂载后重取一次缓存；伴生事实：localStorage 落盘有延迟，硬杀进程会丢最近写入 |
+| R23 | 启动缓存竞态：preload 异步预热慢于渲染层首帧，Provider 以默认值固化（隐私门重弹＋「我的入口」空白），重启即好 | **低** | **已修（2026-10-17，v1.0.32）**：preload 把预热 promise 暴露为 `api.ready`，`settingsStore` / `personalStore` 挂载后 await 它再重取一次缓存（读的仍是同一缓存，被 patch/广播实时更新，不会覆盖用户刚改的值）。首帧仍不挂 loading。`verify:wiring` 有源码级断言防回退。伴生事实仍在：localStorage 落盘有延迟，硬杀进程会丢最近写入 |
 | R24 | 安装包内置的 `resources/app-update.yml` 声明 `provider: github`（由 `package.json` 的 repository 字段自动生成） | **低** | **已按 ADR-009 收编**：GitHub 现在就是正式源，内置文件与设计一致，不再是隐患。守则保留——**任何新增的更新检查路径都必须先 `setFeedURL`**（局域网镜像仍靠它切换；内置文件里真正被读取的只有 `updaterCacheDirName`） |
+| R25 | 手改坏/损坏的 `config/personal.json` 让**主窗口整体白屏**（渲染入口时 `.replace` 拿到 undefined 抛错，无错误页、无提示）——`tl:personal-get` 走的是 `localStore` 裸读，仓库层早就有的 `{ corrupt, reason }` 与 `PersonalService.corruption()` 从未接线 | **中**（单机数据损坏即整窗不可用，属"点了没反应"类） | **已修（2026-10-17，v1.0.32）**：读路径改经 `PersonalService.load()`（回落空配置不抛错）+ 新通道 `tl:personal-corruption` 把原因如实交给界面（个人页顶部 Banner 常驻 + 可关）+ 导出遇损坏直接拒绝并说明。`verify:qa-personal` 第 8 组四项断言（判损坏 / 回落 / 原文件零改动 / 修好后标记消失）钉住这条路径。教训与 K-13 同族：**写好的能力必须接线，且要有装配级断言** |
 
 ### R21 专项说明：样本不可判定时的既定路径（不得向上推翻）
 

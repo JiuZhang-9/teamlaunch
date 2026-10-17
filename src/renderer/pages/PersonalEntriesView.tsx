@@ -3,7 +3,7 @@
  * 因此本页工具栏没有 SyncIndicator，也不得出现任何"同步中/已同步"字样。
  */
 import { EllipsisVertical, FolderPlus, Layers, Plus, ScanSearch } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../bridge/index.ts';
 import { useEntryPicker } from '../hooks/useEntryPicker.ts';
 import { Button } from '../components/atoms/Button.tsx';
@@ -45,6 +45,24 @@ export function PersonalEntriesView() {
   const [actingGroup, setActingGroup] = useState<Group | null>(null);
   /** 待移动的入口（移动到分组对话框用）。 */
   const [moving, setMoving] = useState<MoveTarget>(null);
+  /**
+   * 个人入口文件读不出来（R25，2026-10-17）：主进程会把配置回落成空，若不说明，
+   * 界面就和"本来没有入口"完全一样——那是在把一次失败画成正常空状态。
+   */
+  const [corrupt, setCorrupt] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.personal
+      .corruption()
+      .then((c) => {
+        if (!cancelled) setCorrupt(c.corrupt ? (c.reason ?? '未知原因') : null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const allGroups = config.groups;
   const filtering = typeFilter.length > 0;
@@ -54,6 +72,19 @@ export function PersonalEntriesView() {
   const total = groups.reduce((n, g) => n + g.entries.length, 0);
   /** 撞上限时「创建副本」同样会新增入口，必须一起前置禁用。口径只算入口数（与分组数无关）。 */
   const capacityReason = usage.atEntryLimit ? entryLimitCopy(usage) : null;
+
+  /* 文件损坏提示（R25）：常驻、可关闭——它不是一次性事件，关掉只是不想再看到。
+     两行文案必须给出下一步（Banner 的纪律）：原文件没被动过，修好重启即可恢复。 */
+  const [corruptDismissed, setCorruptDismissed] = useState(false);
+  const corruptNotice = corrupt !== null && !corruptDismissed && (
+    <Banner
+      tone="danger"
+      title="个人入口文件读不出来，界面暂时按空列表显示"
+      detail={`原因：${corrupt}。磁盘上的原文件没有被改动，修好后重启应用即可恢复（%APPDATA%\\TeamLaunch\\config\\personal.json）。`}
+      className="mb-3 rounded-[var(--radius-md)] border"
+      onDismiss={() => setCorruptDismissed(true)}
+    />
+  );
 
   /** 与团队编辑态同构：组头 = 「在此组添加」+ ⋯（重命名/换序/删除）。 */
   const headerExtra = (group: Group) => (
@@ -177,34 +208,38 @@ export function PersonalEntriesView() {
 
   if (total === 0) {
     return (
-      <div className="flex h-full items-center">
-        <EmptyBlock
-          icon={FolderPlus}
-          title="我的入口还没有内容"
-          detail="把常用的软件、文件夹和网页加进来，只有你能看到。"
-          actions={
-            <>
-              <Button tone="primary" onClick={() => void addApp()}>
-                从本机添加软件
-              </Button>
-              <Button tone="secondary" onClick={() => void addFolder()}>
-                添加文件夹
-              </Button>
-              <Button tone="ghost" icon={ScanSearch} onClick={() => openDialog('scanPicker')}>
-                扫描本机程序
-              </Button>
-              <Button tone="ghost" icon={Layers} onClick={() => openDialog('batchAdd')}>
-                批量添加
-              </Button>
-            </>
-          }
-        />
-      </div>
+      <>
+        {corruptNotice}
+        <div className="flex h-full items-center">
+          <EmptyBlock
+            icon={FolderPlus}
+            title="我的入口还没有内容"
+            detail="把常用的软件、文件夹和网页加进来，只有你能看到。"
+            actions={
+              <>
+                <Button tone="primary" onClick={() => void addApp()}>
+                  从本机添加软件
+                </Button>
+                <Button tone="secondary" onClick={() => void addFolder()}>
+                  添加文件夹
+                </Button>
+                <Button tone="ghost" icon={ScanSearch} onClick={() => openDialog('scanPicker')}>
+                  扫描本机程序
+                </Button>
+                <Button tone="ghost" icon={Layers} onClick={() => openDialog('batchAdd')}>
+                  批量添加
+                </Button>
+              </>
+            }
+          />
+        </div>
+      </>
     );
   }
 
   return (
     <>
+      {corruptNotice}
       {capacityReason && (
         // hover 说明只对鼠标用户存在；撞上限是持久状态，必须常驻可见。
         <Banner tone="warn" title={capacityReason} className="mb-3 rounded-[var(--radius-md)] border" />

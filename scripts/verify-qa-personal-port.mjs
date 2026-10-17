@@ -52,7 +52,7 @@ registerHooks({
   },
 });
 
-const { commitPersonalImport, previewPersonalImport, savePersonal } = await import(
+const { commitPersonalImport, personalService, previewPersonalImport, savePersonal } = await import(
   '../src/main/personalPort.ts'
 );
 
@@ -175,6 +175,28 @@ try {
     p2.ok === true && p3.ok === true && p2.preview.conflicts.length === p3.preview.conflicts.length,
     `stale=${p2.ok ? p2.preview.conflicts.length : '-'} vs rich=${p3.ok ? p3.preview.conflicts.length : '-'}`,
   );
+
+  /* ========== 8. 文件被手改坏（R25，2026-10-17） ==========
+     裸读会把坏数据原样交给渲染层，界面渲染入口时 `.replace` 抛错 → **主窗口整体白屏**
+     （2026-10-17 实测：手改坏的 personal.json 让主窗口 0 个子节点、无任何提示）。
+     现在的口径：读路径经 PersonalService（schema 校验）→ 回落空配置；损坏事实由
+     `corruption()` 如实报给界面（不许把失败画成"你本来就没有入口"），且**原文件一个字节都不动**。 */
+  const goodBackup = await readFile(PERSONAL_FILE, 'utf8');
+  await writeFile(PERSONAL_FILE, JSON.stringify({ schemaVersion: 1, groups: [{ id: 'g-1', name: '我的入口', sort: 0, entries: [{ id: 'e-0', name: '坏条目', sort: 0, type: 'web', target: 'https://example.com/' }] }] }), 'utf8');
+  const corruptText = await readFile(PERSONAL_FILE, 'utf8');
+  const corruptDiag = await personalService().corruption();
+  check('8｜手改坏的配置被判定为损坏并给出原因', corruptDiag.corrupt === true && typeof corruptDiag.reason === 'string', `corrupt=${corruptDiag.corrupt} reason=${corruptDiag.reason}`);
+  const loaded = await personalService().load();
+  check('8｜损坏时读取回落成空配置（不抛错、不白屏）', loaded.groups.length === 0, `groups=${loaded.groups.length}`);
+  check('8｜损坏时原文件零改动（用户可自行修回）', (await readFile(PERSONAL_FILE, 'utf8')) === corruptText);
+
+  await writeFile(PERSONAL_FILE, JSON.stringify({ schemaVersion: 1, groups: 'not-an-array' }), 'utf8');
+  const notJsonStruct = await personalService().corruption();
+  check('8｜结构错（groups 不是数组）同样只判损坏、不抛', notJsonStruct.corrupt === true, `reason=${notJsonStruct.reason}`);
+
+  await writeFile(PERSONAL_FILE, goodBackup, 'utf8');
+  const recovered = await personalService().corruption();
+  check('8｜文件修好后损坏标记消失（不是粘住的）', recovered.corrupt === false, `corrupt=${recovered.corrupt}`);
 } finally {
   await rm(root, { recursive: true, force: true });
   await rm(stubDir, { recursive: true, force: true });

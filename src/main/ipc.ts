@@ -30,18 +30,37 @@ import type {
   PublishOutcome,
 } from '../renderer/bridge/types.ts';
 import { registerHotkey, type HotkeyStatus } from './hotkey.ts';
-import { commitPersonalImport, previewPersonalImport, savePersonal } from './personalPort.ts';
+import { commitPersonalImport, personalService, previewPersonalImport, savePersonal } from './personalPort.ts';
 import { identifyAsEntry, pickEntry, scanEntryPoints } from './picker.ts';
 import { scanBrowsers } from './browsers.ts';
 import { ensureDeviceIdentity } from './deviceIdentity.ts';
 
 const EMPTY_PERSONAL: PersonalConfig = { schemaVersion: 1, groups: [] };
 
+/**
+ * 读个人入口配置 —— **必须经 PersonalService**（schema 校验 + 损坏诊断），
+ * 不能用 `localStore.personal` 裸读。
+ *
+ * 2026-10-17 实测的后果：`config/personal.json` 被手改坏（少字段 / 字段名写错）时，
+ * 裸读把坏数据原样交给渲染层，界面在渲染入口时抛 `Cannot read properties of undefined
+ * (reading 'replace')`——**整个主窗口白屏**，没有错误页、没有提示，看着就是"应用坏了"。
+ * 仓库层早就返回 `{ config, corrupt, reason }` 且 `PersonalService.corruption()` 就是为此写的，
+ * 只是这条通道一直没接（见 R25）。
+ */
+async function readPersonalSafe(): Promise<PersonalConfig> {
+  try {
+    return await personalService().load();
+  } catch {
+    // 连读都读不了（权限/IO）：按空处理，同样不把异常抛给界面。
+    return EMPTY_PERSONAL;
+  }
+}
+
 async function resolveEntry(entryId: string): Promise<Entry | undefined> {
   const team = syncService().snapshot().config;
   const inTeam = team?.groups.flatMap((g) => g.entries).find((e) => e.id === entryId);
   if (inTeam) return inTeam;
-  const personal = await localStore.personal<PersonalConfig>(EMPTY_PERSONAL);
+  const personal = await readPersonalSafe();
   return personal.groups.flatMap((g) => g.entries).find((e) => e.id === entryId);
 }
 
@@ -292,13 +311,22 @@ export function registerIpc(deps: IpcDeps): void {
     return identity.deviceId;
   });
 
-  ipcMain.handle('tl:personal-get', () => localStore.personal<PersonalConfig>(EMPTY_PERSONAL));
+  ipcMain.handle('tl:personal-get', () => readPersonalSafe());
+  /* 文件损坏诊断（R25）：损坏时上面会回落成空配置——那看起来和"你没有个人入口"一模一样，
+     所以必须有一条通道让界面**如实说明**"文件读不了"，而不是安静地显示空列表。 */
+  ipcMain.handle('tl:personal-corruption', () => personalService().corruption());
   ipcMain.handle('tl:personal-save', (_e, config: unknown): Promise<PersonalSaveResult> =>
     savePersonal(config),
   );
 
   ipcMain.handle('tl:personal-export', async () => {
-    const config = await localStore.personal<PersonalConfig>(EMPTY_PERSONAL);
+    /* 损坏时拒绝导出：导出"空配置"会被读成"我的入口本来就是空的"，
+        比直接说清楚更糟（文件在磁盘上原样没动，用户可以自己修/找回来）。 */
+    const corruption = await personalService().corruption();
+    if (corruption.corrupt) {
+      return { ok: false as const, reason: `个人入口文件无法读取（${corruption.reason ?? '未知原因'}），导出已取消；原文件未做任何改动` };
+    }
+    const config = await readPersonalSafe();
     const count = config.groups.reduce((n, g) => n + g.entries.length, 0);
     const res = await dialog.showSaveDialog({
       title: '导出我的入口',

@@ -35,6 +35,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // 本窗口的 data-theme/界面随之更新——快捷窗口主题不同步的根因就是缺这条。
   useEffect(() => api.events.onSettingsChanged(setSettings), []);
 
+  /* R23（2026-10-17）：首帧同步读缓存，可能早于 preload 预热完成——那时读到的是**默认值**
+     （表现为隐私门重弹、角色/主题回默认，重启即好）。预热完成后重取一次缓存即可对齐。
+     读的还是同一个缓存：它被 patch 与广播实时更新，所以重取不会覆盖用户刚做的改动。 */
+  useEffect(() => {
+    let cancelled = false;
+    void api.ready.then(() => {
+      if (!cancelled) setSettings(api.settings.get());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (!window.matchMedia) return;
     const mq = window.matchMedia('(prefers-color-scheme: light)');
