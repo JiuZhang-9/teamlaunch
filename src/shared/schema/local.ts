@@ -83,6 +83,14 @@ export const SettingsSchema = z.object({
    * 关掉只是不再弹提示——公告本身仍在主页上，随时能看。
    */
   announcementNotify: z.boolean().default(true),
+  /**
+   * 自动检查更新（2026-10-17，O-07）：开（默认）= 启动约 30 秒后自动检查一次、此后每 6 小时一次；
+   * 关 = 不再自动访问更新源（GitHub / 局域网镜像），只有手点「检查更新」才发请求。
+   *
+   * 为什么给开关：更新检查是本项目**常态化的第三方外网出口**（SECURITY.md 第 5 条）。
+   * 企业内网若不允许任何此类访问，"默认静默失败"不如给一个诚实的选择——关掉就等于零请求。
+   */
+  autoCheckUpdates: z.boolean().default(true),
   /** 界面缩放（百分比）。浏览器式缩放：窗口不变，字体与内部 UI 等比放大重排。 */
   uiZoom: z.int().min(80).max(150).default(100),
   /**

@@ -63,7 +63,7 @@ function updateSourceLabel(source: AppUpdateStatus['source']): string {
 /**
  * 更新状态的一句话（关于页状态行）。
  *
- * 顺序即优先级：已就绪 > 下载中 > 两个源都够不着 > 本轮失败 > 尚未检查 > 已是最新。
+ * 顺序即优先级：已就绪 > 下载中 > 两个源都够不着 > 本轮失败 > 自动检查已关 > 尚未检查 > 已是最新。
  * 刻意不给"够不着"加红色/感叹号——公开用户没有局域网镜像、公司网封 GitHub 都是这个
  * 部署形态的常态，界面不该把它说成故障（与同步状态的保守回落同一纪律）。
  */
@@ -74,6 +74,12 @@ function updateStatusLine(s: AppUpdateStatus | null): string {
   if (s.availableVersion) return `发现 v${s.availableVersion}（${updateSourceLabel(s.source)}），正在后台下载`;
   if (s.lastResult === 'unreachable') return '暂时连不上更新源（不影响使用）';
   if (s.lastError !== null) return `上次检查未成功：${s.lastError}`;
+  /* 关掉自动检查不隐瞒、也不冒充"已是最新"：如实说它没在自动查（O-07）。 */
+  if (!s.autoCheck) {
+    return s.lastCheckedAt === null
+      ? '自动检查已关闭（仍可点右侧手动检查）'
+      : `自动检查已关闭 · 上次检查 ${new Date(s.lastCheckedAt).toLocaleString()}`;
+  }
   if (s.lastCheckedAt === null) return '尚未检查';
   return `已是最新版本 · 来源 ${updateSourceLabel(s.source)} · ${new Date(s.lastCheckedAt).toLocaleString()}`;
 }
@@ -600,6 +606,19 @@ export function SettingsPanel({
                 检查更新
               </Button>
             </div>
+            {/* O-07（2026-10-17）：自动检查是本项目唯一常态化的第三方外网出口（SECURITY.md 第 5 条），
+                给一个开关：关掉 = 不排定时检查、零请求；「检查更新」按钮不受影响。 */}
+            <Row
+              title="自动检查更新"
+              detail="启动后自动检查一次、之后每 6 小时一次；关掉后不会再访问更新源，随时可点上面的「检查更新」"
+              control={
+                <Switch
+                  ariaLabel="自动检查更新"
+                  checked={settings.autoCheckUpdates}
+                  onChange={(next) => onPatch({ autoCheckUpdates: next })}
+                />
+              }
+            />
 
             {/* 批 5（2026-10-17）：仓库 / 技术栈 / 更新日志 / 免责声明 */}
             <Divider />

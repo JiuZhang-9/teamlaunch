@@ -92,6 +92,8 @@ export type UpdateSource = 'github' | 'mirror';
 export interface AppUpdateStatus {
   /** 检查链是否已启用（只有打包版启用）。 */
   active: boolean;
+  /** 是否会自动检查（设置项 autoCheckUpdates）；false = 只有手点「检查更新」才发请求。 */
+  autoCheck: boolean;
   currentVersion: string;
   /** 最近一轮实际采用的源；null = 两个源都够不着（是常态，不是故障）。 */
   source: UpdateSource | null;

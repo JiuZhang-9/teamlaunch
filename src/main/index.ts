@@ -9,7 +9,7 @@ import path from 'node:path';
 import { createMainWindow, getMainWindow, getPalette, preheatPalette } from './windowManager.ts';
 import { registerIpc } from './ipc.ts';
 import { bindSyncBroadcast, installSyncService, syncService } from './syncBridge.ts';
-import { startAutoUpdater } from './updater.ts';
+import { setAutoCheckEnabled, startAutoUpdater } from './updater.ts';
 import { installServerPort } from './serverPort.ts';
 import {
   bypassLanProxy,
@@ -138,6 +138,8 @@ if (!acquireSingleInstanceLock(() => {
     preheatPalette();
 
     // 自动更新客户端（打包版才启用）：进展直推主窗口，由 toast 呈现。
+    // 设置项 autoCheckUpdates 必须在排程**之前**落到位，否则关掉开关的机器仍会跑首次检查（O-07）。
+    setAutoCheckEnabled(currentSettings.autoCheckUpdates);
     startAutoUpdater((event) => {
       const win = getMainWindow();
       if (win && !win.isDestroyed()) win.webContents.send('tl:app-update', event);
@@ -156,6 +158,8 @@ if (!acquireSingleInstanceLock(() => {
         currentSettings = next;
         // 打开网页的浏览器偏好：改完立刻生效（不用重启）。
         setBrowserPreference(next.browserExe);
+        // 自动检查更新的开关：关掉立刻停掉后续定时检查（不必等下一轮到点）。
+        setAutoCheckEnabled(next.autoCheckUpdates);
         if (roleChanged) void rewire(next.role);
         syncTray();
         // 设置变更广播给所有窗口：主题（data-theme）在每个窗口各自的

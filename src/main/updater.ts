@@ -22,6 +22,8 @@
  *    DownloadedUpdateHelper 专门处理"downloaded from some previous app launch"），
  *    不会重下整包。
  *  - 一切失败都落盘到 `%APPDATA%\TeamLaunch\logs\main.log`：这条链路曾经完全不可观测。
+ *  - **自动检查可关**（设置项 `autoCheckUpdates`，默认开）：关掉后不排任何定时检查、零外网请求；
+ *    「检查更新」按钮不受它限制——那是用户的显式动作，不叫"自动检查"。
  */
 import { app } from 'electron';
 import { autoUpdater } from 'electron-updater';
@@ -47,6 +49,8 @@ export type UpdateSource = 'github' | 'mirror';
 export interface AppUpdateStatus {
   /** 检查链是否已启用（只有打包版启用；开发态为 false）。 */
   active: boolean;
+  /** 是否会自动检查（设置项 autoCheckUpdates）；false = 只有手点「检查更新」才会发请求。 */
+  autoCheck: boolean;
   currentVersion: string;
   /** 最近一轮实际采用的源；null = 两个源都够不着（是常态，不是故障）。 */
   source: UpdateSource | null;
@@ -69,6 +73,11 @@ let announcedVersion: string | null = null;
 let configReady: Promise<void> | null = null;
 /** 调试开关：开发态强制启用检查链（仅排障用，不会真的执行安装器）。 */
 const debug = process.env.TL_UPD_DEBUG === '1';
+/** 自动检查（设置项 autoCheckUpdates，默认开）：关掉后连定时器都不留；手点检查不受它限制。 */
+let autoCheckEnabled = true;
+/** 首个自动检查是否已跑过：决定下一次的间隔用"启动延迟"还是"周期"。 */
+let autoCheckedOnce = false;
+let autoTimer: NodeJS.Timeout | null = null;
 
 const status = {
   source: null as UpdateSource | null,
@@ -191,6 +200,36 @@ function check(): Promise<void> {
   return inFlight;
 }
 
+/**
+ * 排下一次自动检查（自续期，不用 setInterval）。
+ *
+ * 为什么自续期：① 关掉开关要能**立刻**停掉后续请求，而不是让一个已排好的定时器到点再判断；
+ * ② 一轮检查可能因为下载耗时远超间隔，setInterval 会叠出并发轮次。
+ */
+function scheduleAutoCheck(): void {
+  if (autoTimer !== null) {
+    clearTimeout(autoTimer);
+    autoTimer = null;
+  }
+  if (!started || !autoCheckEnabled) return;
+  const delay = autoCheckedOnce ? CHECK_INTERVAL_MS : debug ? 3_000 : CHECK_DELAY_MS;
+  autoTimer = setTimeout(() => {
+    autoTimer = null;
+    void check().finally(() => {
+      autoCheckedOnce = true;
+      scheduleAutoCheck();
+    });
+  }, delay);
+}
+
+/** 设置项 autoCheckUpdates 的落点：启动时按已存设置调用一次，用户改开关时再调用。 */
+export function setAutoCheckEnabled(enabled: boolean): void {
+  if (autoCheckEnabled === enabled) return;
+  autoCheckEnabled = enabled;
+  log('auto check', enabled ? 'enabled' : 'disabled');
+  scheduleAutoCheck();
+}
+
 export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
   if (started || (!app.isPackaged && !debug)) return;
   started = true;
@@ -233,12 +272,13 @@ export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
     log('error:', err);
   });
 
-  setTimeout(() => void check(), debug ? 3_000 : CHECK_DELAY_MS);
-  setInterval(() => void check(), CHECK_INTERVAL_MS);
+  scheduleAutoCheck();
 }
 
 /** 手动检查（设置页「检查更新」）：跑完一轮再回答，界面据此刷新状态行。 */
 export async function checkForUpdatesNow(): Promise<AppUpdateStatus> {
+  /* 手动检查**不受** autoCheckUpdates 限制：那是用户的显式动作，不叫"自动检查"。
+     关掉开关只停掉后台的定时检查，也让"公司网里完全不发请求"成为可能。 */
   await check();
   return getUpdateStatus();
 }
@@ -246,6 +286,7 @@ export async function checkForUpdatesNow(): Promise<AppUpdateStatus> {
 export function getUpdateStatus(): AppUpdateStatus {
   return {
     active: started,
+    autoCheck: autoCheckEnabled,
     currentVersion: app.getVersion(),
     source: status.source,
     lastResult: status.lastResult,

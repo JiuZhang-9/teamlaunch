@@ -795,6 +795,14 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 | `iconCacheVersion` | int | 1 | 自增使全部图标缓存失效 |
 | `deletedConflictPolicy` | enum | `ask` | 个人导入 ID 冲突策略：ask/skip/overwrite/copy（AC-15 禁止静默覆盖） |
 | `browserExe` | string? | null | 打开网页用哪个浏览器（本机 exe 路径）；**null = 系统默认浏览器**。指定的浏览器失效时回落系统默认并提示，**不回写字段**（保留用户的选择） |
+| `chainIntervalMs` | int | 800 | 多选连锁启动的每步间隔（schema 夹紧 300–5000ms） |
+| `hotkeys` | object | 见 `WINDOW_HOTKEY_DEFAULTS` | 应用内快捷键（窗口内 keydown 匹配，非 OS 注册）；空串 = 禁用该键 |
+| `appHotkeys` | record | `{}` | 用户**改过**的应用内快捷键覆盖表（动作 id → 加速器串）；未出现的跟随内置默认，空串 = 显式解绑 |
+| `accentColor` | string | `#106696` | 主题色（品牌青蓝）：只用于 7 处点缀，画布/卡片/正文永远中性灰 |
+| `uiZoom` | int | 100 | 界面缩放百分比（浏览器式 zoom，窗口不变；schema 夹紧 80–150） |
+| `sidebarCollapsed` | boolean | false | 侧栏是否完全收起（用户意图，故留在 settings；本机记忆类状态见下方第 3 条） |
+| `announcementNotify` | boolean | true | 主页公告提醒（每篇只提示一次）；关掉只是不弹提示，公告仍在主页 |
+| `autoCheckUpdates` | boolean | true | **自动检查更新（O-07）**：开＝启动约 30s 后检查一次、此后每 6h 一次；关＝不排任何定时检查、零外网请求（「检查更新」按钮不受限，那是用户的显式动作） |
 
 **两处改名/删字段，开发按新表实现**：
 1. `telemetryUpload` → **`telemetryEnabled`**。原名字会被读成"只控制上传"，而 AC-18 要求关闭时**停止记录并清空缓冲**；名字必须不暗示错误语义。
