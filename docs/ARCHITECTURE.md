@@ -63,7 +63,7 @@
 | electron | **44.4.5** | 桌面运行时 | npm `dist-tags.latest`；Chromium 152.0.7977.130 / Node.js **24.21.0**（应用运行时由它提供） |
 | electron-builder | **26.15.3** | Windows NSIS 打包 | 同一直线维护版 |
 | electron-vite | **5.0.0** | 主/预加载/渲染进程构建 | 三进程 Vite 构建 |
-| electron-updater | **6.6.2** | 应用自更新 | 与 electron-builder NSIS 产物配套；**≥6.8.9 升级待办**见 `OPEN-DECISIONS.md` O-04（当前版本传递依赖有 high 漏洞告警） |
+| electron-updater | **6.8.9** | 应用自更新 | 与 electron-builder NSIS 产物配套。2026-10-17 由 6.6.2 升级（O-04 关闭）；同时把直接依赖 js-yaml 4.1.0 → **4.3.2**（三个 high 级 DoS 通告的修复版） |
 | fastify | **5.12.5** | 内嵌同步服务 HTTP 框架 | Node HTTP 封装，纯 Node 无原生模块 |
 | openapi.yaml（契约文件） | — | 服务端 HTTP 契约 | 手工维护，由 `verify:openapi` 校验门强制与 Spec §5 端点清单一致（此前本行误记为依赖 @fastify/swagger@9.9.0 自动生成，实际从未引入该包） |
 | react / react-dom | **19.3.0** | 渲染层 | — |
@@ -76,7 +76,7 @@
 | @electron-toolkit/utils | **4.0.0** | `is dev` 等 Electron 辅助 | — |
 | @electron-toolkit/typed-ipc | **1.0.2** | IPC 类型契约 | 主/preload/renderer 共享类型 |
 | node-html-parser | **9.0.4** | 解析网页首页取 favicon link | 轻量，无原生模块 |
-| js-yaml | **4.1.0** | **仅 devDependency**：契约校验门解析 openapi.yaml | 不进产物，见 §14.1 |
+| js-yaml | **4.3.2** | **仅 devDependency**：契约校验门解析 openapi.yaml | 不进产物，见 §14.1 |
 
 ### 1.2 明确不引入的依赖
 

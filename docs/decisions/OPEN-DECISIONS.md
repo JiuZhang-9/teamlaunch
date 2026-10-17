@@ -106,10 +106,11 @@
 
 | 项 | 内容 |
 |---|---|
-| 状态 | **Open**（待维护者执行，属发版级改动） |
-| 背景 | 2026-10-10 开源体检发现：`npm audit --omit=dev` 报 **3 个 high**——electron-updater 6.6.2 的传递依赖 builder-util-runtime，以及 js-yaml 4.1.0 的 prototype pollution / 二次复杂度 DoS 系列通告。文档锚定自 git 基线起就写 6.8.9，package.json 实际一直是 6.6.2，属文档先行于代码 |
-| 为什么没当场升 | electron-updater 是已发布安装包的自更新组件，按本项目交付纪律必须走「构建安装包 → 实机验证 → 再提交/发版」全流程 |
-| 处置路径 | `npm i electron-updater@^6.8.9` + 处理 js-yaml（需 ≥4.3.2，超出上游声明区间，用 overrides）→ `npm run verify:all` + `verify:qa` → `dist:win` → 实机验证自动更新 → 按发版纪律出包；完成后回写 `ARCHITECTURE.md` §1.1 与 Spec §4 锚定并关闭本条 |
+| 状态 | **Closed —— 2026-10-17 随 v1.0.29 执行完毕** |
+| 背景 | 2026-10-10 开源体检发现：`npm audit --omit=dev` 报 **3 个 high**——electron-updater 6.6.2 的传递依赖 builder-util-runtime，以及 js-yaml 4.1.0 的二次复杂度 DoS 系列通告。文档锚定自 git 基线起就写 6.8.9、package.json 实际一直是 6.6.2，属文档先行于代码 |
+| 已执行 | ①`electron-updater` **6.6.2 → 6.8.9**（精确版本）；②`js-yaml`（**直接依赖**，校验门自身在用）**4.1.0 → 4.3.2**；③核对 `npm ls js-yaml` 全树 deduped 到 4.3.2、`builder-util-runtime` 早已是 9.7.0（不受影响）；④`npm audit --omit=dev` → **0 vulnerabilities**；⑤锚定表回写（ARCHITECTURE §1.1 / SPEC §4 / AGENTS） |
+| 机制补丁 | **`verify-deps` 补上"锚定值必须等于实际安装版本"的比对**：此前它只查"有没有装"、把解析出的版本号丢掉了——这正是本条目能拖这么久的机制原因（文档写 6.8.9、装的 6.6.2，门禁照样 PASS） |
+| 验证 | 升级后走完整流程：门禁全绿 → 完整 `npm run build` → 出安装包 → 打包产物自验（更新源探测行为与 6.6.2 一致：`[TL-UPD]` 行落盘、`no newer version`/发现新版路径正常）→ 发版 |
 
 ### O-05 仓库安全开关：私有漏洞报告与 Dependabot 安全更新未开启
 

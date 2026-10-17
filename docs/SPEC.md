@@ -83,7 +83,7 @@
 |---|---|---|---|
 | 桌面运行时 | Electron | **44.4.5**（Chromium 152.0.7977.130 / Node 24.21.0），回退 43.7.5 | 主进程可直接起 HTTP 服务；Windows 生态成熟 |
 | 打包 | electron-builder NSIS | **26.15.3** | 决定性理由：防火墙规则必须在**提权安装阶段**创建（ADR-004） |
-| 自更新 | electron-updater | **6.6.2** | 与 electron-builder 同源；**≥6.8.9 升级待办**见 `OPEN-DECISIONS.md` O-04 |
+| 自更新 | electron-updater | **6.8.9** | 与 electron-builder 同源（2026-10-17 升级，O-04 关闭） |
 | 服务 HTTP 层 | Fastify | **5.12.5** | 比 Express 更轻、Schema 校验内建（示例选型，非指定） |
 | 服务发现 | UDP 广播 + 单播应答，四级阶梯 L0→L3 | 自实现，UDP **17891** | **否决 mDNS**：它要求每台员工机开 UDP 5353 入站，摧毁零配置前提 |
 | 同步协议 | revision 整数 + contentHash + ETag/304 | TCP **17890–17899** | 版本闸门式全量拉取，避开字段级 diff 的沉默逻辑错误 |

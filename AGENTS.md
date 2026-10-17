@@ -19,7 +19,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 - Electron 44.4.5（应用运行时 Node 24.21.0；开发机 Node ≥22.18）+ electron-builder 26.15.3 NSIS
 - TypeScript **5.9.3** 硬约束：按 5.9.3 的 API 写代码，勿用 TS 7 语法（D-04 曾因此整体回退）
 - React 19.3 + Vite 8.3（经 electron-vite）+ Tailwind 4；fastify 5.12 内嵌同步服务
-- electron-updater 6.6.2（≥6.8.9 升级待办 = OPEN-DECISIONS O-04）
+- electron-updater 6.8.9（2026-10-17 升级，O-04 关闭）；js-yaml 直接依赖 4.3.2
 
 ## 目录与硬规矩
 

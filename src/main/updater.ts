@@ -198,6 +198,9 @@ export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
 
   configReady = useOwnUpdateConfig();
 
+  /* 只发 NSIS 全量安装包：禁止 web 安装器这一形态（electron-updater 6.8.9 起会对默认值发告警）。
+     我们从不发布 .web.exe，放开它等于多一个"feed 内容能触发的下载形态"——收紧。 */
+  autoUpdater.disableWebInstaller = true;
   autoUpdater.autoDownload = true;
   // 下载自动做，安装不自动做：退出时悄悄装上是最容易被判为"这软件自己乱动"的行为。
   autoUpdater.autoInstallOnAppQuit = false;

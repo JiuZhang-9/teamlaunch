@@ -1,6 +1,6 @@
 {
   "name": "teamlaunch",
-  "version": "1.0.28",
+  "version": "1.0.29",
   "private": true,
   "type": "module",
   "description": "TeamLaunch - Windows 桌面端团队统一入口启动器",
@@ -50,7 +50,7 @@
     "verify:qa": "npm run verify:qa-channels && npm run verify:qa-personal && npm run verify:qa-import && npm run verify:qa-sync && npm run verify:qa-port && npm run verify:qa-http"
   },
   "dependencies": {
-    "electron-updater": "6.6.2",
+    "electron-updater": "6.8.9",
     "fastify": "5.12.5",
     "lucide-react": "1.48.0",
     "radix-ui": "1.6.7",
@@ -69,7 +69,7 @@
     "electron-builder": "26.15.3",
     "eslint": "10.11.0",
     "globals": "17.12.0",
-    "js-yaml": "4.1.0",
+    "js-yaml": "4.3.2",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.71.0",

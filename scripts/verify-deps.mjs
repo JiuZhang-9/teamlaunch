@@ -115,8 +115,22 @@ for (const line of section.split('\n')) {
 }
 if (anchored.length === 0) fail('未能从 ARCHITECTURE.md §1.1 解析出任何锚定行 —— 表格结构可能被改坏');
 
-for (const [name, _v] of anchored) {
-  if (name in declared) continue;
+for (const [name, version] of anchored) {
+  if (name in declared) {
+    /* 锚定值必须**等于**实际安装的版本（2026-10-17 补）：此前只查"有没有装"、把解析出的版本号
+       丢掉了 —— 于是 electron-updater 装 6.6.2 而文档写 6.8.9 漂了几个月没人发现（O-04 的成因）。
+       本项目一律写死版本，比对取精确相等；没装的（走 DEFERRED）不参与比对。 */
+    let installed = null;
+    try {
+      installed = JSON.parse(fs.readFileSync(path.join(ROOT, 'node_modules', name, 'package.json'), 'utf8')).version;
+    } catch {
+      installed = null;
+    }
+    if (installed !== null && installed !== version) {
+      fail(`§1.1 锚定 ${name} = ${version}，实际装的是 ${installed} —— 文档与代码已漂移，先统一再提交`);
+    }
+    continue;
+  }
   if (name in DEFERRED) {
     ok(`${name} 未安装，已登记延期：${DEFERRED[name]}`);
   } else {
