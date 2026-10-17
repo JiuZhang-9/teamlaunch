@@ -46,9 +46,11 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 - **本轮 15 项需求 + 追加的关于页增强已全部交付并验收**（批 1~5，v1.0.24~v1.0.28）
 - 清欠账进展：**O-04 / O-06 已关闭**（依赖升级；CI + Issue/PR 模板 + CoC，CI 全绿）；
   **L2 局域网发现失效已修**（信标接入应用本体，v1.0.30）；**O-07 的②开关已实施**（v1.0.31）；
-  **R23 启动缓存竞态 / R25 personal.json 损坏白屏已修**（v1.0.32）。仍待办：
-  **O-05**（用户侧开私有漏洞报告 + Dependabot）、**O-07①**（首次隐私说明披露句，待 PM）、
+  **R23 启动缓存竞态 / R25 personal.json 损坏白屏已修**（v1.0.32）。
+  **O-05 的私有漏洞报告已开启**（2026-10-17 经 API 打开并复核）。仍待办：
+  **Dependabot 安全更新**（维护者侧，会自动开 PR）、**O-07①**（首次隐私说明披露句，待 PM）、
   **O-08**（书签导入隐私口径是否更严）
+- **门禁踩坑**：跑 `verify:*` 前先确认没有打包版实例在跑——它占着 UDP 17891 会让信标断言假失败
 - **本机构建受 360 拦截**（三步绕过：输出到 `%TEMP%` → `NsisTarget.js` 重试补丁 → 生成后立刻改名 `.bin`）；
   根治要把项目目录 + `%LOCALAPPDATA%\electron-builder\Cache` 加信任区
 - 每批固定流程：门禁五项全绿（`verify:qa-http` 单独补跑）→ **完整 `npm run build`** → electron-builder 到 `%TEMP%` →

@@ -116,9 +116,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 状态 | **Open**（待维护者开启；纯仓库设置，不改代码） |
-| 冲突 | `SECURITY.md` 引导报告者使用 GitHub 私有漏洞报告（Security Advisories），但仓库实际 `enabled: false`——公开文档承诺了一条不存在的通道 |
-| 处置路径 | 开私有漏洞报告：`gh api repos/JiuZhang-9/teamlaunch/private-vulnerability-reporting -X PUT`；开 Dependabot 安全更新：仓库 Settings → Code security → Dependabot alerts 与 Dependabot security updates（secret scanning 与 push protection 已开启，无需动） |
+| 状态 | **半闭合**：私有漏洞报告**已开启**（2026-10-17 经 API 打开并复核 `enabled: true`）；**Dependabot 仍待维护者开**（它会往仓库里自动开 PR，属"会改变仓库内容"的动作，留给维护者自己按） |
+| 冲突 | `SECURITY.md` 引导报告者使用 GitHub 私有漏洞报告（Security Advisories），但仓库实际 `enabled: false`——公开文档承诺了一条不存在的通道。**已修复**：文档承诺的通道现在真实存在 |
+| 处置路径 | ~~开私有漏洞报告~~（已开，复核 `enabled: true`）；开 Dependabot：仓库 Settings → Code security → Dependabot alerts 与 Dependabot security updates（secret scanning 与 push protection 已开启，无需动） |
 
 ### O-06 社区基建缺口：无 CI、无 Issue/PR 模板、无行为准则
 
