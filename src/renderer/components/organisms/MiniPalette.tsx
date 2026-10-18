@@ -15,6 +15,7 @@ import { Button } from '../atoms/Button.tsx';
 import { EmptyBlock } from '../molecules/EmptyBlock.tsx';
 import { ResultRow } from '../molecules/ResultRow.tsx';
 import { SourceTag } from '../atoms/Tag.tsx';
+import { firstLetterOf } from '../../lib/entry.ts';
 import type { Entry } from '../../../shared/schema/entry.ts';
 
 /**
@@ -24,6 +25,9 @@ import type { Entry } from '../../../shared/schema/entry.ts';
  * 两者都算"置顶行"，空查询的「最近打开」标签要排在它们后面。
  */
 export type PaletteHitKind = 'result' | 'clip-new' | 'clip-existing';
+
+/** 图标格最多几条（560px 宽一行放得下 8 个 56px 的格子）。 */
+const STRIP_MAX = 8;
 
 export interface PaletteHit {
   entry: Entry;
@@ -48,6 +52,8 @@ export interface MiniPaletteProps {
   onOpen(hit: PaletteHit): void;
   /** 剪贴板候选行的「加为入口」：走主窗口那套预填编辑器（Ctrl+回车 / 行尾按钮）。 */
   onAddToPersonal(hit: PaletteHit): void;
+  /** Ctrl+回车（非剪贴板行）＝进入主窗口；面板窗口由调用方收起。 */
+  onEnterMain(): void;
   onClose(): void;
   /** 团队数据为空（从未成功同步）时追加一行说明 */
   teamUnavailable: boolean;
@@ -65,7 +71,7 @@ export interface MiniPaletteProps {
 
 export function MiniPalette(props: MiniPaletteProps) {
   const {
-    open, query, onQueryChange, hits, selectedIndex, onSelectIndex, iconFor, onOpen, onAddToPersonal, onClose, teamUnavailable,
+    open, query, onQueryChange, hits, selectedIndex, onSelectIndex, iconFor, onOpen, onAddToPersonal, onEnterMain, onClose, teamUnavailable,
     emptyQueryLabel = null, docked = false,
   } = props;
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -86,12 +92,18 @@ export function MiniPalette(props: MiniPaletteProps) {
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (hits.length) onSelectIndex((selectedIndex - 1 + hits.length) % hits.length);
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'm' || e.key === 'M')) {
+      /* Ctrl+M（2026-10-18 用户要求"调出面板后能一键进入主窗口"）：
+         不依赖选中项、不改动任何数据，只是收起面板并把主窗口拿到前台。
+         键位与底部提示一致——提示写什么就必须是什么（这个项目栽过"写死键位"的跟头）。 */
+      e.preventDefault();
+      onEnterMain();
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const hit = hits[selectedIndex];
       if (hit) {
         // 剪贴板候选行：回车就是"直接打开"，**绝不弹任何窗口**；
-        // 加为入口是第二个动作（Ctrl+回车），和回车分开，避免误触编辑器。
+        // 加为入口是第二个动作（Ctrl+回车），与回车分开，避免误触编辑器。
         if (hit.kind === 'clip-new' && (e.ctrlKey || e.metaKey)) onAddToPersonal(hit);
         else onOpen(hit);
       }
@@ -113,8 +125,19 @@ export function MiniPalette(props: MiniPaletteProps) {
     }
   };
 
-  /** 「最近打开」标签插在剪贴板置顶行之后；只有置顶行、没有别的结果时不插。 */
-  const labelAt = isPinnedHit(hits[0]) ? 1 : 0;
+  /* 第一行按图标显示（2026-10-18 用户要求："目前是列表形式，显示内容较少，希望第一行能按图标显示"）：
+     非剪贴板候选的前 8 条做成一行图标格（图标 + 单行名），剩下的继续走列表。
+     剪贴板置顶行**不放进格子**——那两行带「加为入口」按钮，是操作行不是浏览行。
+     键盘游标仍走完整的 hits 顺序（上行 = 置顶行，图标格，列表），与视觉从上到下一致。 */
+  const pinnedHits = hits.filter(isPinnedHit);
+  const restHits = hits.filter((h) => !isPinnedHit(h));
+  const stripHits = restHits.slice(0, STRIP_MAX);
+  const listHits = [...pinnedHits, ...restHits.slice(STRIP_MAX)];
+  const hitIndex = (hit: PaletteHit): number => hits.indexOf(hit);
+
+  /** 「最近打开」标签：图标格存在时标在格子上面，否则沿用列表里的插位。 */
+  const labelAboveStrip = query.length === 0 && emptyQueryLabel !== null && stripHits.length > 0;
+  const labelAt = pinnedHits.length;
 
   return (
     <div
@@ -177,9 +200,54 @@ export function MiniPalette(props: MiniPaletteProps) {
             )
           ) : (
             <>
-              {hits.slice(0, 7).map((hit, i) => (
+              {stripHits.length > 0 && (
+                <>
+                  {labelAboveStrip && (
+                    <div className="flex items-center gap-1.5 px-3 py-1 t-2xs text-[var(--muted)]">
+                      <RotateCcwClock size={16} strokeWidth={2} aria-hidden />
+                      {emptyQueryLabel}
+                    </div>
+                  )}
+                  {/* 第一行图标格：图标 + 单行名（hover/选中态与卡片页一致：tint 底 + accent 边）。 */}
+                  <div className="flex flex-wrap gap-1 px-2 pb-1 pt-0.5">
+                    {stripHits.map((hit) => {
+                      const i = hitIndex(hit);
+                      const selected = i === selectedIndex;
+                      const iconUrl = iconFor(hit.entry.id);
+                      return (
+                        <button
+                          key={hit.entry.id}
+                          id={`tl-palette-tile-${i}`}
+                          type="button"
+                          aria-label={`${hit.entry.name}（${hit.source}）`}
+                          title={`${hit.entry.name}\n${hit.subtitle}`}
+                          onClick={() => onOpen(hit)}
+                          onMouseEnter={() => onSelectIndex(i)}
+                          className="flex h-[62px] w-[62px] shrink-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-[var(--radius-md)] border px-1 transition-colors duration-[var(--motion-fast)]"
+                          style={{
+                            borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)',
+                            background: selected ? 'var(--accent-tint)' : 'var(--card-bg)',
+                          }}
+                        >
+                          {iconUrl !== null ? (
+                            <img src={iconUrl} alt="" aria-hidden className="h-6 w-6 shrink-0 object-contain" />
+                          ) : (
+                            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-[6px] t-2xs" style={{ background: 'var(--accent-tint)', color: 'var(--accent-text)' }} aria-hidden>
+                              {firstLetterOf(hit.entry.name)}
+                            </span>
+                          )}
+                          <span className="t-2xs w-full truncate-1 text-center text-[var(--fg-2)]">{hit.entry.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+              {listHits.map((hit) => {
+                const i = hitIndex(hit);
+                return (
                 <Fragment key={hit.entry.id}>
-                  {query.length === 0 && emptyQueryLabel !== null && i === labelAt && (
+                  {!labelAboveStrip && query.length === 0 && emptyQueryLabel !== null && i === labelAt && (
                     <div className="flex items-center gap-1.5 px-3 py-1 t-2xs text-[var(--muted)]">
                       <RotateCcwClock size={16} strokeWidth={2} aria-hidden />
                       {emptyQueryLabel}
@@ -224,7 +292,8 @@ export function MiniPalette(props: MiniPaletteProps) {
                     }
                   />
                 </Fragment>
-              ))}
+                );
+              })}
             </>
           )}
           {teamUnavailable && (
@@ -236,7 +305,8 @@ export function MiniPalette(props: MiniPaletteProps) {
 
         <div className="mt-1 h-px w-full bg-[var(--border-subtle)]" />
         {/* 560px 的面板放不下更多字了：文案按实测收短（"直接打开"→"直开"），
-            并整体 nowrap——宁可裁掉尾巴，也不能折成两行糊成一团（实测过一版就这样）。 */}
+            并整体 nowrap——宁可裁掉尾巴，也不能折成两行糊成一团（实测过一版就这样）。
+            2026-10-18 加「Ctrl+M 主窗口」：把"进入主窗口"做成看得见的键位（用户要求的快捷方法）。 */}
         <div className="flex h-9 items-center gap-1.5 overflow-hidden whitespace-nowrap px-3 t-2xs text-[var(--meta)]">
           <ChevronUp size={16} strokeWidth={2} aria-hidden />
           <ChevronDown size={16} strokeWidth={2} aria-hidden />
@@ -249,6 +319,8 @@ export function MiniPalette(props: MiniPaletteProps) {
           <span>Ctrl+⏎ 加入口</span>
           <span>·</span>
           <span>Alt+1…7 直开</span>
+          <span>·</span>
+          <span className="w-emph">Ctrl+M 主窗口</span>
           <span>·</span>
           <span>Esc 收起</span>
         </div>

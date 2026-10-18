@@ -152,7 +152,7 @@
 **其他文件**：
 - `settings.json` —— **人写人读**（`role` 默认 `member`，安全默认值）· `serviceUrl` · `autoLaunch` · `trayEnabled` · `hotkey` · `pollIntervalMs` · `editIdleTimeoutMs` · `theme` · `telemetryEnabled` · `telemetryNoticeAckedAt` · `iconCacheVersion` · `deletedConflictPolicy`
 - `discovery.json` —— **机器写机器读**，服务发现 L1 的端点记忆（含 lastSuccess/failCount/冷却时间戳），约 30 秒量级高频覆写。**刻意与 settings.json 分离**：混在一起会导致用户设置被高频覆写、备份/迁移时携带陈旧端点、且无法单独删除重置
-- `identity.json` · `credential.json`（仅管理员，scrypt 参数与 verifier）· `cache/team-current.json` · `config/personal.json` · `revisions/index.jsonl`（保留 20 条）+ 快照（滚动 20 个）· `assets/` · `outbox/feedback.jsonl` · `events/events.jsonl`
+- `identity.json` · `credential.json`（仅管理员，scrypt 参数与 verifier）· `cache/team-current.json` · `config/personal.json` · **`config/window-state.json`**（主窗口位置/大小/是否最大化；机器状态不是用户意图，故不进 settings——2026-10-18 起）· `revisions/index.jsonl`（保留 20 条）+ 快照（滚动 20 个）· `assets/` · `outbox/feedback.jsonl` · `events/events.jsonl`
 
 **版本序列铁律**：只增不减，回滚也必须新增 revision → 历史始终线性，客户端不需要任何"版本回退"分支。
 

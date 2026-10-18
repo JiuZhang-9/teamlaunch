@@ -263,3 +263,26 @@
 .tl-scroll-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
+
+/* 框选多选（2026-10-18 用户要求）。
+   三条约束都写在这里，避免散在组件里：
+   ① 拖框期间不允许选中文字（用户报的"直接框选会选中界面上的文字"）；
+   ② 框选矩形本身不能吃指针事件（否则会打断自己的 pointermove）；
+   ③ 命中高亮走 outline 而不是 border/box-shadow——不改卡片几何，拖动时不会引起重排。 */
+html.tl-marquee,
+html.tl-marquee * {
+  user-select: none !important;
+  cursor: crosshair;
+}
+.tl-marquee-rect {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: var(--accent-tint);
+  border-radius: var(--radius-sm);
+}
+[data-tl-marquee-hit='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

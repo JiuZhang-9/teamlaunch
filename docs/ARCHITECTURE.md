@@ -759,7 +759,10 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 ├── cache\
 │   └── team-current.json    团队配置缓存（员工端只读；管理员端为权威源）
 ├── config\
-│   └── personal.json        个人入口（本机，永不进网）
+│   ├── personal.json        个人入口（本机，永不进网）
+│   ├── window-state.json    主窗口的位置/大小/是否最大化（2026-10-18；机器状态，不是用户意图）
+│   ├── app-overrides.json   应用入口的本机重新定位缓存
+│   └── usage-stats.json     仅本机的使用计数（入口点击结果 / 功能次数，不上报）
 ├── revisions\
 │   ├── index.jsonl          变更记录追加日志（保留最近 20 条）
 │   └── 0000000128.json      发布快照（滚动保留最近 20 个）

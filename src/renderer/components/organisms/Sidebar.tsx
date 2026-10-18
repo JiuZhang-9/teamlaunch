@@ -15,7 +15,7 @@
  * 高度**，两侧只留导航、32px 拖拽条与底部条为固定项（480 最小窗高下固定 ≈ 217px）。
  * 只让分组滚是不够的：固定项本身就会超过最小窗高（实测 474 > 440），底部仍会被推出可视区。
  */
-import { Bookmark, Download, FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, RefreshCw, RotateCw, ScanSearch, Settings, Stethoscope, SunMoon, Undo2, type LucideIcon } from 'lucide-react';
+import { Bookmark, CircleHelp, Download, FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, RefreshCw, RotateCw, ScanSearch, ScrollText, Settings, Stethoscope, SunMoon, Undo2, type LucideIcon } from 'lucide-react';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -102,6 +102,14 @@ export interface SidebarProps {
   onCheckUpdate?(): void;
   /** 正在跑一轮手动检查（小窗里那一行改成"正在检测…"）。 */
   updateChecking?: boolean;
+  /** 小窗里的「查看帮助」与「查看更新日志」（2026-10-18 用户要求补的功能入口）。 */
+  onOpenHelp?(): void;
+  onOpenChangelog?(): void;
+  /**
+   * 分组多选批量删除（2026-10-18 用户要求）：非空时侧栏锚点区可 Ctrl/Shift 多选分组，
+   * 选中后那块位置出现「删除选中 / 清空」。删除的二次确认由外层负责（列表 + 入口数要说清）。
+   */
+  onDeleteGroups?(groups: Group[]): void;
 }
 
 /** 侧栏里的行式操作按钮：整行可点、左对齐、主文字色（用户反馈"太细不够亮"后的定稿）。 */
@@ -138,6 +146,7 @@ export function Sidebar(props: SidebarProps) {
     onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false, editLocked = false,
   onGroupAction,
     update = null, updateSignal = 0, onInstallUpdate, onCheckUpdate, updateChecking = false,
+    onOpenHelp, onOpenChangelog, onDeleteGroups,
   } = props;
   const { settings, patch } = useSettings();
   const { push } = useToasts();
@@ -148,8 +157,27 @@ export function Sidebar(props: SidebarProps) {
   const reduced = useReducedMotion();
   const [syncPop, setSyncPop] = useState(false);
   const popRef = useRef<HTMLDivElement | null>(null);
-  /** 分组锚点的右键菜单（重命名/删除，动作经 onGroupAction 交给外壳分发）。 */
+  /** 分组锚点右键菜单（重命名/删除，动作经 onGroupAction 交给外壳分发）。 */
   const [groupMenu, setGroupMenu] = useState<{ x: number; y: number; group: Group } | null>(null);
+  /** 分组多选（2026-10-18）：选中的分组 id；anchorRef 记 Shift 连选的锚点。 */
+  const [groupSel, setGroupSel] = useState<string[]>([]);
+  const anchorRef = useRef<string | null>(null);
+  /** 只有能改分组的页面才给多选（个人页 / 团队编辑态）；只读团队页连选都不该选得起来。 */
+  const canManageGroups = mode === 'personal' || mode === 'editing';
+  /* 分组被删/改名后把选择集收敛到仍存在的 id：否则计数会虚高、批量删除会带上幽灵。 */
+  useEffect(() => {
+    setGroupSel((cur) => {
+      const alive = new Set(groups.map((g) => g.id));
+      const next = cur.filter((id) => alive.has(id));
+      return next.length === cur.length ? cur : next;
+    });
+  }, [groups]);
+  useEffect(() => {
+    if (!canManageGroups) setGroupSel([]);
+  }, [canManageGroups]);
+  useEffect(() => {
+    if (collapsed) setGroupSel([]);
+  }, [collapsed]);
 
   useEffect(() => {
     if (collapsed) setSyncPop(false);
@@ -249,26 +277,80 @@ export function Sidebar(props: SidebarProps) {
           {mode !== 'home' && (
             <div className="border-t border-[var(--border-subtle)] px-[var(--sidebar-pad)] pt-[var(--space-2)]">
               <SectionCap>分组</SectionCap>
+              {/* 分组多选（2026-10-18 用户要求"分组侧边栏的操作逻辑希望能支持多选，以便批量删除等"）：
+                  Ctrl/Cmd 点加选、Shift 点选一段；选起来之后这块位置显示批量动作，其他情况不占地方。 */}
+              {canManageGroups && groupSel.length > 0 ? (
+                <div className="mb-1 rounded-[var(--radius-sm)] border border-[var(--accent-border)] bg-[var(--accent-tint)] px-2 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="t-xs min-w-0 flex-1 truncate-1 text-[var(--fg)]">
+                      已选 {groupSel.length} 个分组
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteGroups?.(groups.filter((g) => groupSel.includes(g.id)))}
+                      className="t-xs shrink-0 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[var(--danger-fg)] hover:bg-[var(--danger-bg)]"
+                    >
+                      删除选中
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGroupSel([])}
+                      className="t-xs shrink-0 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[var(--fg-2)] hover:bg-[var(--bg-surface-hover)]"
+                    >
+                      清空
+                    </button>
+                  </div>
+                  <p className="t-2xs mt-0.5 text-[var(--meta)]">Ctrl 点加选 · Shift 点选一段</p>
+                </div>
+              ) : null}
               {groups.length === 0 ? (
                 <div className="px-3 pb-1 text-[13px] text-[var(--meta)]">暂无分组</div>
               ) : (
-                groups.map((g) => (
+                groups.map((g) => {
+                  const picked = groupSel.includes(g.id);
+                  return (
                   <button
                     key={g.id}
                     type="button"
-                    onClick={() => goGroup(g.name)}
+                    aria-pressed={canManageGroups && groupSel.length > 0 ? picked : undefined}
+                    onClick={(e) => {
+                      /* 多选只在能改分组的页面成立（个人页 / 编辑态）：只读团队页的 Ctrl 点击
+                         仍走原来的定位行为，不给一个点了没用的选择态。 */
+                      if (canManageGroups && (e.ctrlKey || e.metaKey)) {
+                        setGroupSel((cur) => (cur.includes(g.id) ? cur.filter((id) => id !== g.id) : [...cur, g.id]));
+                        anchorRef.current = g.id;
+                        return;
+                      }
+                      if (canManageGroups && e.shiftKey && anchorRef.current !== null) {
+                        const from = groups.findIndex((x) => x.id === anchorRef.current);
+                        const to = groups.findIndex((x) => x.id === g.id);
+                        if (from >= 0 && to >= 0) {
+                          const [lo, hi] = from <= to ? [from, to] : [to, from];
+                          setGroupSel(groups.slice(lo, hi + 1).map((x) => x.id));
+                          return;
+                        }
+                      }
+                      /* 普通点击＝定位；顺手清掉分组多选（避免"选着选着忘了还选着"）。 */
+                      if (groupSel.length > 0) setGroupSel([]);
+                      goGroup(g.name);
+                    }}
                     onContextMenu={(e) => {
                       if (!onGroupAction) return;
                       e.preventDefault();
                       setGroupMenu({ x: e.clientX, y: e.clientY, group: g });
                     }}
-                    className="flex h-7 w-full items-center gap-2 truncate rounded-[var(--radius-sm)] px-3 text-[13px] text-[var(--fg)] transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
-                    title={`定位到分组「${g.name}」`}
+                    className={[
+                      'flex h-7 w-full items-center gap-2 truncate rounded-[var(--radius-sm)] px-3 text-[13px] transition-colors duration-[var(--motion-fast)]',
+                      picked ? 'text-[var(--fg)]' : 'text-[var(--fg)] hover:bg-[var(--bg-surface-hover)]',
+                    ].join(' ')}
+                    style={picked ? { background: 'var(--row-bg-selected)' } : undefined}
+                    title={`定位到分组「${g.name}」${canManageGroups ? '（Ctrl 点加选、Shift 选一段）' : ''}`}
                   >
                     <span className="truncate-1">{g.name}</span>
                     <span className="ml-auto text-xs text-[var(--meta)]">{g.entries.length}</span>
                   </button>
-                ))
+                  );
+                })
               )}
             </div>
           )}
@@ -548,8 +630,10 @@ export function Sidebar(props: SidebarProps) {
               />
             </>
           ) : (
-            <div className="px-2 py-1 text-[13px] text-[var(--fg)]">
-              {mode === 'personal' ? '本机入口保存在这台电脑上，不参与团队同步。' : '尚未连接同步服务。'}
+            /* 2026-10-18 用户要求：这句话太长、占地，降级成小字低亮（信息保留，不再抢视线）。
+               它仍是"我的入口不上云"的唯一说明，所以只改样式不删。 */
+            <div className="px-2 py-1 t-2xs text-[var(--meta)]">
+              {mode === 'personal' ? '本机入口只存在这台电脑上，不参与团队同步' : '尚未连接同步服务。'}
             </div>
           )}
           <div className="mx-1 my-1.5 h-px bg-[var(--border-subtle)]" />
@@ -569,6 +653,23 @@ export function Sidebar(props: SidebarProps) {
             onSelect={() => {
               setSyncPop(false);
               onCheckUpdate?.();
+            }}
+          />
+          {/* 2026-10-18：按用户要求补两个入口——帮助（快捷键速查 + 使用说明）与更新日志。 */}
+          <MenuItem
+            icon={CircleHelp}
+            label="查看帮助"
+            onSelect={() => {
+              setSyncPop(false);
+              onOpenHelp?.();
+            }}
+          />
+          <MenuItem
+            icon={ScrollText}
+            label="查看更新日志"
+            onSelect={() => {
+              setSyncPop(false);
+              onOpenChangelog?.();
             }}
           />
           <MenuItem

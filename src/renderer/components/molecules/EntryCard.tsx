@@ -91,6 +91,9 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       aria-disabled={disabled || undefined}
       data-mode={mode}
       data-state={failed ? 'error' : loading ? 'loading' : 'default'}
+      /* 框选多选的命中锚（2026-10-18）：选框按视口坐标与它相交判定，
+         不依赖任何层级结构——以后换网格容器也不会悄悄失效。 */
+      data-tl-card-id={entry.id}
       /* 多选态同样可拖（整块移动由调用方处理）——此前 selecting 时彻底禁拖。 */
       draggable={drag?.draggable}
       onDragStart={drag?.onDragStart}

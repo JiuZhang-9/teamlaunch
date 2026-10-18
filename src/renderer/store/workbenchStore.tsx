@@ -124,6 +124,12 @@ interface WorkbenchCtx {
   toggleSelected(entry: Entry): void;
   /** 多选批量：整批加入清单（全选本组用），已在清单里的跳过。 */
   addSelected(list: Entry[]): void;
+  /**
+   * 框选多选（2026-10-18 用户要求）：一次交给一批入口。
+   * `additive` = 按住 Ctrl / Shift 拖（并入现有清单）；否则替换成这一批。
+   * 顺带把多选模式打开——框选出一批却不进多选态，卡片上看不到勾，用户会以为没生效。
+   */
+  selectMany(list: Entry[], additive: boolean): void;
   clearSelected(): void;
   exitSelecting(): void;
   launchChain(intervalMs: number): Promise<void>;
@@ -279,6 +285,21 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     );
   }, []);
   const clearSelected = useCallback(() => setSelected([]), []);
+
+  /** 框选（2026-10-18）：整批设定或并入；同时打开多选态，卡片上的勾要看得见。 */
+  const selectMany = useCallback((list: Entry[], additive: boolean) => {
+    if (list.length === 0 && !additive) {
+      setSelected([]);
+      return;
+    }
+    setSelected((cur) => {
+      if (!additive) return list;
+      const has = new Set(cur.map((e) => e.id));
+      return [...cur, ...list.filter((e) => !has.has(e.id))];
+    });
+    if (list.length > 0) setSelecting(true);
+    void api.usage.bump({ kind: 'feature', key: 'marqueeSelect' });
+  }, []);
   const exitSelecting = useCallback(() => {
     setSelecting(false);
     setSelected([]);
@@ -408,11 +429,12 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       toggleSelecting,
       toggleSelected,
       addSelected,
+      selectMany,
       clearSelected,
       exitSelecting,
       launchChain,
     }),
-    [tab, setTab, setEditingLock, query, runtime, openEntry, copyTarget, copyManyTargets, dialog, settingsSection, openSettings, openDialog, feedbackTargetId, openFeedback, relocateEntry, entryEditor, openEntryEditor, closeEntryEditor, quickAddFromText, typeFilter, toggleTypeFilter, clearTypeFilter, selecting, selected, toggleSelecting, toggleSelected, addSelected, clearSelected, exitSelecting, launchChain],
+    [tab, setTab, setEditingLock, query, runtime, openEntry, copyTarget, copyManyTargets, dialog, settingsSection, openSettings, openDialog, feedbackTargetId, openFeedback, relocateEntry, entryEditor, openEntryEditor, closeEntryEditor, quickAddFromText, typeFilter, toggleTypeFilter, clearTypeFilter, selecting, selected, toggleSelecting, toggleSelected, addSelected, selectMany, clearSelected, exitSelecting, launchChain],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

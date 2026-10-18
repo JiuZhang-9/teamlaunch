@@ -383,6 +383,20 @@ export function registerIpc(deps: IpcDeps): void {
   });
 
   /**
+   * 「进入主窗口」（2026-10-18 用户要求）：面板收起 → 主窗口还原（若最小化）→ 显示并聚焦。
+   * 与 quickAdd 的区别是它**不改动任何数据**——只是把用户带到主界面。
+   */
+  ipcMain.handle('tl:palette-open-main', () => {
+    const main = deps.getWindows()[0];
+    if (!main || main.isDestroyed()) return false;
+    hidePalette();
+    if (main.isMinimized()) main.restore();
+    main.show();
+    main.focus();
+    return true;
+  });
+
+  /**
    * 剪贴板读取（快捷搜索面板的剪贴板候选行）：只读文本，**不落库、不写日志**。
    * 单条判定（含换行就不认）在渲染层做——它同时要按当前清单去重。
    */

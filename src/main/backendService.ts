@@ -56,7 +56,22 @@ export function bypassLanProxy(): void {
  * `userDataRoot` 由调用方注入（Electron 侧传 `app.getPath('userData')`）——
  * 刻意不在本文件 import electron，这样接线层可以在纯 Node 里被真实验证。
  */
-export async function startEmbeddedService(userDataRoot: string, role: string | undefined): Promise<boolean> {
+export interface EmbeddedServiceOptions {
+  /**
+   * 信标监听的 UDP 端口（默认＝生产常量 `UDP_DISCOVERY_PORT`）。
+   * 存在的唯一理由是**测试确定性**：UDP 17891 用的是 reuseAddr，本机只要有另一个 TeamLaunch
+   * 实例在跑（用户真实安装版平时就开着），数据报只会投给其中一个 socket，
+   * "本实例的信标有没有起来"就没法用默认端口问出来。测试传一个隔离端口即可确定地回答
+   * （与 `listenWithDrift(..., port?)` 同款测试接缝，见 smoke-server）。
+   */
+  beaconPort?: number;
+}
+
+export async function startEmbeddedService(
+  userDataRoot: string,
+  role: string | undefined,
+  options: EmbeddedServiceOptions = {},
+): Promise<boolean> {
   if (role !== 'admin') return false;
 
   const root = userDataRoot;
@@ -86,7 +101,7 @@ export async function startEmbeddedService(userDataRoot: string, role: string | 
       // 端口会漂移：每次应答都取实时值，绝不缓存装配时的快照。
       httpPortOf: () => server?.listen.port ?? 0,
       revisionOf: () => server?.ctx.teamConfig.revision ?? 0,
-      port: UDP_DISCOVERY_PORT,
+      port: options.beaconPort ?? UDP_DISCOVERY_PORT,
     });
     await beacon.start();
   } catch {

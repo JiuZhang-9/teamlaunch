@@ -134,7 +134,8 @@ if (!acquireSingleInstanceLock(() => {
       app.setLoginItemSettings({ openAtLogin: currentSettings.autoLaunch });
     }
 
-    const main = createMainWindow();
+    // 读回上次的窗口位置与大小（2026-10-18）：异步读盘，所以这一步要 await。
+    const main = await createMainWindow();
     preheatPalette();
 
     // 自动更新客户端（打包版才启用）：进展直推主窗口，由 toast 呈现。

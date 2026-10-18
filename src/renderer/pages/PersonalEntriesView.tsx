@@ -30,7 +30,7 @@ type Pending = { kind: 'delete'; entry: Entry } | null;
 type MoveTarget = { entry: Entry; fromGroupId: string } | null;
 
 export function PersonalEntriesView() {
-  const { config, usage, removeEntry, removeEntries, addCopy, addCopies, moveEntry, renameGroup, moveGroup, removeGroup, moveEntryToGroup, moveEntriesToGroup } = usePersonal();
+  const { config, usage, removeEntry, removeEntries, addCopy, addCopies, moveEntry, renameGroup, moveGroup, removeGroup, sortEntriesInGroup, moveEntryToGroup, moveEntriesToGroup } = usePersonal();
   const { runtime, openEntry, copyTarget, copyManyTargets, openEntryEditor, relocateEntry, typeFilter, selecting, selected, toggleSelected, addSelected, clearSelected, launchChain, openDialog } = useWorkbench();
   const { pendingIds } = useFeedback();
   const { isFavorite, toggleFavorite, setFavoriteMany } = useFavorites();
@@ -259,6 +259,15 @@ export function PersonalEntriesView() {
         menuFor={menuFor}
         headerExtra={headerExtra}
         onReorder={(entry, delta) => void moveEntry(entry.id, delta)}
+        /* 点组名直接改名（2026-10-18 用户要求）。同名/空名在 store 之上由这里拦住并说明——
+           分组名同时是侧栏锚点 id 与批量添加的落点键，重名会让"去哪一组"变得不确定。 */
+        onRenameGroup={(group, name) => {
+          if (groups.some((g) => g.id !== group.id && g.name === name)) {
+            push({ title: `已有名为「${name}」的分组了，换一个名字`, tone: 'warn' });
+            return;
+          }
+          void renameGroup(group.id, name);
+        }}
         selecting={selecting && !filtering}
         selectionOrderOf={(id) => {
           const i = selected.findIndex((e) => e.id === id);
@@ -300,6 +309,13 @@ export function PersonalEntriesView() {
             void removeGroup(actingGroup.id);
             setActingGroup(null);
             push({ title: `已删除分组「${actingGroup.name}」`, tone: 'info' });
+          }}
+          /* 「整理」：只重排本组入口（2026-10-18 用户要求加进分组菜单）。 */
+          onSortEntriesByName={() => {
+            const g = actingGroup;
+            void sortEntriesInGroup(g.id).then(() => {
+              push({ title: `「${g.name}」已按名称重排`, tone: 'info' });
+            });
           }}
           onCancel={() => setActingGroup(null)}
         />

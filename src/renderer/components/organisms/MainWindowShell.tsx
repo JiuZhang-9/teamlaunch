@@ -16,12 +16,13 @@ import { TitleBar } from './TitleBar.tsx';
 import { ContentHeader } from './ContentHeader.tsx';
 import { Sidebar, type SidebarMode } from './Sidebar.tsx';
 import { GroupActionsDialog } from './GroupActionsDialog.tsx';
-import { RenameDialog } from './SimpleDialog.tsx';
+import { ConfirmDialog, RenameDialog } from './SimpleDialog.tsx';
 import { EditActionBar } from './EditActionBar.tsx';
 import { ChainLaunchBar } from './ChainLaunchBar.tsx';
 import { DialogRouter } from './DialogRouter.tsx';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue.ts';
 import { useGlobalHotkeys } from '../../hooks/useGlobalHotkeys.ts';
+import { useMarqueeSelect } from '../../hooks/useMarqueeSelect.ts';
 import { readMemoryList, writeMemoryList } from '../../lib/localMemory.ts';
 import { useToolbarMenus } from '../../hooks/useToolbarMenus.ts';
 import { entryLimitCopy, groupLimitCopy } from '../../../shared/capacity-copy.ts';
@@ -56,12 +57,12 @@ const OFFLINE_BANNER_STATES = new Set([
 ]);
 
 export function MainWindowShell() {
-  const { tab, setTab, setEditingLock, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, addSelected, clearSelected, exitSelecting, launchChain, quickAddFromText } =
+  const { tab, setTab, setEditingLock, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, addSelected, selectMany, clearSelected, exitSelecting, launchChain, quickAddFromText } =
     useWorkbench();
   const { snapshot, refresh } = useSync();
   const { settings, patch } = useSettings();
   const edit = useEdit();
-  const { config: personal, usage, beginImport, addGroup: addPersonalGroup, renameGroup: personalRenameGroup, moveGroup: personalMoveGroup, removeGroup: personalRemoveGroup, sortGroupsByName: personalSortGroupsByName } = usePersonal();
+  const { config: personal, usage, beginImport, addGroup: addPersonalGroup, renameGroup: personalRenameGroup, moveGroup: personalMoveGroup, removeGroup: personalRemoveGroup, removeGroups: personalRemoveGroups, sortGroupsByName: personalSortGroupsByName } = usePersonal();
   const { push } = useToasts();
 
   const [miniOpen, setMiniOpen] = useState(false);
@@ -82,6 +83,8 @@ export function MainWindowShell() {
   const [locateId, setLocateId] = useState<string | null>(null);
   /** 侧栏分组右键触发的分组操作对话框（重命名/删除按当前页分发到对应 store）。 */
   const [sidebarGroup, setSidebarGroup] = useState<Group | null>(null);
+  /** 分组多选批量删除的待确认清单（非空即弹确认框）。 */
+  const [deleteGroups, setDeleteGroups] = useState<Group[] | null>(null);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
   const lastRevision = useRef(snapshot.revision);
@@ -306,6 +309,23 @@ export function MainWindowShell() {
     clearSelected();
   }, [tab, editing, groups, selected, addSelected, clearSelected]);
 
+  /**
+   * 框选多选（2026-10-18 用户要求）：在卡片区空白处拖出选框，松手即选中框住的卡片。
+   * 空白区=面板容器本身（卡片、按钮、输入框上起手都不算，见 useMarqueeSelect）。
+   * 编辑态也开放：那里同样需要"一次框一批"（整块拖拽/批量删除都用得上）。
+   */
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const marquee = useMarqueeSelect({
+    containerRef: panelRef,
+    enabled: tab !== 'home' && groups.length > 0,
+    onSelect: (ids, additive) => {
+      const byId = new Map(groups.flatMap((g) => g.entries).map((e) => [e.id, e]));
+      const list = ids.map((id) => byId.get(id)).filter((e): e is NonNullable<typeof e> => e !== undefined);
+      if (list.length === 0) return;
+      selectMany(list, additive);
+    },
+  });
+
   /* 快捷面板的「加为入口」：主进程收起面板后把文本转到这里，
      走与 Ctrl+V 粘贴添加完全同一条流程（识别与预填在 workbenchStore）。 */
   useEffect(() => api.events.onQuickAdd((text) => void quickAddFromText(text)), [quickAddFromText]);
@@ -452,6 +472,11 @@ export function MainWindowShell() {
           onInstallUpdate={() => void api.updater.install()}
           onCheckUpdate={() => void checkUpdate()}
           updateChecking={updateChecking}
+          onOpenHelp={() => openDialog('shortcuts')}
+          onOpenChangelog={() => openDialog('changelog')}
+          /* 分组多选批量删除（2026-10-18）：先弹一次确认（列名字 + 说明会连带删多少入口），
+             再按当前页面把这一批交给个人 store 或团队草稿（两边都是"一次写、一步撤销"）。 */
+          onDeleteGroups={(list) => setDeleteGroups(list)}
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -488,10 +513,12 @@ export function MainWindowShell() {
           {updateBanner && <Banner tone="success" title={updateBanner} />}
 
           <div
+            ref={panelRef}
             id={`tl-panel-${tab}`}
             role="tabpanel"
             aria-labelledby={`tl-tab-${tab}`}
             tabIndex={-1}
+            onPointerDown={marquee.onPointerDown}
             className="min-h-0 flex-1 px-[var(--space-6)] pt-[var(--space-5)] pb-[var(--space-6)]"
             style={{
               background: contentBackground,
@@ -571,6 +598,42 @@ export function MainWindowShell() {
         <span role="status" className="sr-only">
           已定位到 {locateId}
         </span>
+      )}
+
+      {/* 分组多选批量删除的确认（2026-10-18）：把名字与"会删掉多少入口"说全，
+          不做一键删除；确认后按当前页交给个人 store 或团队草稿。 */}
+      {deleteGroups && (
+        <ConfirmDialog
+          title={`删除 ${deleteGroups.length} 个分组？`}
+          detail={`${deleteGroups.map((g) => g.name).join('、')}——组内共 ${deleteGroups.reduce((n, g) => n + g.entries.length, 0)} 个入口会一并删除，且不可恢复。`}
+          confirmLabel="删除"
+          destructive
+          onConfirm={() => {
+            const ids = deleteGroups.map((g) => g.id);
+            const scope = deleteGroups;
+            setDeleteGroups(null);
+            if (edit.editing) edit.removeGroups(ids);
+            else void personalRemoveGroups(ids);
+            void api.usage.bump({ kind: 'feature', key: 'groupMultiSelect' });
+            push({ title: `已删除 ${scope.length} 个分组`, tone: 'info' });
+          }}
+          onCancel={() => setDeleteGroups(null)}
+        />
+      )}
+
+      {/* 框选多选的选框（2026-10-18）：fixed + pointer-events:none，纯视觉——
+          命中高亮在卡片上（data-tl-marquee-hit），这里只画矩形。 */}
+      {marquee.rect && (
+        <div
+          aria-hidden
+          className="tl-marquee-rect"
+          style={{
+            left: marquee.rect.left,
+            top: marquee.rect.top,
+            width: marquee.rect.width,
+            height: marquee.rect.height,
+          }}
+        />
       )}
 
       {/* 新建分组：名称输入确认框（个人页与团队编辑态共用）。同名会就地拦住——

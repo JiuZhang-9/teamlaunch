@@ -231,6 +231,8 @@ const api: TeamLaunchApi = {
 
   palette: {
     hide: () => invoke<void>('tl:palette-hide'),
+    /** 「进入主窗口」（2026-10-18）：收起面板 → 还原 → 显示并聚焦主窗口。 */
+    openMain: () => invoke<boolean>('tl:palette-open-main'),
     /** 面板里「加为入口」：主进程收起面板、唤起主窗口并把文本转发过去（见 tl:palette-quick-add）。 */
     quickAdd: (text) => invoke<boolean>('tl:palette-quick-add', text),
   },

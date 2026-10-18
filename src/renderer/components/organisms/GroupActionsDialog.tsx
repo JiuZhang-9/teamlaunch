@@ -11,7 +11,7 @@
  *    这是纵深防御：菜单那一层已经禁用了，真出现这个对话框也不该改到草稿。
  */
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowDownAZ, ArrowUp, Trash2 } from 'lucide-react';
 import { Button } from '../atoms/Button.tsx';
 import { Input } from '../atoms/Input.tsx';
 import { Dialog } from './Dialog.tsx';
@@ -29,13 +29,15 @@ export interface GroupActionsDialogProps {
   onRename(name: string): void;
   onMove(delta: -1 | 1): void;
   onRemove(): void;
+  /** 组内入口按名称重排（2026-10-18 用户要求"添加其他组功能，如…按名称重排序当前组"）。 */
+  onSortEntriesByName?(): void;
   onCancel(): void;
 }
 
 const PAGE_LABEL = { team: '团队页', personal: '我的入口' } as const;
 
 export function GroupActionsDialog({
-  groupName, canMoveUp, canMoveDown, entryCount, scope, canManage = true, onRename, onMove, onRemove, onCancel,
+  groupName, canMoveUp, canMoveDown, entryCount, scope, canManage = true, onRename, onMove, onRemove, onSortEntriesByName, onCancel,
 }: GroupActionsDialogProps) {
   const [name, setName] = useState(groupName);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -84,6 +86,27 @@ export function GroupActionsDialog({
         </Button>
         <span className="t-xs text-[var(--meta)]">调整分组在页面中的先后顺序</span>
       </div>
+
+      {/* 「整理」动作（2026-10-18 用户要求）：只重排**本组**入口，组顺序不动、标题不动。
+          只有一个入口时它没有意义，禁用而不是"点了没反应"。 */}
+      {onSortEntriesByName && (
+        <div className="mb-3 flex items-center gap-2">
+          <Button
+            tone="ghost"
+            icon={ArrowDownAZ}
+            disabled={!canManage || entryCount < 2}
+            onClick={() => {
+              onSortEntriesByName();
+              onCancel();
+            }}
+          >
+            按名称重排本组入口
+          </Button>
+          <span className="t-xs text-[var(--meta)]">
+            {entryCount < 2 ? '本组不足两个入口' : '组内顺序按名称（拼音）重排，分组顺序不动'}
+          </span>
+        </div>
+      )}
 
       {canManage && (!confirmingRemove ? (
         <Button tone="danger" icon={Trash2} onClick={() => setConfirmingRemove(true)}>

@@ -66,6 +66,13 @@ export interface SyncClientOptions {
   deviceId: string;
   /** 读设置用回调：用户在设置面板改了 serviceUrl / 轮询间隔，下一轮就生效。 */
   getSettings(): Settings;
+  /**
+   * 期望连到的团队数据源（instanceId）。不传 = 谁先被发现就连谁（员工机首跑的常态：
+   * instanceId 恰恰是第一次连上之后才知道的）。**测试接缝**：自检脚本用它把发现阶梯钉在
+   * 自己刚起的那个服务上——本机还有别的 TeamLaunch 实例在跑时（用户真实安装版平时就开着），
+   * L2 广播会问到它，"服务不可达 → OFFLINE_CACHED"那段就会假失败（2026-10-19 实测）。
+   */
+  expectedInstanceId?: string | null;
   /** 测试注入用；不传则走真实 HTTP。 */
   transport?: {
     fetchConfig(args: { baseUrl: string; deviceId: string; ifNoneMatch: string | null }): Promise<ConfigReply>;
@@ -133,6 +140,8 @@ export async function createMemberSyncClient(options: SyncClientOptions): Promis
       const outcome = await resolver.resolve({
         deviceId: options.deviceId,
         serviceUrl: settings.serviceUrl,
+        // 没显式给期望实例时按 null 走（首跑不知道 instanceId）；给了就必须对上，否则继续下一层。
+        expectedInstanceId: options.expectedInstanceId ?? null,
         allowLanScan: true,
       });
       if (outcome.endpoint === null) {

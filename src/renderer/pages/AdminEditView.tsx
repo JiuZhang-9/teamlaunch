@@ -23,7 +23,7 @@ import type { Group } from '../../shared/schema/group.ts';
 import { CAPACITY } from '../../shared/schema/common.ts';
 
 export function AdminEditView() {
-  const { draft, removeEntry, moveEntry, moveEntriesToGroup, renameGroup, moveGroup, removeGroup } = useEdit();
+  const { draft, removeEntry, moveEntry, moveEntriesToGroup, renameGroup, moveGroup, removeGroup, sortEntriesInGroup } = useEdit();
   const { runtime, openEntry, copyTarget, openEntryEditor, relocateEntry, openDialog, selected, toggleSelected } = useWorkbench();
   const { pendingIds } = useFeedback();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -99,6 +99,15 @@ export function AdminEditView() {
         menuFor={menuFor}
         headerExtra={headerExtra}
         onReorder={(entry, delta) => moveEntry(entry.id, delta)}
+        /* 点组名直接改名（2026-10-18 用户要求）：改的是草稿，撤销一步可退。
+           同名在这里拦住（组名是侧栏锚点 id 与批量添加的落点键）。 */
+        onRenameGroup={(group, name) => {
+          if (groups.some((g) => g.id !== group.id && g.name === name)) {
+            push({ title: `已有名为「${name}」的分组了，换一个名字`, tone: 'warn' });
+            return;
+          }
+          renameGroup(group.id, name);
+        }}
         draggable
         isFavoriteOf={isFavorite}
         onToggleFavorite={(entry) => void toggleFavorite(entry.id)}
@@ -127,6 +136,12 @@ export function AdminEditView() {
           onRemove={() => {
             removeGroup(actingGroup.id);
             push({ title: `已删除分组「${actingGroup.name}」`, tone: 'info' });
+          }}
+          /* 「整理」：只重排本组入口（一次 mutate = 一步撤销）。 */
+          onSortEntriesByName={() => {
+            const g = actingGroup;
+            sortEntriesInGroup(g.id);
+            push({ title: `「${g.name}」已按名称重排`, tone: 'info' });
           }}
           onCancel={() => setActingGroup(null)}
         />

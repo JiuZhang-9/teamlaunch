@@ -41,11 +41,13 @@ export interface GroupSectionsProps {
   isFavoriteOf?(entryId: string): boolean;
   onToggleFavorite?(entry: Entry): void;
   onDropEntry?(entryId: string, toGroupId: string, toIndex: number): void;
+  /** 点组名直接改名（2026-10-18 用户要求）；不传 = 只读页，名字是纯文本。 */
+  onRenameGroup?(group: Group, name: string): void;
   pendingFeedbackIds?: Set<string>;
 }
 
 export function GroupSections({
-  groups, source, mode, runtime, onOpen, onEdit, onDelete, menuFor, headerExtra, onReorder, draggable = false, onDropEntry, filtering = false, pendingFeedbackIds, selecting = false, selectionOrderOf, onToggleSelect, isFavoriteOf, onToggleFavorite,
+  groups, source, mode, runtime, onOpen, onEdit, onDelete, menuFor, headerExtra, onReorder, draggable = false, onDropEntry, filtering = false, pendingFeedbackIds, selecting = false, selectionOrderOf, onToggleSelect, isFavoriteOf, onToggleFavorite, onRenameGroup,
 }: GroupSectionsProps) {
   const [menu, setMenu] = useState<{ x: number; y: number; entry: Entry } | null>(null);
   // 跨网格共享的拖拽 id：getData() 在非受信任事件里拿不到，靠这条 ref 传递。
@@ -55,7 +57,13 @@ export function GroupSections({
     <div className="flex flex-col">
       {groups.map((g, gi) => (
         <section key={g.id} style={{ marginTop: gi === 0 ? 0 : 'var(--space-6)' }}>
-          <GroupHeader id={`tl-group-${encodeURIComponent(g.name)}`} name={g.name} count={g.entries.length} right={headerExtra?.(g)} />
+          <GroupHeader
+            id={`tl-group-${encodeURIComponent(g.name)}`}
+            name={g.name}
+            count={g.entries.length}
+            right={headerExtra?.(g)}
+            onRename={onRenameGroup ? (name) => onRenameGroup(g, name) : undefined}
+          />
           {filtering && g.entries.length === 0 && (
             <p className="t-xs py-3 text-[var(--meta)]">这个分组没有所选类型的入口</p>
           )}

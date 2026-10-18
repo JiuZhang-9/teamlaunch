@@ -75,6 +75,10 @@ interface EditCtx {
   moveGroup(groupId: string, delta: -1 | 1): void;
   /** 删除分组会连带删掉组内入口，调用方必须先让用户确认。 */
   removeGroup(groupId: string): void;
+  /** 批量删除分组（侧栏分组多选，2026-10-18）：一次 mutate = 一步撤销。 */
+  removeGroups(groupIds: string[]): void;
+  /** 按名称重排本组入口（2026-10-18 用户要求加进分组菜单）：一次 mutate = 一步撤销。 */
+  sortEntriesInGroup(groupId: string): void;
   phase: PublishPhase;
   lastError: PublishError | null;
   publish(summary: string): Promise<PublishOutcome>;
@@ -436,6 +440,30 @@ export function EditProvider({ children }: { children: ReactNode }) {
       mutate((c) => ({
         ...c,
         groups: c.groups.filter((g) => g.id !== groupId).map((g, k) => ({ ...g, sort: k })),
+      }));
+    },
+    /** 批量删分组（侧栏分组多选）：一次 mutate = 一步撤销（与批量删入口同一纪律）。 */
+    removeGroups(groupIds) {
+      const gone = new Set(groupIds);
+      mutate((c) => ({
+        ...c,
+        groups: c.groups.filter((g) => !gone.has(g.id)).map((g, k) => ({ ...g, sort: k })),
+      }));
+    },
+    /* 按名称重排本组入口（2026-10-18）：分组菜单里的"整理"动作，一次 mutate = 一步撤销。 */
+    sortEntriesInGroup(groupId) {
+      mutate((c) => ({
+        ...c,
+        groups: c.groups.map((g) =>
+          g.id === groupId
+            ? {
+                ...g,
+                entries: [...g.entries]
+                  .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+                  .map((e, k) => ({ ...e, sort: k })),
+              }
+            : g,
+        ),
       }));
     },
     phase,

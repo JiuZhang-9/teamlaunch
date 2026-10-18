@@ -95,8 +95,12 @@ interface PersonalCtx {
   moveGroup(groupId: string, delta: -1 | 1): Promise<void>;
   /** 分组按名称排序（zh-CN 拼音序）。整理顺序拖拽/快捷键之外的粗粒度整理手段。 */
   sortGroupsByName(): Promise<void>;
+  /** 按名称重排**本组**入口（2026-10-18 用户要求加进分组菜单）：一次落盘、一步撤销。 */
+  sortEntriesInGroup(groupId: string): Promise<void>;
   /** 删除分组连带组内入口，调用方必须先确认。 */
   removeGroup(groupId: string): Promise<void>;
+  /** 批量删除分组（侧栏分组多选，2026-10-18）：一次落盘，连带组内入口，调用方先确认。 */
+  removeGroups(groupIds: string[]): Promise<void>;
   /**
    * 把入口移动到另一个分组（可带目标位置 index）：拖拽排序与跨组移动的唯一写入口。
    * toIndex 是"落点前移除后"的插入位置；同组内自动补偿移除造成的索引偏移；
@@ -451,10 +455,40 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     [config, commit],
   );
 
+  /** 按名称重排本组入口（分组菜单里的「整理」动作）：组顺序不动，只理组内顺序。 */
+  const sortEntriesInGroup = useCallback(
+    async (groupId: string) => {
+      const groups = clone(config).groups.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              entries: [...g.entries]
+                .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+                .map((e, k) => ({ ...e, sort: k })),
+            }
+          : g,
+      );
+      await commit({ ...config, groups });
+    },
+    [config, commit],
+  );
+
   const removeGroup = useCallback(
     async (groupId: string) => {
       const groups = clone(config).groups
         .filter((g) => g.id !== groupId)
+        .map((g, k) => ({ ...g, sort: k }));
+      await commit({ ...config, groups });
+    },
+    [config, commit],
+  );
+
+  /** 批量删分组（侧栏多选）：一次算完、只落盘一次（逐条删会各写一次盘）。 */
+  const removeGroups = useCallback(
+    async (groupIds: string[]) => {
+      const gone = new Set(groupIds);
+      const groups = clone(config).groups
+        .filter((g) => !gone.has(g.id))
         .map((g, k) => ({ ...g, sort: k }));
       await commit({ ...config, groups });
     },
@@ -538,16 +572,18 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
       renameGroup,
       moveGroup,
       removeGroup,
+      removeGroups,
       moveEntryToGroup,
       moveEntriesToGroup,
       removeEntries,
       addCopies,
       sortGroupsByName,
+      sortEntriesInGroup,
       exportJson: () => api.personal.exportJson(),
       beginImport,
       resolveImport,
     }),
-    [config, usage, removeEntry, removeEntries, renameEntry, moveEntry, addCopy, addCopies, addEntry, addEntries, addEntryObject, updateEntryObject, addGroup, renameGroup, moveGroup, removeGroup, moveEntryToGroup, moveEntriesToGroup, sortGroupsByName, beginImport, resolveImport],
+    [config, usage, removeEntry, removeEntries, renameEntry, moveEntry, addCopy, addCopies, addEntry, addEntries, addEntryObject, updateEntryObject, addGroup, renameGroup, moveGroup, removeGroup, removeGroups, moveEntryToGroup, moveEntriesToGroup, sortGroupsByName, sortEntriesInGroup, beginImport, resolveImport],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

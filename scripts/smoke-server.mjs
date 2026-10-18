@@ -30,6 +30,7 @@ import { AUTH, BEACON_MAGIC, UDP_DISCOVERY_PORT, DISCOVERY_PERSIST_THROTTLE_MS, 
 import { assertTrustedKdf, deriveVerifier, isTrustedKdf, scryptMemoryBytes, UntrustedKdfError } from '../src/shared/kdf.ts';
 import { compareVersions, isVersionNewer } from '../src/shared/version.ts';
 import { updateStatusLine } from '../src/shared/update-copy.ts';
+import { defaultBounds, isRestorableBounds } from '../src/shared/window-bounds.ts';
 import { moveEntries } from '../src/shared/move-entries.ts';
 import { SettingsRepository } from '../src/repositories/settings.repository.ts';
 import { PersonalRepository } from '../src/repositories/personal.repository.ts';
@@ -441,12 +442,17 @@ async function main() {
   });
 
   await step('UDP 信标：查询 → 单播应答带真实端口', async () => {
+    /* 隔离端口（默认值 +11）：17891 是 reuseAddr，用户真实安装版平时就开着，
+       数据报只会投给其中一个 socket——用默认端口时"本实例有没有应答"根本问不出来。
+       生产用的是 UDP_DISCOVERY_PORT，这里断言它没被改动过（改端口是破坏性协议变更）。 */
+    assert(UDP_DISCOVERY_PORT === 17891, `发现端口常量被改动：${UDP_DISCOVERY_PORT}`);
+    const beaconPort = UDP_DISCOVERY_PORT + 11;
     const beacon = new DiscoveryBeacon({
       serviceId: server.ctx.serviceId,
       instanceId: server.ctx.instanceId,
       httpPortOf: () => server.listen.port,
       revisionOf: () => server.ctx.teamConfig.revision,
-      port: UDP_DISCOVERY_PORT,
+      port: beaconPort,
     });
     await beacon.start();
     const offer = await new Promise((resolve, reject) => {
@@ -456,16 +462,19 @@ async function main() {
         reject(new Error('未在 2 秒内收到应答'));
       }, 2000);
       socket.on('message', (msg) => {
+        const parsed = parseBeaconMessage(msg);
+        /* 按 instanceId 认领（同 verify:wiring）：nonce 会被原样回显，分不清是谁答的。 */
+        if (parsed === null || parsed.type !== 'offer' || parsed.instanceId !== server.ctx.instanceId) return;
         clearTimeout(timer);
         socket.close();
-        resolve(parseBeaconMessage(msg));
+        resolve(parsed);
       });
       socket.bind(0, '127.0.0.1', () => {
         const query = Buffer.from(
           JSON.stringify({ magic: BEACON_MAGIC, type: 'query', nonce: 'smoke-nonce', anonDeviceId: DEVICE_ID }),
           'utf8',
         );
-        socket.send(query, 0, query.length, UDP_DISCOVERY_PORT, '127.0.0.1');
+        socket.send(query, 0, query.length, beaconPort, '127.0.0.1');
       });
     });
     await beacon.stop();
@@ -1082,6 +1091,37 @@ async function main() {
       '状态行要写出来源',
     );
     return '已就绪 > 下载中(带%) > 够不着 > 失败 > 自动检查已关 > 尚未检查 > 已是最新';
+  });
+
+  /* 窗口矩形记忆（2026-10-18 用户要求"记住上次的位置和大小"）：
+     恢复判错 = 窗口落在屏幕外，用户看到的是"应用打不开"（连报错都没有），
+     所以"外接屏拔掉后必须回落默认值"这条判定要钉在 smoke 里。 */
+  await step('窗口矩形：离屏判定与自适应默认尺寸', async () => {
+    const workArea = { x: 0, y: 0, width: 1920, height: 1040 };
+    const saved = { x: 100, y: 80, width: 1280, height: 820, maximized: false };
+    assert(isRestorableBounds(saved, [workArea]) === true, '同一块屏内的矩形应当可恢复');
+
+    // 曾经放在第二块屏（x=1920 起）上，那块屏拔掉后只剩第一块：整块都落在屏外。
+    const onSecond = { x: 2100, y: 200, width: 1200, height: 800, maximized: false };
+    assert(isRestorableBounds(onSecond, [workArea]) === false, '外接屏拔掉后旧坐标必须判为不可恢复');
+    assert(
+      isRestorableBounds(onSecond, [workArea, { x: 1920, y: 0, width: 1600, height: 900 }]) === true,
+      '第二块屏还在时应当可恢复',
+    );
+    // 只露一条边（重叠 < 80px）也算不可恢复：留一丝缝等于用户抓不到窗口。
+    const sliver = { x: 1900, y: 100, width: 1200, height: 800, maximized: false };
+    assert(isRestorableBounds(sliver, [workArea]) === false, '只露 20px 的矩形判为不可恢复');
+
+    const big = defaultBounds(workArea);
+    assert(big.width === 1280 && big.height === 820, `大屏默认应为 1280×820，实际 ${big.width}×${big.height}`);
+    assert(big.x === Math.round((1920 - 1280) / 2), '大屏默认应水平居中');
+
+    // 1366×768 的笔记本：目标值放不下，必须收进工作区（否则窗口顶出屏幕）。
+    const laptop = defaultBounds({ x: 0, y: 0, width: 1366, height: 728 });
+    assert(laptop.width <= 1366 - 48 && laptop.height <= 728 - 48,
+      `小屏默认必须收进工作区，实际 ${laptop.width}×${laptop.height}`);
+    assert(laptop.width >= 880 && laptop.height >= 480, '默认尺寸不得低于最小窗口尺寸');
+    return `1920 屏 → ${big.width}×${big.height}；1366×728 屏 → ${laptop.width}×${laptop.height}（都居中且不越界）`;
   });
 
   // ServerOptions.port 曾被静默忽略（漂移循环恒定从首选常量起跳），调用方以为

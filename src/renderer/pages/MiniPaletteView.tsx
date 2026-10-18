@@ -221,9 +221,19 @@ export function MiniPaletteView({ open, onClose, docked = false }: { open: boole
           onClose();
           void quickAddFromText(text);
           return;
-        }
-        // 独立面板窗口装不下编辑器：主进程收起面板、唤起并聚焦主窗口，由它跑同一套流程。
+        }        // 独立面板窗口装不下编辑器：主进程收起面板、唤起并聚焦主窗口，由它跑同一套流程。
         void api.palette.quickAdd(text).then((ok) => {
+          if (!ok) push({ title: '没能唤起主窗口，请手动打开 TeamLaunch 再试', tone: 'warn' });
+        });
+      }}
+      /* Ctrl+M（2026-10-18 用户要求）：收起面板 → 主窗口拿到前台。面板在主窗口内是浮层，
+         这时直接把浮层关掉即可（不需要跨窗口唤起）。 */
+      onEnterMain={() => {
+        if (!docked) {
+          onClose();
+          return;
+        }
+        void api.palette.openMain().then((ok) => {
           if (!ok) push({ title: '没能唤起主窗口，请手动打开 TeamLaunch 再试', tone: 'warn' });
         });
       }}

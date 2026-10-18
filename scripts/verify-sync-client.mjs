@@ -116,7 +116,15 @@ try {
   const first = await publishOnce('第一版');
 
   /* 1) 发现 → 拉取 → 三重闸门 → 缓存 */
-  client = await createMemberSyncClient({ root: memberRoot, deviceId: 'DEV-A·000001', getSettings });
+  /* expectedInstanceId 是**测试接缝**：本机若还有别的 TeamLaunch 实例在跑（用户真实安装版
+     平时就开着），L2 广播会问到它；钉死期望实例后，"服务不可达 → OFFLINE_CACHED"那段
+     测的才是本脚本自己的服务，而不是碰运气（2026-10-19 实测踩到）。 */
+  client = await createMemberSyncClient({
+    root: memberRoot,
+    deviceId: 'DEV-A·000001',
+    getSettings,
+    expectedInstanceId: server.ctx.instanceId,
+  });
   const snap1 = client.snapshot();
   check(
     'L0 手动端点发现成功并拿到内容',

@@ -26,6 +26,10 @@ export interface UsageStats {
 export type UsageFeature =
   | 'chainLaunch'
   | 'multiSelect'
+  /** 框选多选（2026-10-18）：与 Ctrl/右键多选分开计数，用来判断这条新交互有没有人用。 */
+  | 'marqueeSelect'
+  | 'groupMultiSelect'
+  | 'groupRenameInline'
   | 'batchAdd'
   | 'scanAdd'
   | 'bookmarkImport'

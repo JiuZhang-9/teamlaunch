@@ -10,9 +10,12 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
 import { isQuitting } from './lifecycle.ts';
+import { loadWindowState, trackWindowBounds } from './windowState.ts';
+import { defaultBounds, isRestorableBounds } from '../shared/window-bounds.ts';
 
-const WIN_W = 1040;
-const WIN_H = 720;
+/* 默认大小不再写死：2026-10-18 起由 windowState.defaultBounds() 按屏幕工作区自适应
+   （用户反馈"起始默认窗口有点小，想大点，让页面能容纳更多卡片"——目标 1280×820，
+   1366×768 的机器上自动收进工作区，不会顶出屏幕）。 */
 /* 最小宽度 880：侧栏 240 + 内容区左右各 24 之后仍要留住 3–4 列卡片（704 时只剩 416px = 2 列）。
    与 design-tokens.css 的 --win-w-min 保持一致。 */
 const MIN_W = 880;
@@ -90,11 +93,26 @@ function watchPreloadError(win: BrowserWindow): void {
   });
 }
 
-export function createMainWindow(): BrowserWindow {
+/**
+ * 建主窗口（2026-10-18 起 async：要先读回上次的位置与大小）。
+ *
+ * 恢复顺序：读 `config/window-state.json` → 校验矩形仍落在某个显示器工作区内
+ * （外接屏拔掉后不按旧坐标摆放，回落居中默认）→ 建窗 → 需要时最大化 → 挂节流写盘。
+ */
+export async function createMainWindow(): Promise<BrowserWindow> {
+  const userData = app.getPath('userData');
+  const saved = await loadWindowState(userData);
+  const areas = screen.getAllDisplays().map((d) => d.workArea);
+  const bounds = saved !== null && isRestorableBounds(saved, areas)
+    ? saved
+    : defaultBounds(screen.getPrimaryDisplay().workArea);
+
   mainWindow = new BrowserWindow(
     windowOptions({
-      width: WIN_W,
-      height: WIN_H,
+      x: bounds.x,
+      y: bounds.y,
+      width: Math.max(MIN_W, bounds.width),
+      height: Math.max(MIN_H, bounds.height),
       minWidth: MIN_W,
       minHeight: MIN_H,
       frame: false,
@@ -102,7 +120,12 @@ export function createMainWindow(): BrowserWindow {
       title: 'TeamLaunch',
     }),
   );
+  if (bounds.maximized) mainWindow.maximize();
   watchPreloadError(mainWindow);
+  const flushBounds = trackWindowBounds(userData, mainWindow);
+  /* 关窗前补一次立即写：拖动后 500ms 内就关窗的话，节流计时器会随进程一起消失，
+     最后一次调整的尺寸/位置就丢了。 */
+  mainWindow.on('close', flushBounds);
   void mainWindow.loadURL(rendererUrl());
 
   mainWindow.on('closed', () => {
