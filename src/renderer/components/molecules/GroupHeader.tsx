@@ -72,7 +72,11 @@ export function GroupHeader({ name, count, id, right, onRename }: GroupHeaderPro
           className="t-sm w-emph h-7 min-w-0 max-w-[280px] rounded-[var(--radius-sm)] border border-[var(--accent)] bg-[var(--bg-surface)] px-1.5 text-[var(--fg)] outline-none"
         />
       ) : (
-        /* min-w-0：组名超长时收缩并出省略号，而不是把右侧操作按钮挤成竖排。 */
+        /* min-w-0：组名超长时收缩并出省略号，而不是把右侧操作按钮挤成竖排。
+           2026-10-19 修：可点改名后组名被缩成一两个字就省略号——原因是给内层 button 也加了
+           `truncate-1 max-w-full`，而 max-width:100% 的百分比要对着 h2 的内容宽算，
+           h2 的宽又由 button 撑开 → 循环依赖，浏览器只能给个最小宽度（截到 1~2 字）。
+           现在**截断只由 h2 负责**，button 退化成行内盒（不设宽度/不裁剪）。 */
         <h2 className="t-sm w-emph min-w-0 truncate-1 text-[var(--fg)]">
           {onRename ? (
             <button
@@ -80,7 +84,7 @@ export function GroupHeader({ name, count, id, right, onRename }: GroupHeaderPro
               title="点击重命名"
               aria-label={`重命名分组 ${name}`}
               onClick={() => setEditing(true)}
-              className="-mx-1 max-w-full cursor-text truncate-1 rounded-[var(--radius-sm)] px-1 text-left transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
+              className="-mx-1 inline cursor-text rounded-[var(--radius-sm)] px-1 text-left align-baseline transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
             >
               {name}
             </button>

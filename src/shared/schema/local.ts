@@ -91,6 +91,11 @@ export const SettingsSchema = z.object({
    * 企业内网若不允许任何此类访问，"默认静默失败"不如给一个诚实的选择——关掉就等于零请求。
    */
   autoCheckUpdates: z.boolean().default(true),
+  /**
+   * 全局快捷窗口的不透明度（2026-10-19 用户要求："增加半透明调节功能，比如调到 0.8"）。
+   * 整数百分比，60–100，默认 100（不透明＝行为不变）。只作用于面板窗口，不动主窗口。
+   */
+  paletteOpacity: z.int().min(60).max(100).default(100),
   /** 界面缩放（百分比）。浏览器式缩放：窗口不变，字体与内部 UI 等比放大重排。 */
   uiZoom: z.int().min(80).max(150).default(100),
   /**

@@ -121,6 +121,19 @@ export interface FavoriteItem {
 }
 
 /**
+ * 连锁收藏（2026-10-19 用户要求）：把"多选出来的一串入口 + 间隔"存成一条可复用的一键启动。
+ * 同样只存入口 id（内容以当下为准）——被删掉的入口启动时如实跳过。
+ */
+export interface SavedChain {
+  id: string;
+  name: string;
+  entryIds: string[];
+  /** 每步之间的等待毫秒数（保存时的设置值，之后不再跟随设置变化）。 */
+  intervalMs: number;
+  createdAt: string;
+}
+
+/**
  * 浏览器书签（Chrome / Edge，2026-10-17）：只在用户显式打开「导入书签」时读一次本机文件。
  * 书签含个人隐私（标题与网址）——**只经 IPC 交给界面供勾选，绝不进入同步/上报链路**。
  */
@@ -336,6 +349,12 @@ export interface TeamLaunchApi {
   favorites: {
     get(): Promise<FavoriteItem[]>;
     save(list: FavoriteItem[]): Promise<void>;
+  };
+
+  /** 连锁收藏（本机持久化，2026-10-19）：保存/读取"一串入口 + 间隔"的一键启动。 */
+  chains: {
+    get(): Promise<SavedChain[]>;
+    save(list: SavedChain[]): Promise<void>;
   };
 
   /**

@@ -48,6 +48,20 @@ export const APP_HOTKEY_LABELS: Record<AppHotkeyAction, string> = {
   shortcuts: '快捷键速查',
 };
 
+/**
+ * KeyboardEvent 的主键名 → 加速器里的写法。
+ *
+ * 为什么必须归一：空格键的 `e.key` 是**一个空格字符** `' '`，直接拼进加速器会得到
+ * `'Ctrl+ '`（尾随空格）——Electron 的 globalShortcut 认为它非法，注册静默失败，
+ * 而匹配器按 `+` 拆开再 trim 后只剩 `['Ctrl']`，窗口内也永远匹配不上。
+ * 结果就是"改成别的键之后再想设回 Ctrl+空格就设不回去了"（2026-10-19 用户报）。
+ * 命名键用规范名（与 Electron 加速器语法一致）；单字符键统一大写。
+ */
+export function acceleratorKeyName(key: string): string {
+  if (key === ' ' || key === 'Spacebar') return 'Space';
+  return key.length === 1 ? key.toUpperCase() : key;
+}
+
 /** 录制器与匹配器共用：把 KeyboardEvent 归一成 `Ctrl+Shift+E` 形态的加速器串。 */
 export function acceleratorOf(e: {
   ctrlKey: boolean;
@@ -60,7 +74,7 @@ export function acceleratorOf(e: {
   if (e.ctrlKey) parts.push('Ctrl');
   if (e.altKey) parts.push('Alt');
   if (e.shiftKey) parts.push('Shift');
-  parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  parts.push(acceleratorKeyName(e.key));
   return parts.join('+');
 }
 
@@ -79,7 +93,6 @@ export function acceleratorMatches(
   if (e.ctrlKey !== parts.includes('Ctrl')) return false;
   if (e.altKey !== parts.includes('Alt')) return false;
   if (e.shiftKey !== parts.includes('Shift')) return false;
-  const want = key.length === 1 ? key.toLowerCase() : key;
-  const got = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  return want === got;
+  /* 两边都过同一个归一（' ' ↔ 'Space'）：只归一存起来的那边，按空格时照样匹配不上。 */
+  return key.toLowerCase() === acceleratorKeyName(e.key).toLowerCase();
 }

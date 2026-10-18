@@ -6,7 +6,7 @@
  */
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
-import { createMainWindow, getMainWindow, getPalette, preheatPalette } from './windowManager.ts';
+import { createMainWindow, getMainWindow, getPalette, preheatPalette, setPaletteOpacity } from './windowManager.ts';
 import { registerIpc } from './ipc.ts';
 import { bindSyncBroadcast, installSyncService, syncService } from './syncBridge.ts';
 import { setAutoCheckEnabled, startAutoUpdater } from './updater.ts';
@@ -137,6 +137,8 @@ if (!acquireSingleInstanceLock(() => {
     // 读回上次的窗口位置与大小（2026-10-18）：异步读盘，所以这一步要 await。
     const main = await createMainWindow();
     preheatPalette();
+    // 面板不透明度（2026-10-19）：窗口刚建出来就应用一次，否则面板会一直是不透明的原样。
+    setPaletteOpacity(currentSettings.paletteOpacity);
 
     // 自动更新客户端（打包版才启用）：进展直推主窗口，由 toast 呈现。
     // 设置项 autoCheckUpdates 必须在排程**之前**落到位，否则关掉开关的机器仍会跑首次检查（O-07）。
@@ -159,6 +161,8 @@ if (!acquireSingleInstanceLock(() => {
         currentSettings = next;
         // 打开网页的浏览器偏好：改完立刻生效（不用重启）。
         setBrowserPreference(next.browserExe);
+        // 全局快捷窗口的不透明度：改完立刻生效（面板窗口一直预热着，随时能设）。
+        setPaletteOpacity(next.paletteOpacity);
         // 自动检查更新的开关：关掉立刻停掉后续定时检查（不必等下一轮到点）。
         setAutoCheckEnabled(next.autoCheckUpdates);
         if (roleChanged) void rewire(next.role);

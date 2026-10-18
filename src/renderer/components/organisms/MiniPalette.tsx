@@ -86,16 +86,17 @@ export function MiniPalette(props: MiniPaletteProps) {
   if (!open) return null;
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      /* ←/→ 与 ↑/↓ 都能移动选中项（2026-10-19 用户要求："变成按钮后，上下左右方向键是否也可以调整选中项"）：
+         图标格是一行，左右是它的自然轴；上下继续沿用原来的线性游标（进入下方列表）。 */
       e.preventDefault();
       if (hits.length) onSelectIndex((selectedIndex + 1) % hits.length);
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
       e.preventDefault();
       if (hits.length) onSelectIndex((selectedIndex - 1 + hits.length) % hits.length);
-    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'm' || e.key === 'M')) {
-      /* Ctrl+M（2026-10-18 用户要求"调出面板后能一键进入主窗口"）：
-         不依赖选中项、不改动任何数据，只是收起面板并把主窗口拿到前台。
-         键位与底部提示一致——提示写什么就必须是什么（这个项目栽过"写死键位"的跟头）。 */
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Tab') {
+      /* Ctrl+Tab（2026-10-19 用户改键，原 Ctrl+M）：收起面板并把主窗口拿到前台，
+         不依赖选中项、不改动任何数据。必须排在下面 Tab 分支之前判定。 */
       e.preventDefault();
       onEnterMain();
     } else if (e.key === 'Enter') {
@@ -208,8 +209,10 @@ export function MiniPalette(props: MiniPaletteProps) {
                       {emptyQueryLabel}
                     </div>
                   )}
-                  {/* 第一行图标格：图标 + 单行名（hover/选中态与卡片页一致：tint 底 + accent 边）。 */}
-                  <div className="flex flex-wrap gap-1 px-2 pb-1 pt-0.5">
+                  {/* 第一行图标格（2026-10-18 加，10-19 放大）：图标 32 + 名称最多两行——
+                      原来 62×62 只放得下 1 行小字，用户反馈"图标太小、连几个字都显示不全"。
+                      一行 6 个（560px 面板放得下 6×86 + 间距），超出的继续走下面的列表。 */}
+                  <div className="grid grid-cols-6 gap-1.5 px-2 pb-1.5 pt-1">
                     {stripHits.map((hit) => {
                       const i = hitIndex(hit);
                       const selected = i === selectedIndex;
@@ -223,20 +226,27 @@ export function MiniPalette(props: MiniPaletteProps) {
                           title={`${hit.entry.name}\n${hit.subtitle}`}
                           onClick={() => onOpen(hit)}
                           onMouseEnter={() => onSelectIndex(i)}
-                          className="flex h-[62px] w-[62px] shrink-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-[var(--radius-md)] border px-1 transition-colors duration-[var(--motion-fast)]"
+                          className="flex h-[86px] w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--radius-md)] border px-1 pt-2 transition-colors duration-[var(--motion-fast)]"
                           style={{
                             borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)',
                             background: selected ? 'var(--accent-tint)' : 'var(--card-bg)',
                           }}
                         >
                           {iconUrl !== null ? (
-                            <img src={iconUrl} alt="" aria-hidden className="h-6 w-6 shrink-0 object-contain" />
+                            <img src={iconUrl} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain" />
                           ) : (
-                            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-[6px] t-2xs" style={{ background: 'var(--accent-tint)', color: 'var(--accent-text)' }} aria-hidden>
+                            <span
+                              className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] t-sm"
+                              style={{ background: 'var(--accent-tint)', color: 'var(--accent-text)' }}
+                              aria-hidden
+                            >
                               {firstLetterOf(hit.entry.name)}
                             </span>
                           )}
-                          <span className="t-2xs w-full truncate-1 text-center text-[var(--fg-2)]">{hit.entry.name}</span>
+                          {/* 两行名（超出裁掉）：中文名 6~8 字一行，两行够放绝大多数入口名。 */}
+                          <span className="t-2xs line-clamp-2 w-full text-center leading-tight text-[var(--fg-2)]">
+                            {hit.entry.name}
+                          </span>
                         </button>
                       );
                     })}
@@ -320,7 +330,7 @@ export function MiniPalette(props: MiniPaletteProps) {
           <span>·</span>
           <span>Alt+1…7 直开</span>
           <span>·</span>
-          <span className="w-emph">Ctrl+M 主窗口</span>
+          <span className="w-emph">Ctrl+Tab 主窗口</span>
           <span>·</span>
           <span>Esc 收起</span>
         </div>

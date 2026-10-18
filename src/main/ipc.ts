@@ -115,6 +115,14 @@ export function registerIpc(deps: IpcDeps): void {
     return true;
   });
 
+  /* 连锁收藏（2026-10-19）：同样是本机文件（config/chains.json）。
+     口径与 favorites 一致——渲染层给完整数组、主进程原子写盘；形状校验在渲染层 store 里做。 */
+  ipcMain.handle('tl:chains-get', async () => localStore.chains<unknown[]>([]));
+  ipcMain.handle('tl:chains-save', async (_e, list: unknown) => {
+    await localStore.saveChains(list);
+    return true;
+  });
+
   // 自动更新：用户点了「立即更新并重启」→ 静默安装 + 重启。
   ipcMain.handle('tl:app-update-install', () => installDownloadedUpdate());
   // 更新分发目录（管理员把构建产物放进来）：不存在就先建。

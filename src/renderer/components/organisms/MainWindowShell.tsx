@@ -33,6 +33,7 @@ import { useEntryIcons } from '../../hooks/useEntryIcons.ts';
 import { useEntrySearch } from '../../hooks/useEntrySearch.ts';
 import { syncPresentation } from '../../services/syncCopy.ts';
 import { useEdit } from '../../store/editStore.tsx';
+import { useChains } from '../../store/chainStore.tsx';
 import { usePersonal, type ImportOutcome } from '../../store/personalStore.tsx';
 import { useSettings } from '../../store/settingsStore.tsx';
 import { useSync } from '../../store/syncStore.tsx';
@@ -63,6 +64,8 @@ export function MainWindowShell() {
   const { settings, patch } = useSettings();
   const edit = useEdit();
   const { config: personal, usage, beginImport, addGroup: addPersonalGroup, renameGroup: personalRenameGroup, moveGroup: personalMoveGroup, removeGroup: personalRemoveGroup, removeGroups: personalRemoveGroups, sortGroupsByName: personalSortGroupsByName } = usePersonal();
+  /** 连锁收藏（2026-10-19）：这里只用「保存」——主页负责展示与启动。 */
+  const { chains, save: saveChain } = useChains();
   const { push } = useToasts();
 
   const [miniOpen, setMiniOpen] = useState(false);
@@ -85,6 +88,8 @@ export function MainWindowShell() {
   const [sidebarGroup, setSidebarGroup] = useState<Group | null>(null);
   /** 分组多选批量删除的待确认清单（非空即弹确认框）。 */
   const [deleteGroups, setDeleteGroups] = useState<Group[] | null>(null);
+  /** 「保存为连锁」的名称输入框（2026-10-19）：开着时把当前多选清单存成一条连锁。 */
+  const [saveChainOpen, setSaveChainOpen] = useState(false);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
   const lastRevision = useRef(snapshot.revision);
@@ -567,6 +572,9 @@ export function MainWindowShell() {
               count={selected.length}
               intervalMs={settings.chainIntervalMs}
               onLaunch={() => void launchChain(settings.chainIntervalMs)}
+              /* 保存为连锁（2026-10-19）：弹名称输入框，确认后落 config/chains.json，
+                 主页「连锁」区随即出现一键启动。 */
+              onSave={() => setSaveChainOpen(true)}
               onClear={clearSelected}
               onExit={exitSelecting}
             />
@@ -633,6 +641,36 @@ export function MainWindowShell() {
             width: marquee.rect.width,
             height: marquee.rect.height,
           }}
+        />
+      )}
+
+      {/* 保存为连锁（2026-10-19）：名称输入确认框。同名的拦住——主页「连锁」区靠名字区分，
+          两条同名会让人分不清点哪条。保存的是"当前多选清单的顺序 + 当前间隔"。 */}
+      {saveChainOpen && (
+        <RenameDialog
+          title="保存为连锁"
+          detail={`把当前选中的 ${selected.length} 个入口按这个顺序存成一条连锁；之后在主页点一下就能依次启动。`}
+          fieldLabel="连锁名称"
+          placeholder="例如：开工三件套"
+          initial=""
+          confirmLabel="保存"
+          maxLength={40}
+          validate={(next) => {
+            if (next.trim().length === 0) return '名称不能为空';
+            if (chains.some((c) => c.name === next.trim())) return '已有同名连锁，换个名字';
+            return null;
+          }}
+          onConfirm={(name) => {
+            setSaveChainOpen(false);
+            void saveChain(name, selected, settings.chainIntervalMs).then((r) => {
+              if (r.ok) {
+                push({ title: `已保存连锁「${name.trim()}」，主页「连锁」里可一键启动`, tone: 'success' });
+                return;
+              }
+              push({ title: r.reason ?? '没能保存这条连锁', tone: 'warn' });
+            });
+          }}
+          onCancel={() => setSaveChainOpen(false)}
         />
       )}
 

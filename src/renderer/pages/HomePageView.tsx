@@ -5,19 +5,25 @@
  * 收藏：本机各存各的（favoriteStore），按收藏时间倒序展示为**图标格**（2026-10-17 起），点击即打开。
  * 轮播：手动左右箭头 + 圆点指示（用户定稿：不自动轮播）。
  */
-import { ArrowLeft, ArrowRight, Megaphone, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, EllipsisVertical, ListChecks, Megaphone, Star } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '../components/atoms/Button.tsx';
 import { EmptyBlock } from '../components/molecules/EmptyBlock.tsx';
 import { CardGrid } from '../components/molecules/CardGrid.tsx';
 import { FavoriteTile } from '../components/molecules/FavoriteTile.tsx';
+import { ContextMenu } from '../components/molecules/ContextMenu.tsx';
+import { RenameDialog } from '../components/organisms/SimpleDialog.tsx';
+import { api } from '../bridge/index.ts';
 import { renderMarkdown } from '../lib/markdown.ts';
+import { useChains } from '../store/chainStore.tsx';
 import { useEdit } from '../store/editStore.tsx';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
 import { useSettings } from '../store/settingsStore.tsx';
 import { useSync } from '../store/syncStore.tsx';
+import { useToasts } from '../store/toastStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
+import type { SavedChain } from '../bridge/types.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
 
 export function HomePageView() {
@@ -26,7 +32,17 @@ export function HomePageView() {
   const { settings } = useSettings();
   const edit = useEdit();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
-  const { runtime, openEntry, openDialog } = useWorkbench();
+  const { runtime, openEntry, openDialog, runSavedChain } = useWorkbench();
+  const { push } = useToasts();
+  const { chains, resolve: resolveChain, rename: renameChain, remove: removeChain } = useChains();
+  const [chainMenu, setChainMenu] = useState<{ x: number; y: number; chain: SavedChain } | null>(null);
+  const [renaming, setRenaming] = useState<SavedChain | null>(null);
+  /** 连锁的解析基准：团队快照 + 本机入口（与收藏区同一来源）。 */
+  const teamEntries = useMemo(
+    () => (snapshot.config?.groups ?? []).flatMap((g) => g.entries),
+    [snapshot.config],
+  );
+  const personalEntries = useMemo(() => personal.groups.flatMap((g) => g.entries), [personal]);
 
   const announcements = snapshot.config?.announcements ?? [];
   const [page, setPage] = useState(0);
@@ -213,6 +229,107 @@ export function HomePageView() {
           />
         )}
       </section>
+
+      {/* ---- 连锁区（2026-10-19）----
+          用户要求："希望能支持收藏'连锁'操作，以便记忆，下次只需点一个按钮即可执行。"
+          本机保存（config/chains.json），入口内容以当下为准；失效的项在启动时如实跳过并计数。 */}
+      <section aria-label="连锁" className="mt-6">
+        <div className="mb-2 flex items-center gap-2">
+          <ListChecks size={16} strokeWidth={2} aria-hidden className="text-[var(--accent-text)]" />
+          <h2 className="t-base w-emph text-[var(--fg)]">连锁</h2>
+          <span className="t-2xs text-[var(--meta)]">
+            多选几张卡 → 浮条上「保存为连锁」，这里就能一键按顺序启动；只保存在这台电脑上。
+          </span>
+        </div>
+
+        {chains.length === 0 ? (
+          <p className="t-xs rounded-[var(--radius-lg)] border border-dashed border-[var(--border-default)] px-3 py-2 text-[var(--meta)]">
+            还没有保存的连锁。在「团队入口」或「我的入口」里进入多选、勾好顺序，点「保存为连锁」即可。
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {chains.map((chain) => {
+              const res = resolveChain(chain, teamEntries, personalEntries);
+              const broken = res.entries.length === 0;
+              return (
+                <li
+                  key={chain.id}
+                  className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] px-2 py-1.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="t-sm w-emph m-0 truncate-1 text-[var(--fg)]">{chain.name}</p>
+                    <p className="t-2xs m-0 text-[var(--meta)]">
+                      {res.entries.length} 个入口 · 间隔 {(chain.intervalMs / 1000).toFixed(1)} 秒
+                      {res.missing.length > 0 && ` · ${res.missing.length} 项已失效`}
+                    </p>
+                  </div>
+                  <Button
+                    tone="primary"
+                    size="sm"
+                    softDisabled={broken}
+                    title={broken ? '这条连锁里的入口都已不存在' : `按顺序启动「${chain.name}」`}
+                    onDisabledClick={() => push({ title: '这条连锁里的入口都已不存在，删掉它或重新保存一条', tone: 'warn' })}
+                    onClick={() => {
+                      void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length);
+                      void api.usage.bump({ kind: 'feature', key: 'savedChainRun' });
+                    }}
+                  >
+                    一键启动
+                  </Button>
+                  <Button
+                    tone="ghost"
+                    size="sm"
+                    icon={EllipsisVertical}
+                    aria-label={`「${chain.name}」操作`}
+                    onClick={(e) => {
+                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setChainMenu({ x: r.left, y: r.bottom + 4, chain });
+                    }}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {chainMenu && (
+        <ContextMenu
+          x={chainMenu.x}
+          y={chainMenu.y}
+          items={[
+            { id: 'rename', label: '重命名…', onSelect: () => { setRenaming(chainMenu.chain); setChainMenu(null); } },
+            {
+              id: 'delete',
+              label: '删除这条连锁',
+              destructive: true,
+              onSelect: () => {
+                const target = chainMenu.chain;
+                setChainMenu(null);
+                void removeChain(target.id).then(() => push({ title: `已删除连锁「${target.name}」`, tone: 'info' }));
+              },
+            },
+          ]}
+          onClose={() => setChainMenu(null)}
+        />
+      )}
+
+      {renaming && (
+        <RenameDialog
+          title="重命名连锁"
+          fieldLabel="连锁名称"
+          initial={renaming.name}
+          confirmLabel="保存"
+          maxLength={40}
+          validate={(next) => (next.trim().length === 0 ? '名称不能为空' : null)}
+          onConfirm={(name) => {
+            const target = renaming;
+            setRenaming(null);
+            void renameChain(target.id, name).then(() => push({ title: '已重命名', tone: 'info' }));
+          }}
+          onCancel={() => setRenaming(null)}
+        />
+      )}
     </div>
   );
 }

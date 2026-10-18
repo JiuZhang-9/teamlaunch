@@ -10,6 +10,7 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
 import { isQuitting } from './lifecycle.ts';
+import { logLine } from './appLog.ts';
 import { loadWindowState, trackWindowBounds } from './windowState.ts';
 import { defaultBounds, isRestorableBounds } from '../shared/window-bounds.ts';
 
@@ -177,6 +178,24 @@ export function togglePalette(): void {
   }
   if (palette.isVisible()) hidePalette();
   else showPalette();
+}
+
+/**
+ * 面板窗口的不透明度（2026-10-19 用户要求）：整数百分比 60–100。
+ * 返回**实际生效**的值（Electron 可能夹紧）——调用方据此判断，别自己假设成功了。
+ * 窗口已存在才生效；不存在时只记设置，下次预热创建后由调用方再应用一次。
+ */
+export function setPaletteOpacity(percent: number): number {
+  const target = Math.min(1, Math.max(0.6, percent / 100));
+  if (palette && !palette.isDestroyed()) {
+    palette.setOpacity(target);
+    const applied = Math.round(palette.getOpacity() * 100);
+    // 落盘留痕（与更新链路同一纪律）：透明度是"看不见就没法确认"的设置，
+    // 排障时至少能回答"它到底设进去没有、设成了多少"。
+    logLine('TL-PAL', 'opacity', `${applied}%`);
+    return applied;
+  }
+  return Math.round(percent);
 }
 
 export function showPalette(): void {

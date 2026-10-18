@@ -13,6 +13,7 @@ import { ToastProvider, useToasts } from '../store/toastStore.tsx';
 import { SettingsProvider } from '../store/settingsStore.tsx';
 import { SyncProvider } from '../store/syncStore.tsx';
 import { PersonalProvider } from '../store/personalStore.tsx';
+import { ChainProvider } from '../store/chainStore.tsx';
 import { WorkbenchProvider } from '../store/workbenchStore.tsx';
 import { ToastViewport } from '../components/molecules/Toast.tsx';
 import { MiniPaletteView } from './MiniPaletteView.tsx';
@@ -67,9 +68,13 @@ export function PaletteRoot() {
       <SettingsProvider>
         <SyncProvider>
           <PersonalProvider>
+            {/* 连锁 store 与主窗口同一份实现（面板不展示连锁，但 WorkbenchProvider 的
+                启动链路引用它，缺了会在面板窗口里炸 Provider 链）。 */}
+            <ChainProvider>
             <WorkbenchProvider>
               <PaletteWindow />
             </WorkbenchProvider>
+            </ChainProvider>
           </PersonalProvider>
         </SyncProvider>
       </SettingsProvider>

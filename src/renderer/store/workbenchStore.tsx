@@ -133,6 +133,8 @@ interface WorkbenchCtx {
   clearSelected(): void;
   exitSelecting(): void;
   launchChain(intervalMs: number): Promise<void>;
+  /** 启动一条收藏的连锁（2026-10-19）：按保存顺序打开，`missingCount` 用于如实汇报已失效的项。 */
+  runSavedChain(list: Entry[], intervalMs: number, name: string, missingCount: number): Promise<void>;
 }
 
 const Ctx = createContext<WorkbenchCtx | null>(null);
@@ -308,10 +310,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
    * 连锁启动：按清单顺序逐个打开，每步之间等待设置里的间隔；
    * 某一步失败 = 跳过并记录，最后一条警告汇总，绝不中断剩余步骤（用户定稿 2026-10-05）。
    */
-  const launchChain = useCallback(
-    async (intervalMs: number) => {
-      const list = selected;
-      exitSelecting();
+  const runList = useCallback(
+    async (list: Entry[], intervalMs: number, opts: { label?: string; missingCount?: number } = {}) => {
       if (list.length === 0) return;
       void api.usage.bump({ kind: 'feature', key: 'chainLaunch' });
       const failed: string[] = [];
@@ -327,13 +327,33 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         }
         if (i < list.length - 1) await new Promise((resolve) => setTimeout(resolve, intervalMs));
       }
+      const head = opts.label ?? '连锁启动';
+      const missing = opts.missingCount ?? 0;
+      const tail = missing > 0 ? `，另有 ${missing} 项已不存在、已跳过` : '';
       if (failed.length > 0) {
-        push({ title: `连锁启动完成，${failed.length} 项未能打开：${failed.join('、')}`, tone: 'warn', duration: 6000 });
+        push({ title: `${head}完成，${failed.length} 项未能打开：${failed.join('、')}${tail}`, tone: 'warn', duration: 6000 });
       } else {
-        push({ title: `连锁启动完成（共 ${list.length} 项）`, tone: 'success' });
+        push({ title: `${head}完成（共 ${list.length} 项）${tail}`, tone: 'success' });
       }
     },
-    [selected, exitSelecting, push],
+    [push],
+  );
+
+  const launchChain = useCallback(
+    async (intervalMs: number) => {
+      const list = selected;
+      exitSelecting();
+      await runList(list, intervalMs);
+    },
+    [selected, exitSelecting, runList],
+  );
+
+  /** 收藏的连锁（2026-10-19）：一键按保存时的顺序启动；不动当前多选清单。 */
+  const runSavedChain = useCallback(
+    async (list: Entry[], intervalMs: number, name: string, missingCount: number) => {
+      await runList(list, intervalMs, { label: `连锁「${name}」`, missingCount });
+    },
+    [runList],
   );
 
   /**
@@ -433,8 +453,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       clearSelected,
       exitSelecting,
       launchChain,
+      runSavedChain,
     }),
-    [tab, setTab, setEditingLock, query, runtime, openEntry, copyTarget, copyManyTargets, dialog, settingsSection, openSettings, openDialog, feedbackTargetId, openFeedback, relocateEntry, entryEditor, openEntryEditor, closeEntryEditor, quickAddFromText, typeFilter, toggleTypeFilter, clearTypeFilter, selecting, selected, toggleSelecting, toggleSelected, addSelected, selectMany, clearSelected, exitSelecting, launchChain],
+    [tab, setTab, setEditingLock, query, runtime, openEntry, copyTarget, copyManyTargets, dialog, settingsSection, openSettings, openDialog, feedbackTargetId, openFeedback, relocateEntry, entryEditor, openEntryEditor, closeEntryEditor, quickAddFromText, typeFilter, toggleTypeFilter, clearTypeFilter, selecting, selected, toggleSelecting, toggleSelected, addSelected, selectMany, clearSelected, exitSelecting, launchChain, runSavedChain],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

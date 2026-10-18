@@ -75,6 +75,8 @@ credential.json        仅管理员：口令派生参数（删除它即可重设
 cache\team-current.json  团队配置缓存
 config\personal.json     个人入口（本机，不上网）
 config\favorites.json    主页收藏（本机）
+config\chains.json       连锁收藏（2026-10-19 起：名称 + 入口 id 顺序 + 间隔，只在本机）
+config\window-state.json 主窗口位置/大小/是否最大化（2026-10-18 起；删掉它＝下次回默认居中）
 config\usage-stats.json  本机用量统计（2026-10-17 起：入口点击成功/失败次数 + 功能使用次数）
                          **只落本机、不上报、界面不展示**；删掉它即归零
 config\app-overrides.json 本机重新定位缓存（per-machine）

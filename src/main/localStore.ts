@@ -57,6 +57,17 @@ export const localStore = {
     return writeJsonAtomic(path.join('config', 'favorites.json'), value);
   },
   /**
+   * 连锁启动的收藏（2026-10-19 用户要求"支持收藏连锁操作，下次点一个按钮即可执行"）：
+   * 只存"名称 + 入口 id 的顺序 + 间隔"，与收藏同一套口径——**本机各存各的，不随团队同步**；
+   * 入口内容以当下为准，被删掉的入口在启动时如实跳过并说明。
+   */
+  chains<T>(fallback: T): Promise<T> {
+    return readJson(path.join('config', 'chains.json'), fallback);
+  },
+  saveChains(value: unknown): Promise<void> {
+    return writeJsonAtomic(path.join('config', 'chains.json'), value);
+  },
+  /**
    * 本机用量统计（2026-10-17）：入口点击成功/失败次数 + 功能使用次数。
    * **只落本机、不上报、不进 UI**；用户自己可以打开看或删掉（见 docs/DELIVERY.md §7）。
    */

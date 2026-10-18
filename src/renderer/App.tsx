@@ -16,6 +16,7 @@ import { MainWindowShell } from './components/organisms/MainWindowShell.tsx';
 import { ToastViewport } from './components/molecules/Toast.tsx';
 import { EditProvider } from './store/editStore.tsx';
 import { FavoriteProvider } from './store/favoriteStore.tsx';
+import { ChainProvider } from './store/chainStore.tsx';
 import { FeedbackProvider } from './store/feedbackStore.tsx';
 import { PersonalProvider } from './store/personalStore.tsx';
 import { SettingsProvider, useSettings } from './store/settingsStore.tsx';
@@ -59,6 +60,7 @@ export function App() {
             <FeedbackProvider>
               <EditProvider>
                 <FavoriteProvider>
+                <ChainProvider>
                 <WorkbenchProvider>
                   {/* 必须是 flex 容器：外壳靠 flex-1 撑满窗口。曾是普通 div，
                       外壳塌缩成内容高度，对话框"往上串"就是它。 */}
@@ -68,6 +70,7 @@ export function App() {
                     <ToastLayer />
                   </div>
                 </WorkbenchProvider>
+                </ChainProvider>
                 </FavoriteProvider>
               </EditProvider>
             </FeedbackProvider>

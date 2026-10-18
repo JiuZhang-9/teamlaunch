@@ -14,6 +14,7 @@ import type {
   BookmarkBrowser,
   BookmarkSource,
   FavoriteItem,
+  SavedChain,
   FeedbackDelivery,
   ImportCommitResult,
   ImportDecisions,
@@ -274,6 +275,11 @@ const api: TeamLaunchApi = {
   favorites: {
     get: () => invoke<FavoriteItem[]>('tl:favorites-get'),
     save: (list) => invoke<void>('tl:favorites-save', list),
+  },
+  /* 连锁收藏（2026-10-19）：与收藏同款——本机文件，形状校验在 store 里做。 */
+  chains: {
+    get: () => invoke<SavedChain[]>('tl:chains-get'),
+    save: (list) => invoke<void>('tl:chains-save', list),
   },
   /* 本机用量统计（仅落本机文件、不上报、不进 UI）：失败静默，绝不影响功能。 */
   usage: {

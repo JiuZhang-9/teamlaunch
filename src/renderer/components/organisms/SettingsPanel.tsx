@@ -37,6 +37,7 @@ import { api } from '../../bridge/index.ts';
 import { APP_VERSION } from '../../lib/appVersion.ts';
 import type { AdminStatus, AppUpdateStatus, BrowserInfo } from '../../bridge/types.ts';
 import { updateStatusLine as statusLine } from '../../../shared/update-copy.ts';
+import { acceleratorOf } from '../../../shared/app-hotkeys.ts';
 import { formatRevDate } from './EditActionBar.tsx';
 
 export type ZoomLevel = 90 | 100 | 105 | 110;
@@ -377,6 +378,24 @@ export function SettingsPanel({
             </div>
 
             <Divider />
+            <SectionHead>全局快捷窗口</SectionHead>
+            <p className="t-2xs mb-2 text-[var(--meta)]">
+              面板的不透明度：调低后能透出身后的窗口，方便边看边操作；只影响快捷窗口，不动主窗口
+            </p>
+            <Segmented
+              label="快捷窗口不透明度"
+              value={settings.paletteOpacity}
+              onChange={(v) => onPatch({ paletteOpacity: v })}
+              options={[
+                { value: 100, label: '100%' },
+                { value: 95, label: '95%' },
+                { value: 90, label: '90%' },
+                { value: 85, label: '85%' },
+                { value: 80, label: '80%' },
+              ]}
+            />
+
+            <Divider />
             <SectionHead>连锁启动</SectionHead>
             <p className="t-2xs mb-2 text-[var(--meta)]">
               多选模式下点「启动连锁」后，每个入口之间的等待时间（某一步打不开会跳过并在最后提示）
@@ -420,12 +439,11 @@ export function SettingsPanel({
                     return;
                   }
                   if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
-                  const parts: string[] = [];
-                  if (e.ctrlKey) parts.push('Ctrl');
-                  if (e.altKey) parts.push('Alt');
-                  if (e.shiftKey) parts.push('Shift');
-                  parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
-                  onPatch({ hotkey: parts.join('+') });
+                  /* 归一走共享实现（shared/app-hotkeys.ts）：空格必须写成 `Space`，
+                     否则存进去的是 `Ctrl+ `，全局注册与窗口内匹配都永远失败。 */
+                  const accel = acceleratorOf(e);
+                  if (accel === null) return;
+                  onPatch({ hotkey: accel });
                   setRecording(false);
                 }}
                 />
