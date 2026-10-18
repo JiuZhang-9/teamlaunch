@@ -11,6 +11,7 @@ import { extractIcon, openEntry, openUrl, type OpenTarget, type RelocateResult }
 import { resolveAppCandidates, saveOverride } from './appResolver.ts';
 import { fetchPageTitle } from './pageTitle.ts';
 import { listBookmarkBrowsers, scanBookmarks } from './bookmarks.ts';
+import { applyLayout, captureLayout, clearLayout, layoutCount } from './windowLayout.ts';
 import { recordEntryOpen, recordFeature, type UsageFeature } from './usageStats.ts';
 import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './updater.ts';
 import { syncService } from './syncBridge.ts';
@@ -122,6 +123,21 @@ export function registerIpc(deps: IpcDeps): void {
     await localStore.saveChains(list);
     return true;
   });
+
+  /* 连锁的窗口位置记忆（2026-10-19 进阶）：记一次 / 启动时应用 / 查条数 / 清除。
+     判定与落盘都在 main/windowLayout.ts（那里管 PowerShell 一次性调用与失败原因）。 */
+  ipcMain.handle('tl:window-layout-capture', (_e, chainId: unknown, steps: unknown) =>
+    captureLayout(app.getPath('userData'), String(chainId ?? ''), (steps ?? []) as Parameters<typeof captureLayout>[2]),
+  );
+  ipcMain.handle('tl:window-layout-apply', (_e, chainId: unknown, entryId: unknown) =>
+    applyLayout(app.getPath('userData'), String(chainId ?? ''), String(entryId ?? '')),
+  );
+  ipcMain.handle('tl:window-layout-info', (_e, chainId: unknown) =>
+    layoutCount(app.getPath('userData'), String(chainId ?? '')),
+  );
+  ipcMain.handle('tl:window-layout-clear', (_e, chainId: unknown) =>
+    clearLayout(app.getPath('userData'), String(chainId ?? '')),
+  );
 
   // 自动更新：用户点了「立即更新并重启」→ 静默安装 + 重启。
   ipcMain.handle('tl:app-update-install', () => installDownloadedUpdate());

@@ -6,7 +6,7 @@
  * 轮播：手动左右箭头 + 圆点指示（用户定稿：不自动轮播）。
  */
 import { ArrowLeft, ArrowRight, EllipsisVertical, ListChecks, Megaphone, Star } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '../components/atoms/Button.tsx';
 import { EmptyBlock } from '../components/molecules/EmptyBlock.tsx';
 import { CardGrid } from '../components/molecules/CardGrid.tsx';
@@ -43,6 +43,45 @@ export function HomePageView() {
     [snapshot.config],
   );
   const personalEntries = useMemo(() => personal.groups.flatMap((g) => g.entries), [personal]);
+
+  /* 窗口布局的记忆条数（2026-10-19 进阶）：每条连锁一个数，挂载与操作后各读一次。 */
+  const [layoutCounts, setLayoutCounts] = useState<Record<string, number>>({});
+  const refreshLayoutCounts = useCallback(async () => {
+    const pairs = await Promise.all(
+      chains.map(async (c) => [c.id, await api.windowLayout.info(c.id)] as const),
+    );
+    setLayoutCounts(Object.fromEntries(pairs));
+  }, [chains]);
+  useEffect(() => {
+    void refreshLayoutCounts();
+  }, [refreshLayoutCounts]);
+
+  /**
+   * 「记住窗口布局」：把这条连锁里**已经打开并摆好**的应用/文件夹窗口的位置记下来。
+   * 只记 app / folder（网页是共享的浏览器窗口，摆它等于摆浏览器，不碰）。
+   * 结果如实汇报：记住了几个、哪几个没找到（通常是窗口没开着）。
+   */
+  const captureChainLayout = useCallback(
+    async (chain: SavedChain) => {
+      const res = resolveChain(chain, teamEntries, personalEntries);
+      const steps = res.entries
+        .filter((e): e is Entry & { type: 'app' | 'folder' } => e.type === 'app' || e.type === 'folder')
+        .map((e) => ({ entryId: e.id, kind: e.type, target: e.target }));
+      if (steps.length === 0) {
+        push({ title: '这条连锁里没有应用或文件夹，没有窗口位置可记', tone: 'warn' });
+        return;
+      }
+      const out = await api.windowLayout.capture(chain.id, steps);
+      await refreshLayoutCounts();
+      if (out.saved > 0) {
+        const tail = out.missing.length > 0 ? `；还有 ${out.missing.length} 个窗口没找到（先打开它们再记一次）` : '';
+        push({ title: `已记住 ${out.saved} 个窗口的位置${tail}`, tone: 'success' });
+        return;
+      }
+      push({ title: out.reason ?? '没有找到可记的窗口', tone: 'warn' });
+    },
+    [personalEntries, push, refreshLayoutCounts, resolveChain, teamEntries],
+  );
 
   const announcements = snapshot.config?.announcements ?? [];
   const [page, setPage] = useState(0);
@@ -251,6 +290,7 @@ export function HomePageView() {
             {chains.map((chain) => {
               const res = resolveChain(chain, teamEntries, personalEntries);
               const broken = res.entries.length === 0;
+              const layoutCount = layoutCounts[chain.id] ?? 0;
               return (
                 <li
                   key={chain.id}
@@ -261,6 +301,7 @@ export function HomePageView() {
                     <p className="t-2xs m-0 text-[var(--meta)]">
                       {res.entries.length} 个入口 · 间隔 {(chain.intervalMs / 1000).toFixed(1)} 秒
                       {res.missing.length > 0 && ` · ${res.missing.length} 项已失效`}
+                      {layoutCount > 0 && ` · 已记住 ${layoutCount} 个窗口位置`}
                     </p>
                   </div>
                   <Button
@@ -270,7 +311,12 @@ export function HomePageView() {
                     title={broken ? '这条连锁里的入口都已不存在' : `按顺序启动「${chain.name}」`}
                     onDisabledClick={() => push({ title: '这条连锁里的入口都已不存在，删掉它或重新保存一条', tone: 'warn' })}
                     onClick={() => {
-                      void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length);
+                      /* 启动时对"记过位置"的那几步摆位（2026-10-19 进阶）：
+                         回调里是 fire-and-forget——摆位脚本自己等窗口出现，不拖住连锁节奏。 */
+                      void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length, (entry) => {
+                        if (entry.type === 'web') return;
+                        void api.windowLayout.apply(chain.id, entry.id);
+                      });
                       void api.usage.bump({ kind: 'feature', key: 'savedChainRun' });
                     }}
                   >
@@ -298,6 +344,29 @@ export function HomePageView() {
           x={chainMenu.x}
           y={chainMenu.y}
           items={[
+            {
+              id: 'capture-layout',
+              label: '记住窗口布局',
+              onSelect: () => {
+                const chain = chainMenu.chain;
+                setChainMenu(null);
+                void captureChainLayout(chain);
+              },
+            },
+            ...((layoutCounts[chainMenu.chain.id] ?? 0) > 0
+              ? [{
+                  id: 'clear-layout',
+                  label: '清除记住的窗口位置',
+                  onSelect: () => {
+                    const chain = chainMenu.chain;
+                    setChainMenu(null);
+                    void api.windowLayout.clear(chain.id).then(() => {
+                      void refreshLayoutCounts();
+                      push({ title: `已清除「${chain.name}」记住的窗口位置`, tone: 'info' });
+                    });
+                  },
+                }]
+              : []),
             { id: 'rename', label: '重命名…', onSelect: () => { setRenaming(chainMenu.chain); setChainMenu(null); } },
             {
               id: 'delete',
@@ -306,7 +375,9 @@ export function HomePageView() {
               onSelect: () => {
                 const target = chainMenu.chain;
                 setChainMenu(null);
-                void removeChain(target.id).then(() => push({ title: `已删除连锁「${target.name}」`, tone: 'info' }));
+                void removeChain(target.id)
+                  .then(() => api.windowLayout.clear(target.id))
+                  .then(() => push({ title: `已删除连锁「${target.name}」`, tone: 'info' }));
               },
             },
           ]}

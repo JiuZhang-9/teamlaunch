@@ -358,6 +358,20 @@ export interface TeamLaunchApi {
   };
 
   /**
+   * 连锁的窗口位置记忆（2026-10-19 进阶需求）：把"应用窗口/文件夹窗口的位置与大小"
+   * 记一次，连锁启动时对记过的那些窗口摆位。匹配按 exe 路径 / 文件夹 URL 做（详见 main/windowLayout.ts）。
+   */
+  windowLayout: {
+    /** 记一次：调用前请把要记的窗口都开着并摆好。 */
+    capture(chainId: string, steps: Array<{ entryId: string; kind: 'app' | 'folder'; target: string }>): Promise<{ saved: number; missing: string[]; reason?: string }>;
+    /** 摆一条（连锁启动每一步调用；没记过的直接跳过，不打扰）。 */
+    apply(chainId: string, entryId: string): Promise<{ ok: boolean; reason?: string }>;
+    /** 这条连锁记过几条。 */
+    info(chainId: string): Promise<number>;
+    clear(chainId: string): Promise<boolean>;
+  };
+
+  /**
    * 本机用量统计（2026-10-17 用户拍板"仅本机记录"）：入口点击结果与功能使用次数，
    * 只写 userData/config/usage-stats.json——**不上报、不进 UI**。失败静默（绝不连累打开入口）。
    */

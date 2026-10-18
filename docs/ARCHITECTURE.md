@@ -763,6 +763,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 │   ├── window-state.json    主窗口的位置/大小/是否最大化（2026-10-18；机器状态，不是用户意图）
 │   ├── app-overrides.json   应用入口的本机重新定位缓存
 │   ├── chains.json          连锁收藏（2026-10-19：名称 + 入口 id 顺序 + 间隔，只在本机）
+│   ├── window-layouts.json  连锁记住的窗口位置/大小（2026-10-19 进阶；按 chainId → entryId 记）
 │   └── usage-stats.json     仅本机的使用计数（入口点击结果 / 功能次数，不上报）
 ├── revisions\
 │   ├── index.jsonl          变更记录追加日志（保留最近 20 条）

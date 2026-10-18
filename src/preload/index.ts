@@ -281,6 +281,14 @@ const api: TeamLaunchApi = {
     get: () => invoke<SavedChain[]>('tl:chains-get'),
     save: (list) => invoke<void>('tl:chains-save', list),
   },
+  /* 连锁的窗口位置记忆（2026-10-19 进阶）：记一次 / 启动时应用 / 查条数 / 清除。 */
+  windowLayout: {
+    capture: (chainId, steps) =>
+      invoke<{ saved: number; missing: string[]; reason?: string }>('tl:window-layout-capture', chainId, steps),
+    apply: (chainId, entryId) => invoke<{ ok: boolean; reason?: string }>('tl:window-layout-apply', chainId, entryId),
+    info: (chainId) => invoke<number>('tl:window-layout-info', chainId),
+    clear: (chainId) => invoke<boolean>('tl:window-layout-clear', chainId),
+  },
   /* 本机用量统计（仅落本机文件、不上报、不进 UI）：失败静默，绝不影响功能。 */
   usage: {
     bump: (event) => invoke<boolean>('tl:usage-bump', event),

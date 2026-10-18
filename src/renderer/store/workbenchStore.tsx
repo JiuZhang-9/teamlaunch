@@ -134,7 +134,7 @@ interface WorkbenchCtx {
   exitSelecting(): void;
   launchChain(intervalMs: number): Promise<void>;
   /** 启动一条收藏的连锁（2026-10-19）：按保存顺序打开，`missingCount` 用于如实汇报已失效的项。 */
-  runSavedChain(list: Entry[], intervalMs: number, name: string, missingCount: number): Promise<void>;
+  runSavedChain(list: Entry[], intervalMs: number, name: string, missingCount: number, onStepOpened?: (entry: Entry) => void): Promise<void>;
 }
 
 const Ctx = createContext<WorkbenchCtx | null>(null);
@@ -311,7 +311,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
    * 某一步失败 = 跳过并记录，最后一条警告汇总，绝不中断剩余步骤（用户定稿 2026-10-05）。
    */
   const runList = useCallback(
-    async (list: Entry[], intervalMs: number, opts: { label?: string; missingCount?: number } = {}) => {
+    async (list: Entry[], intervalMs: number, opts: { label?: string; missingCount?: number; onStepOpened?: (entry: Entry) => void } = {}) => {
       if (list.length === 0) return;
       void api.usage.bump({ kind: 'feature', key: 'chainLaunch' });
       const failed: string[] = [];
@@ -321,6 +321,9 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
         const result = await api.entries.openObject(entry);
         if (result.ok) {
           setRuntime((r) => ({ ...r, [entry.id]: { phase: 'idle' } }));
+          /* 窗口位置记忆（2026-10-19）：开成功才摆位；**不 await**——摆位脚本要等窗口出现
+             （最长十几秒），等它会把连锁的节奏拖住。它自己轮询、自己失败（结果只落日志）。 */
+          opts.onStepOpened?.(entry);
         } else {
           setRuntime((r) => ({ ...r, [entry.id]: { phase: 'failed', failure: result.failure } }));
           failed.push(entry.name);
@@ -350,8 +353,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   /** 收藏的连锁（2026-10-19）：一键按保存时的顺序启动；不动当前多选清单。 */
   const runSavedChain = useCallback(
-    async (list: Entry[], intervalMs: number, name: string, missingCount: number) => {
-      await runList(list, intervalMs, { label: `连锁「${name}」`, missingCount });
+    async (list: Entry[], intervalMs: number, name: string, missingCount: number, onStepOpened?: (entry: Entry) => void) => {
+      await runList(list, intervalMs, { label: `连锁「${name}」`, missingCount, onStepOpened });
     },
     [runList],
   );

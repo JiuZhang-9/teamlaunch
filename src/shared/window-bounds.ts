@@ -21,6 +21,33 @@ export const MIN_VISIBLE_PX = 80;
 export const MIN_WINDOW_W = 880;
 export const MIN_WINDOW_H = 480;
 
+/**
+ * 窗口矩形的可用性判定（连锁的窗口位置记忆用，2026-10-19）。
+ *
+ * 必须挡住的两种垃圾数据：
+ *  1. **最小化窗口**：Windows 把最小化窗口的 GetWindowRect 报成左上角 -32000,-32000、
+ *     尺寸只剩标题栏（实测 160×28）。记下来等于"记住了一个最小化状态"，下次 MoveWindow
+ *     到 -32000 反而会把窗口再次最小化——用户看到的是"它又开始偷懒"。
+ *  2. **贴边/异常尺寸**：宽高小于一个可用窗口的下限，摆出来也看不清。
+ * 多显示器允许负坐标（副屏在主屏左侧很常见），阈值取 -30000，只挡哨兵值。
+ */
+export const MIN_PLAUSIBLE_WINDOW = { width: 160, height: 100 } as const;
+
+export interface WindowRectLike {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function isPlausibleWindowRect(rect: WindowRectLike): boolean {
+  if (!Number.isFinite(rect.x) || !Number.isFinite(rect.y) || !Number.isFinite(rect.width) || !Number.isFinite(rect.height)) {
+    return false;
+  }
+  if (rect.x <= -30_000 || rect.y <= -30_000) return false;
+  return rect.width >= MIN_PLAUSIBLE_WINDOW.width && rect.height >= MIN_PLAUSIBLE_WINDOW.height;
+}
+
 export interface Rect {
   x: number;
   y: number;

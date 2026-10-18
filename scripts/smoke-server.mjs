@@ -30,7 +30,7 @@ import { AUTH, BEACON_MAGIC, UDP_DISCOVERY_PORT, DISCOVERY_PERSIST_THROTTLE_MS, 
 import { assertTrustedKdf, deriveVerifier, isTrustedKdf, scryptMemoryBytes, UntrustedKdfError } from '../src/shared/kdf.ts';
 import { compareVersions, isVersionNewer } from '../src/shared/version.ts';
 import { updateStatusLine } from '../src/shared/update-copy.ts';
-import { defaultBounds, isRestorableBounds } from '../src/shared/window-bounds.ts';
+import { defaultBounds, isRestorableBounds, isPlausibleWindowRect } from '../src/shared/window-bounds.ts';
 import { moveEntries } from '../src/shared/move-entries.ts';
 import { SettingsRepository } from '../src/repositories/settings.repository.ts';
 import { PersonalRepository } from '../src/repositories/personal.repository.ts';
@@ -1122,6 +1122,17 @@ async function main() {
       `小屏默认必须收进工作区，实际 ${laptop.width}×${laptop.height}`);
     assert(laptop.width >= 880 && laptop.height >= 480, '默认尺寸不得低于最小窗口尺寸');
     return `1920 屏 → ${big.width}×${big.height}；1366×728 屏 → ${laptop.width}×${laptop.height}（都居中且不越界）`;
+  });
+
+  /* 连锁的窗口位置记忆（2026-10-19）：最小化窗口的 GetWindowRect 是 -32000/-32000 + 标题栏尺寸
+     （实测 160×28）。这条判定错了，就会把"最小化"当成布局记下来，下次启动反而把窗口再最小化一次。 */
+  await step('窗口矩形可信度：最小化哨兵与异常尺寸必须拒收', async () => {
+    assert(isPlausibleWindowRect({ x: 120, y: 90, width: 520, height: 380 }) === true, '正常窗口应可记');
+    assert(isPlausibleWindowRect({ x: -30000, y: -30000, width: 160, height: 28 }) === false, '最小化哨兵必须拒收');
+    assert(isPlausibleWindowRect({ x: 100, y: 100, width: 160, height: 28 }) === false, '只剩标题栏的高度必须拒收');
+    // 副屏在主屏左侧是常见布局，负坐标必须放行
+    assert(isPlausibleWindowRect({ x: -1800, y: 60, width: 900, height: 700 }) === true, '副屏负坐标应可记');
+    return '-32000 哨兵与 160×28 拒收；副屏负坐标放行';
   });
 
   // ServerOptions.port 曾被静默忽略（漂移循环恒定从首选常量起跳），调用方以为
