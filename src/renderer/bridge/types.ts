@@ -394,6 +394,24 @@ export interface TeamLaunchApi {
     changelog(): Promise<string | null>;
   };
 
+  /**
+   * 系统通知（2026-10-19 用户要求"右下角弹窗改成全局的 Windows 弹窗"）。
+   * 只给"值得在应用外也知道"的事（新公告 / 新版本）；交互内的即时反馈继续用应用内 Toast。
+   * 返回 false = 系统不支持或被系统设置吞掉（不抛错，功能不受影响）。
+   */
+  notify: {
+    system(payload: { title: string; body: string }): Promise<boolean>;
+  };
+
+  /**
+   * 拖拽添加（2026-10-19 用户要求）：把桌面图标 / 文件夹拖进窗口时，取被拖文件的真实路径。
+   * 渲染层拿不到 fs，也拿不到 File.path（Electron 32+ 已移除）——统一走这里。
+   * 取不到路径返回空串（调用方据此跳过并如实提示）。
+   */
+  files: {
+    pathFor(file: File): string;
+  };
+
   /** 自动更新（打包版才有行为；开发态 install 不会被执行——入口根本不启动）。 */
   updater: {
     /**
@@ -548,6 +566,8 @@ export interface TeamLaunchApi {
     onAppUpdate(cb: (event: AppUpdateEvent) => void): () => void;
     /** 主进程转发的"把这段文本走一遍粘贴添加"（快捷面板的「加为入口」用）。 */
     onQuickAdd(cb: (text: string) => void): () => void;
+    /** 用户点了系统通知：界面据此做"去主页看公告"这类收尾（窗口前台化由主进程已做掉）。 */
+    onNoticeClick(cb: () => void): () => void;
   };
 }
 

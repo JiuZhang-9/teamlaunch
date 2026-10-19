@@ -198,6 +198,14 @@ export function setPaletteOpacity(percent: number): number {
   return Math.round(percent);
 }
 
+/** 把主窗口拿到前台（点系统通知的默认动作 / 托盘菜单都用它）。 */
+export function showMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
 export function showPalette(): void {
   if (!palette || palette.isDestroyed()) return;
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());

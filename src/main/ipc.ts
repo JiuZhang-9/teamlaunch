@@ -16,7 +16,8 @@ import { recordEntryOpen, recordFeature, type UsageFeature } from './usageStats.
 import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './updater.ts';
 import { syncService } from './syncBridge.ts';
 import { serverPort } from './serverPort.ts';
-import { hidePalette } from './windowManager.ts';
+import { hidePalette, showMainWindow } from './windowManager.ts';
+import { notifySystem } from './notify.ts';
 import { localStore } from './localStore.ts';
 import { EntrySchema } from '../shared/schema/entry.ts';
 import { SettingsSchema } from '../shared/schema/local.ts';
@@ -114,6 +115,22 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('tl:favorites-save', async (_e, list: unknown) => {
     await localStore.saveFavorites(list);
     return true;
+  });
+
+  /* 系统通知（2026-10-19）：渲染层决定"要不要打扰"，主进程负责发系统级 toast。
+     点击通知默认把主窗口拿到前台，并回推一条 `tl:notice-click` 让界面做"去主页"这类收尾。 */
+  ipcMain.handle('tl:notice', (_e, payload: unknown) => {
+    const p = (payload ?? {}) as { title?: unknown; body?: unknown };
+    if (typeof p.title !== 'string' || typeof p.body !== 'string') return false;
+    return notifySystem({
+      title: p.title,
+      body: p.body,
+      onClick: () => {
+        showMainWindow();
+        const win = deps.getWindows()[0];
+        if (win && !win.isDestroyed()) win.webContents.send('tl:notice-click');
+      },
+    });
   });
 
   /* 连锁收藏（2026-10-19）：同样是本机文件（config/chains.json）。

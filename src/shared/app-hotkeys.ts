@@ -55,10 +55,26 @@ export const APP_HOTKEY_LABELS: Record<AppHotkeyAction, string> = {
  * `'Ctrl+ '`（尾随空格）——Electron 的 globalShortcut 认为它非法，注册静默失败，
  * 而匹配器按 `+` 拆开再 trim 后只剩 `['Ctrl']`，窗口内也永远匹配不上。
  * 结果就是"改成别的键之后再想设回 Ctrl+空格就设不回去了"（2026-10-19 用户报）。
- * 命名键用规范名（与 Electron 加速器语法一致）；单字符键统一大写。
+ *
+ * **输入法兜底（2026-10-19 第二轮）**：中文输入法占用 Ctrl+空格（中英切换）时，
+ * 浏览器可能拿不到正常的 `e.key`——只给 `'Process'` / `'Unidentified'`（keyCode 229）。
+ * 这时退回用 `e.code`（物理键位，不受输入法影响）翻译，至少让"录制"这一步能拿到键名；
+ * 能不能真的全局注册由系统决定（注册失败会如实报冲突，见 hotkey.ts）。
  */
-export function acceleratorKeyName(key: string): string {
-  if (key === ' ' || key === 'Spacebar') return 'Space';
+export function acceleratorKeyName(key: string, code?: string): string {
+  if (key === ' ' || key === 'Spacebar' || key === 'Space') return 'Space';
+  const unusable = key === '' || key === 'Process' || key === 'Unidentified' || key === 'Dead';
+  if (unusable && typeof code === 'string' && code.length > 0) {
+    if (code === 'Space') return 'Space';
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+    if (/^Numpad[0-9]$/.test(code)) return code.slice(6);
+    if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code;
+    if (code === 'Escape') return 'Esc';
+    if (code === 'Enter' || code === 'NumpadEnter') return 'Enter';
+    if (code === 'Tab') return 'Tab';
+    return code;
+  }
   return key.length === 1 ? key.toUpperCase() : key;
 }
 
@@ -68,13 +84,14 @@ export function acceleratorOf(e: {
   altKey: boolean;
   shiftKey: boolean;
   key: string;
+  code?: string;
 }): string | null {
   if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return null;
   const parts: string[] = [];
   if (e.ctrlKey) parts.push('Ctrl');
   if (e.altKey) parts.push('Alt');
   if (e.shiftKey) parts.push('Shift');
-  parts.push(acceleratorKeyName(e.key));
+  parts.push(acceleratorKeyName(e.key, e.code));
   return parts.join('+');
 }
 
@@ -84,7 +101,7 @@ export function acceleratorOf(e: {
  */
 export function acceleratorMatches(
   accel: string | undefined,
-  e: { ctrlKey: boolean; altKey: boolean; shiftKey: boolean; key: string },
+  e: { ctrlKey: boolean; altKey: boolean; shiftKey: boolean; key: string; code?: string },
 ): boolean {
   if (!accel) return false;
   const parts = accel.split('+').map((p) => p.trim()).filter(Boolean);
@@ -93,6 +110,7 @@ export function acceleratorMatches(
   if (e.ctrlKey !== parts.includes('Ctrl')) return false;
   if (e.altKey !== parts.includes('Alt')) return false;
   if (e.shiftKey !== parts.includes('Shift')) return false;
-  /* 两边都过同一个归一（' ' ↔ 'Space'）：只归一存起来的那边，按空格时照样匹配不上。 */
-  return key.toLowerCase() === acceleratorKeyName(e.key).toLowerCase();
+  /* 两边都过同一个归一（' ' ↔ 'Space' / 输入法的 Process ↔ code）：只归一存起来的那边，
+     按空格时照样匹配不上。 */
+  return key.toLowerCase() === acceleratorKeyName(e.key, e.code).toLowerCase();
 }

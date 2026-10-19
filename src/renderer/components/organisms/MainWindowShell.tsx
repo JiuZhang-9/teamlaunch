@@ -63,7 +63,7 @@ export function MainWindowShell() {
   const { snapshot, refresh } = useSync();
   const { settings, patch } = useSettings();
   const edit = useEdit();
-  const { config: personal, usage, beginImport, addGroup: addPersonalGroup, renameGroup: personalRenameGroup, moveGroup: personalMoveGroup, removeGroup: personalRemoveGroup, removeGroups: personalRemoveGroups, sortGroupsByName: personalSortGroupsByName } = usePersonal();
+  const { config: personal, usage, beginImport, addEntries: addPersonalEntries, addGroup: addPersonalGroup, renameGroup: personalRenameGroup, moveGroup: personalMoveGroup, removeGroup: personalRemoveGroup, removeGroups: personalRemoveGroups, sortGroupsByName: personalSortGroupsByName } = usePersonal();
   /** 连锁收藏（2026-10-19）：这里只用「保存」——主页负责展示与启动。 */
   const { chains, save: saveChain } = useChains();
   const { push } = useToasts();
@@ -90,6 +90,9 @@ export function MainWindowShell() {
   const [deleteGroups, setDeleteGroups] = useState<Group[] | null>(null);
   /** 「保存为连锁」的名称输入框（2026-10-19）：开着时把当前多选清单存成一条连锁。 */
   const [saveChainOpen, setSaveChainOpen] = useState(false);
+  /** 刚发过"新公告"的系统通知：用户点它时把页面切到主页（2026-10-19）。
+      用 ref 而不是 state：只在点击回调里读一次，不需要触发重渲染。 */
+  const noticePendingRef = useRef(false);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
   const lastRevision = useRef(snapshot.revision);
@@ -198,9 +201,11 @@ export function MainWindowShell() {
      下面的公告广播 effect 与粘贴处理都要用，而 effect 的依赖必须在它之前可见。 */
   const gateBlocking = settings.telemetryNoticeAckedAt === null;
 
-  /* 主页公告广播（2026-10-17 用户要求"让所有人知晓"）：挑出"没提示过的公告"，右下角提示一次。
-     每篇只提示一次（本机记 id、最多留 100 条）；关掉提示不影响公告本身——主页上一直看得到。
-     首次装机的存量公告也会提示一次：这正是"让所有人知晓"的意图。 */
+  /* 主页公告广播（2026-10-17 用户要求"让所有人知晓"；2026-10-19 改为**系统通知**）：
+     挑出"没提示过的公告"，走 Windows 系统 toast——应用在后台/最小化/被托盘藏着时也能看到，
+     这是应用内 Toast 做不到的。每篇只提示一次（本机记 id、最多留 100 条）；
+     关掉提示不影响公告本身——主页上一直看得到。首次装机的存量公告也会提示一次。
+     点击通知：主进程把窗口拿到前台，这里再把页面切到主页。 */
   useEffect(() => {
     if (gateBlocking || !settings.announcementNotify) return;
     const list = snapshot.config?.announcements ?? [];
@@ -211,14 +216,23 @@ export function MainWindowShell() {
     for (const a of fresh) seen.add(a.id);
     writeMemoryList(ANNOUNCEMENTS_SEEN_KEY, [...seen]);
     const latest = fresh[fresh.length - 1];
-    push({
+    void api.notify.system({
       title: `新公告：${latest.title}`,
-      detail: latest.body.replace(/\s+/g, ' ').trim().slice(0, 80) || undefined,
-      tone: 'info',
-      duration: 8000,
-      actions: [{ label: '去主页看', onSelect: () => setTab('home') }],
+      body: latest.body.replace(/\s+/g, ' ').trim().slice(0, 120) || '点这里打开 TeamLaunch 查看',
     });
-  }, [snapshot.config, settings.announcementNotify, gateBlocking, push, setTab]);
+    noticePendingRef.current = true;
+  }, [snapshot.config, settings.announcementNotify, gateBlocking]);
+
+  /* 用户点了系统通知 → 把页面切到主页（公告在那儿）。没有待看公告时就只前台化。 */
+  useEffect(
+    () =>
+      api.events.onNoticeClick(() => {
+        if (!noticePendingRef.current) return;
+        noticePendingRef.current = false;
+        setTab('home');
+      }),
+    [setTab],
+  );
 
   useEffect(() => {
     if (!updateBanner) return;
@@ -329,6 +343,12 @@ export function MainWindowShell() {
       if (list.length === 0) return;
       selectMany(list, additive);
     },
+    /* 单击空白处 = 取消（2026-10-19 用户要求）：清单非空时清空并退出多选，
+       让"框选出来的那一批"和"多选模式"一起收掉；没选中时单击是纯粹的空操作。 */
+    onEmptyClick: () => {
+      if (selected.length === 0) return;
+      exitSelecting();
+    },
   });
 
   /* 快捷面板的「加为入口」：主进程收起面板后把文本转到这里，
@@ -405,6 +425,86 @@ export function MainWindowShell() {
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
   }, [dialog, entryEditor, gateBlocking, quickAddFromText]);
+
+  /* ---------------- 拖拽添加（2026-10-19 用户要求） ----------------
+     把桌面图标 / 文件夹 / 浏览器里的链接拖进窗口 → 识别 → 直接加进「我的入口」。
+     三条纪律：
+      1. 只在"拖的是文件/链接"时接管（拖卡片排序是应用内的 HTML5 拖拽，dataTransfer 里没有 Files，
+         由 CardGrid 自己处理，互不干扰）；
+      2. 有对话框/编辑态/隐私门时不受理（与粘贴添加同一道闸）；
+      3. 结果如实汇报：加了几条、哪几条认不出来（原因来自 identify，不猜）。 */
+  const [dropActive, setDropActive] = useState(false);
+  const dragDepth = useRef(0);
+  const onDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+      if (dialog !== 'none' || entryEditor || gateBlocking) return;
+      dragDepth.current += 1;
+      setDropActive(true);
+    },
+    [dialog, entryEditor, gateBlocking],
+  );
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDropActive(false);
+  }, []);
+  const onDropFiles = useCallback(
+    (e: React.DragEvent) => {
+      const types = Array.from(e.dataTransfer.types);
+      if (!types.includes('Files') && !types.includes('text/uri-list')) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDropActive(false);
+      if (dialog !== 'none' || entryEditor || gateBlocking) return;
+
+      const paths = Array.from(e.dataTransfer.files)
+        .map((f) => api.files.pathFor(f))
+        .filter((p) => p.length > 0);
+      /* 从浏览器拖链接过来：dataTransfer 里是 uri-list 而不是文件。 */
+      const uris = (e.dataTransfer.getData('text/uri-list') || '')
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter((s) => /^https?:\/\//i.test(s));
+      const candidates = [...paths, ...uris];
+      if (candidates.length === 0) return;
+
+      void (async () => {
+        const inputs: Array<{ kind: 'app' | 'folder' | 'web'; name: string; target: string }> = [];
+        const rejected: string[] = [];
+        for (const raw of candidates) {
+          const hit = await api.entries.identify(raw);
+          if (hit.kind === 'none') {
+            rejected.push(raw);
+            continue;
+          }
+          if (hit.kind === 'web') inputs.push({ kind: 'web', name: hit.name, target: hit.url });
+          else inputs.push({ kind: hit.kind, name: hit.name, target: hit.target });
+        }
+        if (inputs.length === 0) {
+          push({
+            title: candidates.length === 1 ? '拖进来的这个认不出来' : '拖进来的这些都不认识',
+            detail: rejected.length > 0 ? `认不出的：${rejected.slice(0, 3).join('、')}${rejected.length > 3 ? ' 等' : ''}` : undefined,
+            tone: 'warn',
+          });
+          return;
+        }
+        const res = await addPersonalEntries(inputs);
+        if (res.added > 0) {
+          void api.usage.bump({ kind: 'feature', key: 'dragAdd' });
+          push({
+            title: `已添加 ${res.added} 个入口到「我的入口」`,
+            detail: rejected.length > 0 ? `另有 ${rejected.length} 个认不出来，已跳过` : res.reason,
+            tone: 'success',
+          });
+          if (tab !== 'personal') setTab('personal');
+          return;
+        }
+        push({ title: res.reason ?? '没能添加', tone: 'warn' });
+      })();
+    },
+    [addPersonalEntries, dialog, entryEditor, gateBlocking, push, setTab, tab],
+  );
   const contentBackground = editing ? 'var(--surface-editing)' : 'var(--bg-canvas)';
   /** 侧栏与内容头共用：编辑态只属于团队页，个人页永远是 personal，主页无操作区。 */
   const mode: SidebarMode = tab === 'home' ? 'home' : tab === 'personal' ? 'personal' : editing ? 'editing' : 'team';
@@ -412,7 +512,18 @@ export function MainWindowShell() {
   const sidebarGroupIdx = sidebarGroup ? groups.findIndex((g) => g.id === sidebarGroup.id) : -1;
 
   return (
-    <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <div
+      className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+      /* 拖拽添加（2026-10-19）：拖文件进来时显示投放提示；应用内卡片拖拽没有 Files 类型，不受影响。 */
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }}
+      onDrop={onDropFiles}
+    >
       <TitleBar
         closeDisabled={gateBlocking}
         collapsed={settings.sidebarCollapsed}
@@ -627,6 +738,17 @@ export function MainWindowShell() {
           }}
           onCancel={() => setDeleteGroups(null)}
         />
+      )}
+
+      {/* 拖拽投放提示（2026-10-19）：整窗虚线框 + 一句"松手加为入口"，纯视觉、不吃指针事件。 */}
+      {dropActive && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-2 z-[var(--z-dropdown)] grid place-items-center rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--accent)]"
+          style={{ background: 'var(--accent-tint)', opacity: 0.92 }}
+        >
+          <span className="t-base w-emph text-[var(--accent-text)]">松开鼠标，把拖进来的图标 / 文件夹加为入口</span>
+        </div>
       )}
 
       {/* 框选多选的选框（2026-10-18）：fixed + pointer-events:none，纯视觉——

@@ -4,7 +4,7 @@
  * 只暴露**能力**，不暴露 Node/Electron 本体：`contextIsolation: true` + `contextBridge`。
  * 渲染层拿不到 `require`、拿不到 `ipcRenderer`、拿不到 `fs`——它只能调用这里的白名单。
  */
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   AdminStatus,
   AppUpdateStatus,
@@ -263,6 +263,7 @@ const api: TeamLaunchApi = {
     onAppUpdate: (cb) => subscribe<AppUpdateEvent>('tl:app-update', cb),
     /** 主进程转发的"把这段文本走一遍粘贴添加"（面板的「加为入口」用）。 */
     onQuickAdd: (cb) => subscribe<string>('tl:quick-add', cb),
+    onNoticeClick: (cb) => subscribe<void>('tl:notice-click', () => cb()),
   },
   updater: {
     install: () => invoke<void>('tl:app-update-install'),
@@ -303,6 +304,22 @@ const api: TeamLaunchApi = {
   /* 设置·关于页：随包的更新日志（打包版读 resources/CHANGELOG.md）。 */
   about: {
     changelog: () => invoke<string | null>('tl:app-changelog'),
+  },
+  /* 系统通知（2026-10-19）：渲染层决定要不要打扰（新公告这类），主进程发系统级 toast。 */
+  notify: {
+    system: (payload) => invoke<boolean>('tl:notice', payload),
+  },
+  /* 拖拽进来的文件/文件夹取真实路径（2026-10-19 用户的"拖桌面图标进来"）：
+     Electron 32 起渲染层的 `File.path` 已被移除，必须经 `webUtils.getPathForFile`——
+     放 preload 里是为了让渲染层保持"零 electron 依赖"的硬规矩。取不到返回空串。 */
+  files: {
+    pathFor: (file: File) => {
+      try {
+        return webUtils.getPathForFile(file);
+      } catch {
+        return '';
+      }
+    },
   },
 };
 

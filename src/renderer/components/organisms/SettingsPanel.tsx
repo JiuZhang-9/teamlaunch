@@ -453,9 +453,15 @@ export function SettingsPanel({
               </Button>
             </div>
             {hotkeyConflict && (
-              <p className="mt-1 flex items-center gap-1 t-2xs text-[var(--warn-fg)]">
-                <TriangleAlert size={12} strokeWidth={1.75} aria-hidden />
-                此热键可能已被输入法占用，建议改为 Ctrl+Alt+Space
+              /* 2026-10-19：把"设不进去"讲清楚——**设置已经存下来了**（字段里看得到），
+                 是系统不让我们注册它。中文输入法的中英切换默认就是 Ctrl+空格，被它占用时
+                 任何程序都抢不到这个键，只能换键位或去输入法设置里改切换键。 */
+              <p className="mt-1 flex items-start gap-1 t-2xs text-[var(--warn-fg)]">
+                <TriangleAlert size={12} strokeWidth={1.75} aria-hidden className="mt-[2px] shrink-0" />
+                <span>
+                  已保存这个键位，但系统没让我们注册它（多半被输入法占用——中文输入法的中英切换默认就是
+                  Ctrl+空格）。可以换成 Ctrl+Alt+Space，或在输入法设置里改掉切换键；窗口内仍可按这个键唤起快捷面板。
+                </span>
               </p>
             )}
 

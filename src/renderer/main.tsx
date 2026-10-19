@@ -25,6 +25,16 @@ if (!host) throw new Error('找不到挂载点 #root');
  */
 const isPalette = window.location.hash.startsWith('#/palette');
 
+/* 拖拽防误导航（2026-10-19）：把文件拖进窗口时，若某个位置没有处理 drop，
+   Chromium 默认会**导航到这个 file:// 地址**——窗口被换成文件内容/空白，只能重启。
+   主窗口的投放逻辑自己会 preventDefault；这里兜住"没接住"的所有位置（含面板窗口）。 */
+window.addEventListener('dragover', (e) => {
+  if (Array.from(e.dataTransfer?.types ?? []).includes('Files')) e.preventDefault();
+});
+window.addEventListener('drop', (e) => {
+  if (Array.from(e.dataTransfer?.types ?? []).includes('Files')) e.preventDefault();
+});
+
 createRoot(host).render(
   <StrictMode>{isPalette ? <PaletteRoot /> : <App />}</StrictMode>,
 );

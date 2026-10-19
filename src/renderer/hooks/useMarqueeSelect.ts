@@ -1,12 +1,13 @@
 /**
- * 框选多选（2026-10-18 用户要求："目前多选需要右键或 Ctrl 点选，希望能直接添加框选功能。
- * 现在直接框选会选中界面上的文字，不太对，希望能直接框选对应的卡片。"）
+ * 框选多选（2026-10-18 用户要求；2026-10-19 按反馈改交互）。
  *
  * 行为：
- *  - 在卡片区**空白处**按下左键并拖动 → 画出选框，松开时把与选框相交的卡片纳入多选；
+ *  - 在卡片区**空白处**按下左键并拖动（超过阈值）→ 画出选框，松开时把与选框相交的卡片纳入多选；
  *  - 按住 Ctrl / Shift 拖 = 并入现有清单（不按 = 替换成这一批）；
+ *  - **单击空白处不算框选**（2026-10-19 用户反馈：单击就起框，导致"点空白处"既不能取消分组重命名、
+ *    也不能退出编辑态）；单击空白处的语义交给调用方（见 onEmptyClick）；
  *  - 从卡片、按钮、输入框上起手一律不算框选（那些地方各有各的动作）；
- *  - 拖动期间 `html.tl-marquee` 关掉文字选择（否则拖出一片蓝底文字），松开即恢复。
+ *  - 真正拖动起来之后才 `user-select: none` + 十字光标（否则单击会连带毁掉别人的聚焦/失焦行为）。
  *
  * 命中判定：卡片自身带 `data-tl-card-id`，用**视口坐标**的矩形相交判断——
  * 与滚动容器无关，滚到哪都能正确框住（卡片 rect 与选框 rect 都是视口坐标）。
@@ -39,17 +40,24 @@ export interface MarqueeOptions {
   containerRef: React.RefObject<HTMLElement | null>;
   /** 松开时回调：命中的卡片 id（按 DOM 顺序）+ 是否并入现有选择。 */
   onSelect(ids: string[], additive: boolean): void;
+  /**
+   * 单击空白处（没有拖动）：调用方在这里做"点空白取消多选"之类的收尾。
+   * 与 onSelect 分开：一次真正的框选不该被当成单击，反之亦然。
+   */
+  onEmptyClick?(): void;
   /** 关掉框选（例如筛选态、编辑对话框打开时）。 */
   enabled?: boolean;
 }
 
-export function useMarqueeSelect({ containerRef, onSelect, enabled = true }: MarqueeOptions) {
+export function useMarqueeSelect({ containerRef, onSelect, onEmptyClick, enabled = true }: MarqueeOptions) {
   const [rect, setRect] = useState<MarqueeRect | null>(null);
   const startRef = useRef<{ x0: number; y0: number } | null>(null);
   const lastHits = useRef<HTMLElement[]>([]);
   /** 回调放 ref：常挂的 window 监听器不该因为父组件每次渲染产生的新闭包而重挂。 */
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const onEmptyClickRef = useRef(onEmptyClick);
+  onEmptyClickRef.current = onEmptyClick;
 
   const clearHits = useCallback(() => {
     for (const el of lastHits.current) el.removeAttribute('data-tl-marquee-hit');
@@ -96,12 +104,13 @@ export function useMarqueeSelect({ containerRef, onSelect, enabled = true }: Mar
       const container = containerRef.current;
       /* 没有卡片就不必开始（主页/空列表上拖拽仍应是原生的选区行为）。 */
       if (!container || container.querySelector('[data-tl-card-id]') === null) return;
-      e.preventDefault();
+      /* **刻意不 preventDefault、也不立刻进"框选中"态**（2026-10-19 用户反馈）：
+         pointerdown 上 preventDefault 会连带吃掉"点击别处 → 输入框失焦"这类默认行为——
+         分组重命名正开着的时候点空白处，输入框不失焦、重命名不提交，用户以为界面卡住。
+         这里只记起点；真拖起来（超过阈值）才进拖动态（关文字选择、画选框）。 */
       startRef.current = { x0: e.clientX, y0: e.clientY };
-      document.documentElement.classList.add('tl-marquee');
-      paint(e.clientX, e.clientY, e.clientX, e.clientY);
     },
-    [containerRef, enabled, paint],
+    [containerRef, enabled],
   );
 
   /* 监听器**常挂**（不依赖 dragging 的挂载时机）：
@@ -112,6 +121,10 @@ export function useMarqueeSelect({ containerRef, onSelect, enabled = true }: Mar
     const onMove = (e: PointerEvent) => {
       const s = startRef.current;
       if (s === null) return;
+      const moved = Math.abs(e.clientX - s.x0) >= MIN_DRAG_PX || Math.abs(e.clientY - s.y0) >= MIN_DRAG_PX;
+      if (!moved) return;
+      /* 到这里才是真正在拖：现在才关文字选择（连带十字光标），并把起点那一小块也画进选框。 */
+      document.documentElement.classList.add('tl-marquee');
       paint(s.x0, s.y0, e.clientX, e.clientY);
     };
     const onUp = (e: PointerEvent) => {
@@ -124,7 +137,12 @@ export function useMarqueeSelect({ containerRef, onSelect, enabled = true }: Mar
         .filter((id): id is string => typeof id === 'string' && id.length > 0);
       const additive = e.ctrlKey || e.metaKey || e.shiftKey;
       stop();
-      if (moved && ids.length > 0) onSelectRef.current(ids, additive);
+      if (moved && ids.length > 0) {
+        onSelectRef.current(ids, additive);
+        return;
+      }
+      /* 没拖动 = 单击空白处：交给调用方（"点空白取消多选"），不在这里猜语义。 */
+      if (!moved) onEmptyClickRef.current?.();
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);

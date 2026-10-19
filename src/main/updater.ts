@@ -27,10 +27,11 @@
  */
 import { app } from 'electron';
 import { autoUpdater } from 'electron-updater';
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 import { logLine } from './appLog.ts';
+import { notifySystem } from './notify.ts';
 import { getUpdateFeedBase } from './updateFeed.ts';
 import { UPDATE_FEED } from '../shared/constants.ts';
 import { isVersionNewer } from '../shared/version.ts';
@@ -73,6 +74,8 @@ export interface AppUpdateStatus {
 }
 
 let started = false;
+/** 事件出口（startAutoUpdater 注入）：runCheck 里的"复用已下载包"也要能播报事件。 */
+let emitTo: ((event: AppUpdateEvent) => void) | null = null;
 let inFlight: Promise<void> | null = null;
 let announcedVersion: string | null = null;
 /** 配置加固的落地句柄：检查前先等它写完，免得与 setFeedURL 抢 clientPromise。 */
@@ -100,6 +103,70 @@ const status = {
 function log(...parts: unknown[]): void {
   logLine('TL-UPD', ...parts);
   if (debug) console.log('[TL-UPD]', ...parts);
+}
+
+/** 「已下载待安装」的落盘记录：跨重启复用，避免重复下载（2026-10-19）。 */
+interface PendingUpdate {
+  version: string;
+  /** 缓存目录里的安装包路径（记录时点的绝对值）。 */
+  file: string;
+  source: UpdateSource | null;
+  at: string;
+}
+
+function pendingFile(): string {
+  return join(app.getPath('userData'), 'config', 'update-pending.json');
+}
+
+/**
+ * 读"已下载待安装"记录；记录里的文件**必须还在**才算数（用户可能清过缓存、
+ * 或安全软件把它删了）——文件不在就当作没有并**顺手清掉这条死记录**，重新走下载。
+ */
+async function readPendingUpdate(): Promise<PendingUpdate | null> {
+  try {
+    const raw: unknown = JSON.parse(await readFile(pendingFile(), 'utf8'));
+    if (raw === null || typeof raw !== 'object') return null;
+    const o = raw as Record<string, unknown>;
+    if (typeof o.version !== 'string' || typeof o.file !== 'string') {
+      void clearPendingUpdate();
+      return null;
+    }
+    try {
+      await stat(o.file);
+    } catch {
+      // 记录在、文件没了：清掉它，别让下次检查反复读一条死记录。
+      void clearPendingUpdate();
+      return null;
+    }
+    return {
+      version: o.version,
+      file: o.file,
+      source: (o.source === 'github' || o.source === 'mirror' ? o.source : null),
+      at: typeof o.at === 'string' ? o.at : '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function writePendingUpdate(info: { version: string; file: string }, source: UpdateSource | null): Promise<void> {
+  try {
+    await mkdir(dirname(pendingFile()), { recursive: true });
+    const tmp = `${pendingFile()}.${process.pid}.tmp`;
+    await writeFile(tmp, JSON.stringify({ ...info, source, at: new Date().toISOString() }, null, 2), 'utf8');
+    await rename(tmp, pendingFile());
+  } catch (err) {
+    log('pending record write failed:', err);
+  }
+}
+
+/** 装完了（或版本已经不低于它）就把记录清掉，免得下次又提示一个过期的版本。 */
+async function clearPendingUpdate(): Promise<void> {
+  try {
+    await rm(pendingFile(), { force: true });
+  } catch {
+    // 删不掉也不影响功能：下次 read 时会因为文件不存在而当作没有
+  }
 }
 
 /**
@@ -151,7 +218,48 @@ function mirrorFeedUrl(): string | null {
 
 async function runCheck(): Promise<void> {
   if (configReady !== null) await configReady;
+
+  /* ①先看有没有**上一轮已经下好、用户还没装**的包（2026-10-19 用户反馈："每次都会检测并自动下载，
+     即使之前已下载但未安装"）。electron-updater 自己的 DownloadedUpdateHelper 只在同一进程内记着，
+     跨重启就靠"缓存目录里那个文件"——我们不信推断，直接看自己落的记录 + 文件是否还在。
+     命中就直接进入"已就绪"，不再重复下载 117MB。 */
+  const pending = await readPendingUpdate();
+  if (pending !== null && !isVersionNewer(pending.version, app.getVersion())) {
+    /* 记录里的版本已经不比当前新 = 那次安装成功了（或用户手动装了）：清掉记录，往下走正常检查。 */
+    void clearPendingUpdate();
+  }
+  if (pending !== null && isVersionNewer(pending.version, app.getVersion())) {
+    status.availableVersion = pending.version;
+    status.readyToInstall = true;
+    status.downloadPercent = 100;
+    status.source = pending.source;
+    status.lastResult = null;
+    status.lastError = null;
+    status.lastCheckedAt = new Date().toISOString();
+    log('pending update reused', { version: pending.version, file: pending.file });
+    if (announcedVersion !== pending.version) {
+      announcedVersion = pending.version;
+      emitTo?.({ type: 'available', version: pending.version });
+    }
+    emitTo?.({ type: 'downloaded', version: pending.version });
+    /* 复用也要提醒（2026-10-19）：用户上次可能没注意到，而这条记录只在"还没装"时存在；
+       每次启动各提醒一次（进程内去重），装完记录自然消失。 */
+    notifySystem({
+      title: `新版本 v${pending.version} 已下载`,
+      body: '点这里打开 TeamLaunch，点「立即更新并重启」完成安装',
+    });
+    return;
+  }
+
   const mirror = mirrorFeedUrl();
+  /* 走到这里说明**没有可复用的"已下载"**：清掉上一轮遗留的"已就绪"状态。
+     否则文件被清掉/记录失效之后，界面会一直显示"vX 已下载，点安装"——点下去只会报错
+     （2026-10-19 自验时抓到的状态残留）。真需要的话下面的 checkForUpdates 会重新点亮它。 */
+  if (status.readyToInstall || status.availableVersion !== null) {
+    status.readyToInstall = false;
+    status.availableVersion = null;
+    status.downloadPercent = null;
+  }
   // 两个源都探一次：不知道镜像里有没有"同一个新版本"，就决定不了该从哪儿下。
   const [githubVersion, mirrorVersion] = await Promise.all([
     probeFeedVersion(UPDATE_FEED.githubBaseUrl),
@@ -242,6 +350,7 @@ export function setAutoCheckEnabled(enabled: boolean): void {
 export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
   if (started || (!app.isPackaged && !debug)) return;
   started = true;
+  emitTo = emit;
   log('start', { packaged: app.isPackaged, debug, version: app.getVersion() });
 
   configReady = useOwnUpdateConfig();
@@ -271,6 +380,8 @@ export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
     if (announcedVersion === info.version) return;
     announcedVersion = info.version;
     emit({ type: 'available', version: info.version });
+    // 系统级提示（2026-10-19 用户要求）：应用在后台也能看见。
+    notifySystem({ title: `发现新版本 v${info.version}`, body: '正在后台下载，下载完成后会再提醒你安装' });
   });
   /* 下载进度（2026-10-18 用户要求小窗里有圆形进度条）：electron-updater 分块回调得很密，
      节流到约 4 次/秒再推给渲染层——进度环不需要更高刷新率，IPC 也不该被它刷屏；
@@ -288,7 +399,16 @@ export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
     status.availableVersion = info.version;
     status.readyToInstall = true;
     status.downloadPercent = 100;
+    /* 落盘记住"哪个版本已经下好了"（2026-10-19）：重启或下一轮检查直接复用它，
+       不再重复下载整包（用户反馈"即使之前已下载但未安装，每次都会重新下载"）。 */
+    const file = (info as { downloadedFile?: string }).downloadedFile;
+    if (typeof file === 'string' && file.length > 0) void writePendingUpdate({ version: info.version, file }, status.source);
     emit({ type: 'downloaded', version: info.version });
+    // 系统级提示：这是"需要用户动手"的那一刻，必须走出应用也能看见。
+    notifySystem({
+      title: `新版本 v${info.version} 已下载`,
+      body: '点这里打开 TeamLaunch，点「立即更新并重启」完成安装',
+    });
   });
   autoUpdater.on('error', (err) => {
     // 静默：源不可达/校验失败都由下次检查自然重试；只落盘留证据，不打扰用户。
@@ -326,5 +446,7 @@ export function getUpdateStatus(): AppUpdateStatus {
 export function installDownloadedUpdate(): void {
   if (!started) return;
   log('quitAndInstall: 用户确认安装');
+  /* 记录不在这一刻删：安装器起来之前进程就退了，删了反而可能让"装失败"后没有可重试的包。
+     下次启动时若版本已经升上去，runCheck 会因为"pending 不比当前新"而自然忽略它。 */
   autoUpdater.quitAndInstall(true, true);
 }
