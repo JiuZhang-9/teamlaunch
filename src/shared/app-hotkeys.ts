@@ -96,6 +96,84 @@ export function acceleratorOf(e: {
 }
 
 /**
+ * 手写加速器串的归一与校验（2026-10-19，配合设置页的「手动输入」）。
+ *
+ * 为什么需要手动输入：有些组合键（典型就是 Ctrl+空格）会被**输入法先吃掉**——
+ * 应用根本收不到 keydown，录制器自然录不到，任何程序都一样。这不是我们的 bug，
+ * 但用户想要这个键位，就得有一个"直接写出来"的口子。
+ *
+ * 规则刻意宽松但明确：修饰键顺序统一成 Ctrl → Alt → Shift → Super，
+ * 主键既接受单个字符也接受 Electron 认的命名键；不认识的直接拒绝并说明。
+ */
+const MOD_ALIASES: Record<string, string> = {
+  ctrl: 'Ctrl',
+  control: 'Ctrl',
+  cmdorctrl: 'Ctrl',
+  commandorcontrol: 'Ctrl',
+  cmd: 'Super',
+  command: 'Super',
+  meta: 'Super',
+  super: 'Super',
+  win: 'Super',
+  alt: 'Alt',
+  option: 'Alt',
+  altgr: 'AltGr',
+  shift: 'Shift',
+};
+/** Electron accelerator 支持的命名主键（与官方文档一致，只收常用的那批）。 */
+const NAMED_KEYS = new Set([
+  'Space', 'Tab', 'Capslock', 'Numlock', 'Scrolllock', 'Backspace', 'Delete', 'Insert', 'Return', 'Enter',
+  'Up', 'Down', 'Left', 'Right', 'Home', 'End', 'PageUp', 'PageDown', 'Escape', 'Esc', 'PrintScreen',
+  'Plus', 'Comma', 'Minus', 'Period', 'Slash', 'Backslash', 'Semicolon', 'Quote', 'BracketLeft', 'BracketRight',
+  'Num0', 'Num1', 'Num2', 'Num3', 'Num4', 'Num5', 'Num6', 'Num7', 'Num8', 'Num9', 'Numdec', 'Numadd', 'Numsub', 'Nummult', 'Numdiv',
+  'VolumeUp', 'VolumeDown', 'VolumeMute', 'MediaNextTrack', 'MediaPreviousTrack', 'MediaStop', 'MediaPlayPause',
+]);
+const KEY_ALIASES: Record<string, string> = {
+  esc: 'Escape',
+  return: 'Enter',
+  del: 'Delete',
+  spacebar: 'Space',
+  win: 'Super',
+};
+
+export interface ParsedAccelerator {
+  /** 归一后的加速器串；null = 不认识。 */
+  value: string | null;
+  reason?: string;
+}
+
+export function normalizeAcceleratorInput(input: string): ParsedAccelerator {
+  const raw = input.trim();
+  if (raw.length === 0) return { value: null, reason: '不能为空' };
+  const parts = raw.split('+').map((p) => p.trim()).filter((p) => p.length > 0);
+  if (parts.length === 0) return { value: null, reason: '不能为空' };
+  const mods: string[] = [];
+  let key: string | null = null;
+  for (const part of parts) {
+    const mod = MOD_ALIASES[part.toLowerCase()];
+    if (mod !== undefined) {
+      if (!mods.includes(mod)) mods.push(mod);
+      continue;
+    }
+    if (key !== null) return { value: null, reason: '只能有一个主键（像 Ctrl+Space 这样）' };
+    key = part;
+  }
+  if (key === null) return { value: null, reason: '还差一个主键（例如 Space、K、F5）' };
+  const lower = key.toLowerCase();
+  let normalizedKey: string;
+  if (KEY_ALIASES[lower] !== undefined) normalizedKey = KEY_ALIASES[lower];
+  else if (key.length === 1) normalizedKey = key.toUpperCase();
+  else {
+    const canon = [...NAMED_KEYS].find((k) => k.toLowerCase() === lower);
+    if (canon === undefined) return { value: null, reason: `不认识的键名「${key}」，可以写 Space、Tab、Enter、F1…F12 或单个字母/数字` };
+    normalizedKey = canon;
+  }
+  /* 顺序固定，存进 settings 的字符串才能稳定比较（冲突判定靠字符串相等）。 */
+  const ordered = ['Ctrl', 'Alt', 'Shift', 'Super', 'AltGr'].filter((m) => mods.includes(m));
+  return { value: [...ordered, normalizedKey].join('+') };
+}
+
+/**
  * 加速器匹配：修饰键**精确**比对（Ctrl+Shift+E 不会被 Ctrl+E 命中），
  * 主键单字符不区分大小写。空串 = 未绑定，永不匹配。
  */

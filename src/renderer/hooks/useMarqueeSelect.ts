@@ -141,8 +141,10 @@ export function useMarqueeSelect({ containerRef, onSelect, onEmptyClick, enabled
         onSelectRef.current(ids, additive);
         return;
       }
-      /* 没拖动 = 单击空白处：交给调用方（"点空白取消多选"），不在这里猜语义。 */
-      if (!moved) onEmptyClickRef.current?.();
+      /* 拖了但**一张卡都没框到**（2026-10-19 用户要求："框选空白处也能取消框选"）——
+         语义就是"框出一片空 = 什么都不选"，交给调用方清空。
+         没拖动（单击）同理：交给调用方（点空白取消多选）。 */
+      onEmptyClickRef.current?.();
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);

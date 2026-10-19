@@ -286,3 +286,11 @@ html.tl-marquee * {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* 拖拽添加的落点分组高亮（2026-10-19）：外壳在 dragover 时给命中的分组 section 加上这个属性，
+   松开即清除。outline 不改几何，拖拽过程中不会引起重排。 */
+[data-tl-drop-target='true'] {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-md);
+}

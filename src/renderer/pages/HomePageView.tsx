@@ -5,12 +5,13 @@
  * 收藏：本机各存各的（favoriteStore），按收藏时间倒序展示为**图标格**（2026-10-17 起），点击即打开。
  * 轮播：手动左右箭头 + 圆点指示（用户定稿：不自动轮播）。
  */
-import { ArrowLeft, ArrowRight, EllipsisVertical, ListChecks, Megaphone, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ListChecks, Megaphone, Star } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '../components/atoms/Button.tsx';
 import { EmptyBlock } from '../components/molecules/EmptyBlock.tsx';
 import { CardGrid } from '../components/molecules/CardGrid.tsx';
 import { FavoriteTile } from '../components/molecules/FavoriteTile.tsx';
+import { ChainTile } from '../components/molecules/ChainTile.tsx';
 import { ContextMenu } from '../components/molecules/ContextMenu.tsx';
 import { RenameDialog } from '../components/organisms/SimpleDialog.tsx';
 import { api } from '../bridge/index.ts';
@@ -55,6 +56,26 @@ export function HomePageView() {
   useEffect(() => {
     void refreshLayoutCounts();
   }, [refreshLayoutCounts]);
+
+  /**
+   * 启动一条连锁（2026-10-19 卡片化后：格子的主操作）。
+   * 对"记过位置"的那几步摆位是 fire-and-forget——脚本自己等窗口出现，不拖住连锁节奏。
+   */
+  const launchChainFromTile = useCallback(
+    (chain: SavedChain) => {
+      const res = resolveChain(chain, teamEntries, personalEntries);
+      if (res.entries.length === 0) {
+        push({ title: '这条连锁里的入口都已不存在，删掉它或重新保存一条', tone: 'warn' });
+        return;
+      }
+      void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length, (entry) => {
+        if (entry.type === 'web') return;
+        void api.windowLayout.apply(chain.id, entry.id);
+      });
+      void api.usage.bump({ kind: 'feature', key: 'savedChainRun' });
+    },
+    [personalEntries, push, resolveChain, runSavedChain, teamEntries],
+  );
 
   /**
    * 「记住窗口布局」：把这条连锁里**已经打开并摆好**的应用/文件夹窗口的位置记下来。
@@ -222,12 +243,16 @@ export function HomePageView() {
         )}
       </section>
 
-      {/* ---- 收藏区 ---- */}
+      {/* ---- 收藏 / 连锁（2026-10-19 用户要求：两者都做成卡片，左右并排）----
+          连锁的说明："希望能支持收藏'连锁'操作，以便记忆，下次只需点一个按钮即可执行。"
+          本机保存（config/chains.json），入口内容以当下为准；失效的项在启动时如实跳过并计数。
+          窄窗口（<1024）自动堆叠成一列——并排只在放得下的时候成立。 */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2 lg:items-start">
       <section aria-label="收藏">
         <div className="mb-2 flex items-center gap-2">
           <Star size={16} strokeWidth={2} aria-hidden className="text-[var(--accent-text)]" />
           <h2 className="t-base w-emph text-[var(--fg)]">收藏</h2>
-          <span className="t-2xs text-[var(--meta)]">在团队入口 / 我的入口的卡片右键菜单里收藏；收藏只保存在这台电脑上。</span>
+          <span className="t-2xs text-[var(--meta)]">卡片右键菜单里收藏；只保存在这台电脑上。</span>
         </div>
 
         {favRows.length === 0 ? (
@@ -236,7 +261,7 @@ export function HomePageView() {
               icon={Star}
               iconSize={20}
               title="还没有收藏"
-              detail="在下方两个页面的卡片右键菜单里选「收藏」，它们会集中显示在这里。"
+              detail="在下面两个页面的卡片右键菜单里选「收藏」，它们会集中显示在这里。"
             />
           </div>
         ) : (
@@ -269,16 +294,11 @@ export function HomePageView() {
         )}
       </section>
 
-      {/* ---- 连锁区（2026-10-19）----
-          用户要求："希望能支持收藏'连锁'操作，以便记忆，下次只需点一个按钮即可执行。"
-          本机保存（config/chains.json），入口内容以当下为准；失效的项在启动时如实跳过并计数。 */}
-      <section aria-label="连锁" className="mt-6">
+      <section aria-label="连锁">
         <div className="mb-2 flex items-center gap-2">
           <ListChecks size={16} strokeWidth={2} aria-hidden className="text-[var(--accent-text)]" />
           <h2 className="t-base w-emph text-[var(--fg)]">连锁</h2>
-          <span className="t-2xs text-[var(--meta)]">
-            多选几张卡 → 浮条上「保存为连锁」，这里就能一键按顺序启动；只保存在这台电脑上。
-          </span>
+          <span className="t-2xs text-[var(--meta)]">多选后「保存为连锁」，点一格按顺序启动。</span>
         </div>
 
         {chains.length === 0 ? (
@@ -286,58 +306,37 @@ export function HomePageView() {
             还没有保存的连锁。在「团队入口」或「我的入口」里进入多选、勾好顺序，点「保存为连锁」即可。
           </p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
-            {chains.map((chain) => {
+          /* 图标格：一格一条连锁（图标取第一步），点格即启动；右上角悬浮「⋯」管重命名/记住布局/删除。 */
+          <CardGrid
+            items={chains}
+            getKey={(c) => c.id}
+            ariaLabel="连锁"
+            minColumnPx={120}
+            onActivate={(chain) => launchChainFromTile(chain)}
+            render={(chain, focus) => {
               const res = resolveChain(chain, teamEntries, personalEntries);
-              const broken = res.entries.length === 0;
-              const layoutCount = layoutCounts[chain.id] ?? 0;
               return (
-                <li
-                  key={chain.id}
-                  className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] px-2 py-1.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="t-sm w-emph m-0 truncate-1 text-[var(--fg)]">{chain.name}</p>
-                    <p className="t-2xs m-0 text-[var(--meta)]">
-                      {res.entries.length} 个入口 · 间隔 {(chain.intervalMs / 1000).toFixed(1)} 秒
-                      {res.missing.length > 0 && ` · ${res.missing.length} 项已失效`}
-                      {layoutCount > 0 && ` · 已记住 ${layoutCount} 个窗口位置`}
-                    </p>
-                  </div>
-                  <Button
-                    tone="primary"
-                    size="sm"
-                    softDisabled={broken}
-                    title={broken ? '这条连锁里的入口都已不存在' : `按顺序启动「${chain.name}」`}
-                    onDisabledClick={() => push({ title: '这条连锁里的入口都已不存在，删掉它或重新保存一条', tone: 'warn' })}
-                    onClick={() => {
-                      /* 启动时对"记过位置"的那几步摆位（2026-10-19 进阶）：
-                         回调里是 fire-and-forget——摆位脚本自己等窗口出现，不拖住连锁节奏。 */
-                      void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length, (entry) => {
-                        if (entry.type === 'web') return;
-                        void api.windowLayout.apply(chain.id, entry.id);
-                      });
-                      void api.usage.bump({ kind: 'feature', key: 'savedChainRun' });
-                    }}
-                  >
-                    一键启动
-                  </Button>
-                  <Button
-                    tone="ghost"
-                    size="sm"
-                    icon={EllipsisVertical}
-                    aria-label={`「${chain.name}」操作`}
-                    onClick={(e) => {
-                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setChainMenu({ x: r.left, y: r.bottom + 4, chain });
-                    }}
-                  />
-                </li>
+                <ChainTile
+                  ref={focus.cardRef}
+                  chain={chain}
+                  iconEntry={res.entries[0] ?? null}
+                  entryCount={res.entries.length}
+                  missingCount={res.missing.length}
+                  layoutCount={layoutCounts[chain.id] ?? 0}
+                  tabIndex={focus.tabIndex}
+                  onKeyDown={focus.onKeyDown}
+                  onLaunch={() => launchChainFromTile(chain)}
+                  onMenu={(e) => {
+                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    setChainMenu({ x: r.left, y: r.bottom + 4, chain });
+                  }}
+                />
               );
-            })}
-          </ul>
+            }}
+          />
         )}
       </section>
+      </div>
 
       {chainMenu && (
         <ContextMenu

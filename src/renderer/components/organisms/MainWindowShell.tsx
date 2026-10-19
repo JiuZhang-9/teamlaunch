@@ -427,14 +427,47 @@ export function MainWindowShell() {
   }, [dialog, entryEditor, gateBlocking, quickAddFromText]);
 
   /* ---------------- 拖拽添加（2026-10-19 用户要求） ----------------
-     把桌面图标 / 文件夹 / 浏览器里的链接拖进窗口 → 识别 → 直接加进「我的入口」。
+     把桌面图标 / 文件夹 / 浏览器里的链接拖进窗口 → 识别 → 加进「我的入口」。
+     2026-10-19 追加（用户："希望能直接拖到对应组"）：指针停在哪个分组区域上，就落进哪一组；
+     没停在任何分组上则落进默认的「我的入口」。
      三条纪律：
       1. 只在"拖的是文件/链接"时接管（拖卡片排序是应用内的 HTML5 拖拽，dataTransfer 里没有 Files，
          由 CardGrid 自己处理，互不干扰）；
       2. 有对话框/编辑态/隐私门时不受理（与粘贴添加同一道闸）；
       3. 结果如实汇报：加了几条、哪几条认不出来（原因来自 identify，不猜）。 */
   const [dropActive, setDropActive] = useState(false);
+  const [dropGroupName, setDropGroupName] = useState<string | null>(null);
   const dragDepth = useRef(0);
+  /** 当前被高亮的分组 section（dragover 每帧换目标时先摘旧的）。 */
+  const dropGroupElRef = useRef<HTMLElement | null>(null);
+
+  /** 按指针位置找落点分组；只认个人页的分组（团队页的组是只读的，加不进去）。 */
+  const groupUnderPointer = useCallback(
+    (x: number, y: number): { name: string; el: HTMLElement } | null => {
+      if (tab !== 'personal') return null;
+      const el = document.elementFromPoint(x, y);
+      const section = el instanceof Element ? el.closest<HTMLElement>('[data-tl-group-name]') : null;
+      const name = section?.getAttribute('data-tl-group-name');
+      if (!section || !name) return null;
+      return { name, el: section };
+    },
+    [tab],
+  );
+
+  const markDropGroup = useCallback((next: HTMLElement | null) => {
+    const prev = dropGroupElRef.current;
+    if (prev !== null && prev !== next) prev.removeAttribute('data-tl-drop-target');
+    if (next !== null) next.setAttribute('data-tl-drop-target', 'true');
+    dropGroupElRef.current = next;
+  }, []);
+
+  const clearDropUi = useCallback(() => {
+    dragDepth.current = 0;
+    setDropActive(false);
+    setDropGroupName(null);
+    markDropGroup(null);
+  }, [markDropGroup]);
+
   const onDragEnter = useCallback(
     (e: React.DragEvent) => {
       if (!Array.from(e.dataTransfer.types).includes('Files')) return;
@@ -447,15 +480,29 @@ export function MainWindowShell() {
   const onDragLeave = useCallback((e: React.DragEvent) => {
     if (!Array.from(e.dataTransfer.types).includes('Files')) return;
     dragDepth.current = Math.max(0, dragDepth.current - 1);
-    if (dragDepth.current === 0) setDropActive(false);
-  }, []);
+    if (dragDepth.current === 0) clearDropUi();
+  }, [clearDropUi]);
+
+  const onDragOverShell = useCallback(
+    (e: React.DragEvent) => {
+      if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      const hit = groupUnderPointer(e.clientX, e.clientY);
+      setDropGroupName(hit?.name ?? null);
+      markDropGroup(hit?.el ?? null);
+    },
+    [groupUnderPointer, markDropGroup],
+  );
+
   const onDropFiles = useCallback(
     (e: React.DragEvent) => {
       const types = Array.from(e.dataTransfer.types);
       if (!types.includes('Files') && !types.includes('text/uri-list')) return;
       e.preventDefault();
-      dragDepth.current = 0;
-      setDropActive(false);
+      /* 落点必须在清 UI **之前**算：清掉高亮不影响 elementFromPoint，但 dropGroupName 会被清空。 */
+      const targetGroup = groupUnderPointer(e.clientX, e.clientY)?.name ?? null;
+      clearDropUi();
       if (dialog !== 'none' || entryEditor || gateBlocking) return;
 
       const paths = Array.from(e.dataTransfer.files)
@@ -470,7 +517,7 @@ export function MainWindowShell() {
       if (candidates.length === 0) return;
 
       void (async () => {
-        const inputs: Array<{ kind: 'app' | 'folder' | 'web'; name: string; target: string }> = [];
+        const inputs: Array<{ kind: 'app' | 'folder' | 'web'; name: string; target: string; groupName?: string }> = [];
         const rejected: string[] = [];
         for (const raw of candidates) {
           const hit = await api.entries.identify(raw);
@@ -478,8 +525,8 @@ export function MainWindowShell() {
             rejected.push(raw);
             continue;
           }
-          if (hit.kind === 'web') inputs.push({ kind: 'web', name: hit.name, target: hit.url });
-          else inputs.push({ kind: hit.kind, name: hit.name, target: hit.target });
+          if (hit.kind === 'web') inputs.push({ kind: 'web', name: hit.name, target: hit.url, groupName: targetGroup ?? undefined });
+          else inputs.push({ kind: hit.kind, name: hit.name, target: hit.target, groupName: targetGroup ?? undefined });
         }
         if (inputs.length === 0) {
           push({
@@ -493,7 +540,7 @@ export function MainWindowShell() {
         if (res.added > 0) {
           void api.usage.bump({ kind: 'feature', key: 'dragAdd' });
           push({
-            title: `已添加 ${res.added} 个入口到「我的入口」`,
+            title: `已添加 ${res.added} 个入口到「${targetGroup ?? '我的入口'}」`,
             detail: rejected.length > 0 ? `另有 ${rejected.length} 个认不出来，已跳过` : res.reason,
             tone: 'success',
           });
@@ -503,7 +550,7 @@ export function MainWindowShell() {
         push({ title: res.reason ?? '没能添加', tone: 'warn' });
       })();
     },
-    [addPersonalEntries, dialog, entryEditor, gateBlocking, push, setTab, tab],
+    [addPersonalEntries, clearDropUi, dialog, entryEditor, gateBlocking, groupUnderPointer, push, setTab, tab],
   );
   const contentBackground = editing ? 'var(--surface-editing)' : 'var(--bg-canvas)';
   /** 侧栏与内容头共用：编辑态只属于团队页，个人页永远是 personal，主页无操作区。 */
@@ -517,11 +564,7 @@ export function MainWindowShell() {
       /* 拖拽添加（2026-10-19）：拖文件进来时显示投放提示；应用内卡片拖拽没有 Files 类型，不受影响。 */
       onDragEnter={onDragEnter}
       onDragLeave={onDragLeave}
-      onDragOver={(e) => {
-        if (!Array.from(e.dataTransfer.types).includes('Files')) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-      }}
+      onDragOver={onDragOverShell}
       onDrop={onDropFiles}
     >
       <TitleBar
@@ -740,14 +783,17 @@ export function MainWindowShell() {
         />
       )}
 
-      {/* 拖拽投放提示（2026-10-19）：整窗虚线框 + 一句"松手加为入口"，纯视觉、不吃指针事件。 */}
+      {/* 拖拽投放提示（2026-10-19）：整窗虚线框 + 指出会落进哪一组；纯视觉、不吃指针事件。 */}
       {dropActive && (
         <div
           aria-hidden
           className="pointer-events-none absolute inset-2 z-[var(--z-dropdown)] grid place-items-center rounded-[var(--radius-lg)] border-2 border-dashed border-[var(--accent)]"
           style={{ background: 'var(--accent-tint)', opacity: 0.92 }}
         >
-          <span className="t-base w-emph text-[var(--accent-text)]">松开鼠标，把拖进来的图标 / 文件夹加为入口</span>
+          <span className="t-base w-emph text-center text-[var(--accent-text)]">
+            松开鼠标，把拖进来的图标 / 文件夹加进「{dropGroupName ?? '我的入口'}」
+            {dropGroupName === null && <span className="t-2xs block font-normal opacity-80">（拖到某个分组上可以直接落进那一组）</span>}
+          </span>
         </div>
       )}
 

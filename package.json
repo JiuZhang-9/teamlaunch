@@ -1,6 +1,6 @@
 {
   "name": "teamlaunch",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "TeamLaunch - Windows 桌面端团队统一入口启动器",

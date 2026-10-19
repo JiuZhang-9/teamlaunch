@@ -15,6 +15,7 @@ import {
   Keyboard,
   KeyRound,
   Monitor,
+  PenLine,
   RefreshCw,
   SlidersHorizontal,
   TriangleAlert,
@@ -37,7 +38,7 @@ import { api } from '../../bridge/index.ts';
 import { APP_VERSION } from '../../lib/appVersion.ts';
 import type { AdminStatus, AppUpdateStatus, BrowserInfo } from '../../bridge/types.ts';
 import { updateStatusLine as statusLine } from '../../../shared/update-copy.ts';
-import { acceleratorOf } from '../../../shared/app-hotkeys.ts';
+import { acceleratorOf, normalizeAcceleratorInput } from '../../../shared/app-hotkeys.ts';
 import { formatRevDate } from './EditActionBar.tsx';
 
 export type ZoomLevel = 90 | 100 | 105 | 110;
@@ -134,6 +135,9 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [recording, setRecording] = useState(false);
+  /** 「手动输入」面板：null = 收起；字符串 = 正在编辑的组合键写法（2026-10-19）。 */
+  const [manualHotkey, setManualHotkey] = useState<string | null>(null);
+  const [manualError, setManualError] = useState<string | null>(null);
   /** 本机已装浏览器（切到「通用」时扫一次；扫描失败就只剩"系统默认"这一项）。 */
   const [browsers, setBrowsers] = useState<BrowserInfo[]>([]);
 
@@ -451,7 +455,76 @@ export function SettingsPanel({
               <Button tone="secondary" icon={Keyboard} className="shrink-0 whitespace-nowrap" onClick={() => setRecording(true)}>
                 重新录制
               </Button>
+              {/* 「手动输入」（2026-10-19 用户反馈"Ctrl+空格确实录不进去"）：
+                  有些组合键会被输入法在系统层先吃掉，应用收不到 keydown（任何程序都一样），
+                  录制器再准也录不到。给一个直接写出来的口子：输入 Ctrl+Space 回车即生效。 */}
+              <Button
+                tone="ghost"
+                icon={PenLine}
+                className="shrink-0 whitespace-nowrap"
+                onClick={() => {
+                  setManualHotkey(settings.hotkey === 'none' ? '' : settings.hotkey);
+                  setManualError(null);
+                }}
+              >
+                手动输入
+              </Button>
             </div>
+            {manualHotkey !== null && (
+              <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2">
+                <p className="t-2xs mb-1 text-[var(--meta)]">
+                  直接写组合键（例如 <span className="t-mono">Ctrl+Space</span>、<span className="t-mono">Ctrl+Alt+K</span>），回车保存：
+                  输入法先吃掉的键只能这样设。
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    autoFocus
+                    mono
+                    value={manualHotkey}
+                    aria-label="手动输入全局热键"
+                    placeholder="Ctrl+Space"
+                    onChange={(e) => {
+                      setManualHotkey(e.target.value);
+                      setManualError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === 'Escape') {
+                        setManualHotkey(null);
+                        return;
+                      }
+                      if (e.key !== 'Enter') return;
+                      const parsed = normalizeAcceleratorInput(manualHotkey);
+                      if (parsed.value === null) {
+                        setManualError(parsed.reason ?? '这个写法不认识');
+                        return;
+                      }
+                      onPatch({ hotkey: parsed.value });
+                      setManualHotkey(null);
+                    }}
+                  />
+                  <Button
+                    tone="primary"
+                    className="shrink-0"
+                    onClick={() => {
+                      const parsed = normalizeAcceleratorInput(manualHotkey);
+                      if (parsed.value === null) {
+                        setManualError(parsed.reason ?? '这个写法不认识');
+                        return;
+                      }
+                      onPatch({ hotkey: parsed.value });
+                      setManualHotkey(null);
+                    }}
+                  >
+                    保存
+                  </Button>
+                  <Button tone="ghost" className="shrink-0" onClick={() => setManualHotkey(null)}>
+                    取消
+                  </Button>
+                </div>
+                {manualError !== null && <p className="mt-1 t-2xs text-[var(--warn-fg)]">{manualError}</p>}
+              </div>
+            )}
             {hotkeyConflict && (
               /* 2026-10-19：把"设不进去"讲清楚——**设置已经存下来了**（字段里看得到），
                  是系统不让我们注册它。中文输入法的中英切换默认就是 Ctrl+空格，被它占用时

@@ -56,7 +56,14 @@ export function GroupSections({
   return (
     <div className="flex flex-col">
       {groups.map((g, gi) => (
-        <section key={g.id} style={{ marginTop: gi === 0 ? 0 : 'var(--space-6)' }}>
+        <section
+          key={g.id}
+          /* 2026-10-19：拖拽添加的落点锚——把桌面图标拖到某个分组区域上，入口就落进这一组
+             （外壳按指针位置找最近的 [data-tl-group-name]）。 */
+          data-tl-group-name={g.name}
+          data-tl-group-id={g.id}
+          style={{ marginTop: gi === 0 ? 0 : 'var(--space-6)' }}
+        >
           <GroupHeader
             id={`tl-group-${encodeURIComponent(g.name)}`}
             name={g.name}
