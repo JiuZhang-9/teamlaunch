@@ -138,6 +138,13 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /* 跨窗口同步（2026-10-21）：主窗口改了个人入口，快捷面板窗口要立刻能看到。
+     面板是独立窗口、独立 store，此前只在启动时读一次——"新添加的程序在快捷窗口搜不到"
+     就是这条缺失。preload 已把广播写进同步缓存，这里重取即可。 */
+  useEffect(() => {
+    return api.events.onPersonalChanged(() => setConfig(api.personal.get()));
+  }, []);
+
   const usage = useMemo<CapacityUsage>(() => {
     const entries = config.groups.reduce((n, g) => n + g.entries.length, 0);
     const groups = config.groups.length;

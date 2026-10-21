@@ -75,6 +75,55 @@ function toOpenTarget(e: Entry): OpenTarget {
   return { kind: 'folder', target: e.target };
 }
 
+/** `tl:entries-icon` 的本会话结果缓存（键含图标引用：换表情会走新键）。 */
+const iconMemo = new Map<string, string>();
+
+async function extractEntryIcon(entry: Entry): Promise<string | null> {
+  // 用户挑选的表情图标：内联 SVG 文本 → data URL。SVG 作为 <img> 源是静态的，
+  // 不执行脚本；字符经过 schema 长度闸，此处无需再清洗。
+  if (entry.icon.kind === 'emoji' && entry.icon.char) {
+    const char = [...entry.icon.char].join('');
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+      + '<text x="16" y="17" font-size="24" text-anchor="middle" dominant-baseline="central" '
+      + "font-family=\"'Segoe UI Emoji','Noto Color Emoji',sans-serif\">" + char + '</text></svg>';
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+  if (entry.type === 'web') return null;
+  const direct = await extractIcon(entry.target);
+  if (direct) return direct;
+  // 回退 1：快捷方式解析出的目标提取失败时，试原始 .lnk 的图标（部分 stub 程序没有图标资源）。
+  if (entry.type === 'app' && entry.sourcePath && entry.sourcePath !== entry.target) {
+    const viaSource = await extractIcon(entry.sourcePath);
+    if (viaSource) return viaSource;
+  }
+  // 回退 2（2026-10-07，用户反馈老条目永远没图标）：目标路径本机不存在时，
+  // 走与「打开」相同的分层解析（重定位缓存 → App Paths → 开始菜单索引），
+  // 在解析出的真实程序上提取图标——老条目不用重新定位也能长出图标。
+  if (entry.type === 'app') {
+    const candidates = await resolveAppCandidates(entry.id, entry.target);
+    for (const cand of candidates) {
+      const icon = await extractIcon(cand.target);
+      if (icon) return icon;
+    }
+  }
+  return null;
+}
+
+/**
+ * 个人入口变更广播（2026-10-21）。
+ *
+ * 快捷面板是**独立窗口**，各窗口的 preload 缓存与 React store 互不相通：
+ * 主窗口刚加的入口，面板要到重启才看得见（用户实测"新添加的程序在快捷窗口搜不到"）。
+ * 落盘成功后把规范配置推给其余窗口，它们的缓存与界面立刻跟上。
+ */
+function broadcastPersonal(config: PersonalConfig, sender?: Electron.WebContents): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    if (sender !== undefined && win.webContents === sender) continue;
+    win.webContents.send('tl:personal', config);
+  }
+}
+
 export interface IpcDeps {
   getWindows(): BrowserWindow[];
   /** 关闭主窗口是否"隐藏到托盘"。false 时 X = 真退出（PRD 11.5：关闭托盘常驻时关窗含义必须明确）。 */
@@ -247,34 +296,21 @@ export function registerIpc(deps: IpcDeps): void {
     const gate = EntrySchema.safeParse(raw);
     const entry = gate.success ? gate.data : typeof raw === 'string' ? await resolveEntry(raw) : undefined;
     if (!entry) return null;
-    // 用户挑选的表情图标：内联 SVG 文本 → data URL。SVG 作为 <img> 源是静态的，
-    // 不执行脚本；字符经过 schema 长度闸，此处无需再清洗。
-    if (entry.icon.kind === 'emoji' && entry.icon.char) {
-      const char = [...entry.icon.char].join('');
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
-        + '<text x="16" y="17" font-size="24" text-anchor="middle" dominant-baseline="central" '
-        + "font-family=\"'Segoe UI Emoji','Noto Color Emoji',sans-serif\">" + char + '</text></svg>';
-      return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
-    }
-    if (entry.type === 'web') return null;
-    const direct = await extractIcon(entry.target);
-    if (direct) return direct;
-    // 回退 1：快捷方式解析出的目标提取失败时，试原始 .lnk 的图标（部分 stub 程序没有图标资源）。
-    if (entry.type === 'app' && entry.sourcePath && entry.sourcePath !== entry.target) {
-      const viaSource = await extractIcon(entry.sourcePath);
-      if (viaSource) return viaSource;
-    }
-    // 回退 2（2026-10-07，用户反馈老条目永远没图标）：目标路径本机不存在时，
-    // 走与「打开」相同的分层解析（重定位缓存 → App Paths → 开始菜单索引），
-    // 在解析出的真实程序上提取图标——老条目不用重新定位也能长出图标。
-    if (entry.type === 'app') {
-      const candidates = await resolveAppCandidates(entry.id, entry.target);
-      for (const cand of candidates) {
-        const icon = await extractIcon(cand.target);
-        if (icon) return icon;
-      }
-    }
-    return null;
+    /* 本会话的图标结果缓存（2026-10-21）：快捷面板与主窗口各有一份渲染层缓存，
+       主进程此前每次都重新提取——两个窗口对同一份清单各取一遍，正好把 shell 图标链打满。
+       只缓存成功值：取不到的下次重试（`getFileIcon` 对个别 exe 会瞬时失败）。 */
+    const memoKey = [
+      entry.type,
+      entry.icon.kind,
+      entry.icon.kind === 'emoji' ? entry.icon.char : '',
+      entry.type === 'web' ? entry.url : entry.target,
+      entry.type === 'app' ? (entry.sourcePath ?? '') : '',
+    ].join('|');
+    const memo = iconMemo.get(memoKey);
+    if (memo !== undefined) return memo;
+    const icon = await extractEntryIcon(entry);
+    if (icon !== null) iconMemo.set(memoKey, icon);
+    return icon;
   });
 
   ipcMain.handle('tl:entries-copy', async (_e, entryId: string) => {
@@ -359,9 +395,12 @@ export function registerIpc(deps: IpcDeps): void {
   /* 文件损坏诊断（R25）：损坏时上面会回落成空配置——那看起来和"你没有个人入口"一模一样，
      所以必须有一条通道让界面**如实说明**"文件读不了"，而不是安静地显示空列表。 */
   ipcMain.handle('tl:personal-corruption', () => personalService().corruption());
-  ipcMain.handle('tl:personal-save', (_e, config: unknown): Promise<PersonalSaveResult> =>
-    savePersonal(config),
-  );
+  ipcMain.handle('tl:personal-save', async (e, config: unknown): Promise<PersonalSaveResult> => {
+    const result = await savePersonal(config);
+    // 其它窗口（含快捷面板）必须立刻看到新清单，否则"加了但搜不到"。
+    if (result.ok) broadcastPersonal(result.config, e.sender);
+    return result;
+  });
 
   ipcMain.handle('tl:personal-export', async () => {
     /* 损坏时拒绝导出：导出"空配置"会被读成"我的入口本来就是空的"，
@@ -389,9 +428,12 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('tl:personal-import-preview', (_e, req: unknown): Promise<ImportPreviewResult> =>
     previewPersonalImport(req),
   );
-  ipcMain.handle('tl:personal-import-commit', (_e, req: unknown): Promise<ImportCommitResult> =>
-    commitPersonalImport(req),
-  );
+  ipcMain.handle('tl:personal-import-commit', async (e, req: unknown): Promise<ImportCommitResult> => {
+    const result = await commitPersonalImport(req);
+    // 导入同样是一次落盘：别的窗口要同步刷新（与保存同一条纪律）。
+    if (result.kind === 'applied') broadcastPersonal(result.config, e.sender);
+    return result;
+  });
 
   ipcMain.handle('tl:feedback-submit', async (_e, item: unknown): Promise<FeedbackDelivery> =>
     serverPort.submitFeedback({ items: [item as never] }),

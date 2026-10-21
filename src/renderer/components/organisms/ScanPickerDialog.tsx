@@ -22,11 +22,23 @@ export interface ScanPickerDialogProps {
   items: ScanCandidate[];
   /** 已在「我的入口」里的目标路径（标出来并默认不勾）。 */
   existingTargets?: string[];
+  /** 现有分组名（目标可选）：空 = 默认「我的入口」。 */
+  groups?: string[];
+  group?: string;
+  onGroupChange?(name: string): void;
   onCancel(): void;
   onConfirm(picked: ScanCandidate[]): void;
 }
 
-export function ScanPickerDialog({ items, existingTargets = [], onCancel, onConfirm }: ScanPickerDialogProps) {
+export function ScanPickerDialog({
+  items,
+  existingTargets = [],
+  groups = [],
+  group = '',
+  onGroupChange,
+  onCancel,
+  onConfirm,
+}: ScanPickerDialogProps) {
   const [picked, setPicked] = useState<string[]>([]);
   const [keyword, setKeyword] = useState('');
   /** 上一次点击的行（Shift 段选的锚点）。 */
@@ -161,10 +173,31 @@ export function ScanPickerDialog({ items, existingTargets = [], onCancel, onConf
       }
     >
       <p className="t-sm mb-1 text-[var(--fg-2)]">
-        找到 {items.length} 个候选程序（{sources}）。勾选要加入「我的入口」的；标着「已在清单中」的默认不勾。
+        找到 {items.length} 个候选程序（{sources}）。勾选要加入「{group.trim() || '我的入口'}」的；标着「已在清单中」的默认不勾。
       </p>
       {items.length >= 300 && (
         <p className="t-xs mb-2 text-[var(--warn-fg)]">已达扫描上限，可能还有没列出来的程序。</p>
+      )}
+
+      {/* 目标分组（2026-10-21 用户要求）：不再一律新建/落到「我的入口」。
+          选已有分组，或留着默认（组不存在时会按这个名字建出来）。 */}
+      {onGroupChange && (
+        <div className="mb-2 flex items-center gap-2">
+          <span className="t-xs shrink-0 text-[var(--muted)]">加入分组</span>
+          <select
+            value={group}
+            aria-label="加入分组"
+            onChange={(e) => onGroupChange(e.target.value)}
+            className="h-8 min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 t-sm text-[var(--fg)]"
+          >
+            <option value="">我的入口（默认）</option>
+            {groups.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       <div className="mb-2 flex items-center gap-2">

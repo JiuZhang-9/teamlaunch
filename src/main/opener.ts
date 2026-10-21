@@ -181,8 +181,37 @@ function splitArgs(s: string): string[] {
   return out;
 }
 
+/**
+ * 图标提取的并发闸（2026-10-21）。
+ *
+ * 快捷面板会为**整份清单**批量取图标（打开时一次几百条），而 `app.getFileIcon`
+ * 是 shell 层调用：并发打满时部分请求会超时返回 null，表现为"面板里有些图标没了，
+ * 主窗口里却有"（主窗口只请求可视卡片）。这里把并发压到 4，排队执行——
+ * 批量请求最终都会完成，而不是被自己的并发挤掉。
+ */
+const ICON_CONCURRENCY = 4;
+let iconActive = 0;
+const iconQueue: Array<() => void> = [];
+
+async function withIconSlot<T>(task: () => Promise<T>): Promise<T> {
+  if (iconActive >= ICON_CONCURRENCY) {
+    await new Promise<void>((resolve) => iconQueue.push(resolve));
+  }
+  iconActive += 1;
+  try {
+    return await task();
+  } finally {
+    iconActive -= 1;
+    iconQueue.shift()?.();
+  }
+}
+
 /** 本机图标提取：data URL。K-08 —— 只在本机提取，绝不跨网同步。 */
 export async function extractIcon(pathLike: string, size: 'small' | 'large' = 'large'): Promise<string | null> {
+  return withIconSlot(() => extractIconInner(pathLike, size));
+}
+
+async function extractIconInner(pathLike: string, size: 'small' | 'large'): Promise<string | null> {
   try {
     const icon = await withTimeout(app.getFileIcon(pathLike, { size }), HAS_TIMEOUT_MS);
     if (icon.isEmpty()) return null;
@@ -200,21 +229,40 @@ export async function extractIcon(pathLike: string, size: 'small' | 'large' = 'l
   }
 }
 
-/** "默认应用程序图"基准（空 .exe 提取一次并缓存；null=探测失败，不启用判定）。 */
-let defaultAppIconCache: Record<'small' | 'large', string | null> | undefined;
+/** "默认应用程序图"基准（空 .exe 提取一次并缓存；null=探测失败，不启用判定）。
+ *
+ * 并发初始化必须共享同一个 promise（2026-10-21）：此前 16 个并发请求会各自
+ * mkdtemp + 写空 exe + 调 getFileIcon，既拖慢批量取图标，也把 shell 图标缓存打热
+ * ——"面板里部分图标取不到"的诱因之一。
+ */
+const defaultAppIconCache: Partial<Record<'small' | 'large', string | null>> = {};
+const defaultAppIconInflight: Partial<Record<'small' | 'large', Promise<string | null>>> = {};
 async function defaultAppIcon(size: 'small' | 'large'): Promise<string | null> {
-  if (!defaultAppIconCache) defaultAppIconCache = { small: null, large: null };
-  if (defaultAppIconCache[size] !== null || defaultAppIconCache[size] === '') return defaultAppIconCache[size];
-  try {
-    const dir = await mkdtemp(path.join(tmpdir(), 'tl-icon-basis-'));
-    const probe = path.join(dir, 'basis.exe');
-    await writeFile(probe, Buffer.alloc(0));
-    const icon = await withTimeout(app.getFileIcon(probe, { size }), HAS_TIMEOUT_MS);
-    defaultAppIconCache[size] = icon.isEmpty() ? null : icon.toDataURL();
-  } catch {
-    defaultAppIconCache[size] = null;
-  }
-  return defaultAppIconCache[size];
+  // undefined = 本会话还没探测过；null = 探测过但拿不到基准（本次运行内不再重试）。
+  const known = defaultAppIconCache[size];
+  if (known !== undefined) return known;
+  const pending = defaultAppIconInflight[size];
+  if (pending) return pending;
+  const task = (async (): Promise<string | null> => {
+    let dir: string | null = null;
+    let value: string | null = null;
+    try {
+      dir = await mkdtemp(path.join(tmpdir(), 'tl-icon-basis-'));
+      const probe = path.join(dir, 'basis.exe');
+      await writeFile(probe, Buffer.alloc(0));
+      const icon = await withTimeout(app.getFileIcon(probe, { size }), HAS_TIMEOUT_MS);
+      value = icon.isEmpty() ? null : icon.toDataURL();
+    } catch {
+      value = null;
+    } finally {
+      if (dir !== null) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      defaultAppIconCache[size] = value;
+      delete defaultAppIconInflight[size];
+    }
+    return value;
+  })();
+  defaultAppIconInflight[size] = task;
+  return task;
 }
 
 /**

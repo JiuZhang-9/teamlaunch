@@ -562,6 +562,12 @@ export interface TeamLaunchApi {
     onPaletteHidden(cb: () => void): () => void;
     /** 任意窗口改了设置都广播到这里：跨窗口主题/热键/缩放同步的唯一通道。 */
     onSettingsChanged(cb: (settings: Settings) => void): () => void;
+    /**
+     * 任意窗口改了「我的入口」都广播到这里（2026-10-21）。
+     * 快捷面板是独立窗口，各自持有一份 store；没有这条通道时，主窗口新加的入口
+     * 在面板里要重启才搜得到。preload 同时会刷新自己的同步缓存，回调里直接读新值即可。
+     */
+    onPersonalChanged(cb: (config: PersonalConfig) => void): () => void;
     /** 自动更新进展：available=发现新版本开始后台下载；downloaded=已就绪可安装。 */
     onAppUpdate(cb: (event: AppUpdateEvent) => void): () => void;
     /** 主进程转发的"把这段文本走一遍粘贴添加"（快捷面板的「加为入口」用）。 */

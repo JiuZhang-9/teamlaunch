@@ -9,12 +9,11 @@
  * 注意：Chromium 对 localStorage 的落盘有延迟（实测数秒），
  * 强杀进程可能丢掉最后一次记录——这只是少一条"最近打开"，不影响别的功能。
  */
-import { readMemoryString, writeMemoryString } from './localMemory.ts';
+import { useEffect, useState } from 'react';
+import { readMemoryString, subscribeMemory, writeMemoryString } from './localMemory.ts';
 
 const KEY = 'recentOpens';
 const MAX_STORED = 20;
-/** 面板空查询最多显示这么多条（与面板的 7 行上限一致）。 */
-export const MAX_RECENT_SHOWN = 7;
 
 interface RecentRecord {
   entryId: string;
@@ -49,4 +48,16 @@ export function pushRecentOpen(entryId: string): void {
 /** 最近打开的 id（最新在前）。显示时再按当前清单过滤——被删掉的入口自然消失。 */
 export function recentOpenIds(): string[] {
   return readAll().map((r) => r.entryId);
+}
+
+/**
+ * 最近打开的可订阅视图（2026-10-21）。
+ *
+ * 打开动作发生在主窗口，展示发生在快捷面板窗口：没有订阅时，"最近打开"要等面板
+ * 重新挂载才更新。订阅的是本机记忆，不涉及任何跨机同步。
+ */
+export function useRecentOpenIds(): string[] {
+  const [ids, setIds] = useState<string[]>(recentOpenIds);
+  useEffect(() => subscribeMemory(KEY, () => setIds(recentOpenIds())), []);
+  return ids;
 }

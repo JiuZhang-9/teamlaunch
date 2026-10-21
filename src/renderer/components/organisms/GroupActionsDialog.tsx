@@ -109,7 +109,20 @@ export function GroupActionsDialog({
       )}
 
       {canManage && (!confirmingRemove ? (
-        <Button tone="danger" icon={Trash2} onClick={() => setConfirmingRemove(true)}>
+        <Button
+          tone="danger"
+          icon={Trash2}
+          onClick={() => {
+            /* 空组直接删（2026-10-21 用户要求）：没有连带删除的入口，二次确认只会挡路。
+               非空组仍必须先看到"会连带删掉几个入口"再确认。 */
+            if (entryCount === 0) {
+              onRemove();
+              onCancel();
+              return;
+            }
+            setConfirmingRemove(true);
+          }}
+        >
           删除分组
         </Button>
       ) : (

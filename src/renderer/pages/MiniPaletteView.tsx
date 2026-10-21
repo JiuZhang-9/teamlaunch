@@ -15,7 +15,8 @@ import { MiniPalette, type PaletteHit } from '../components/organisms/MiniPalett
 import { useEntryIcons } from '../hooks/useEntryIcons.ts';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.ts';
 import { matches, subtitleOf, targetSummary } from '../lib/entry.ts';
-import { MAX_RECENT_SHOWN, recentOpenIds } from '../lib/recentOpens.ts';
+import { useRecentOpenIds } from '../lib/recentOpens.ts';
+import { togglePinnedEntry, usePinnedEntryIds } from '../lib/pinnedEntries.ts';
 import { findEntryIndex, type EntryProbe } from '../../shared/entry-match.ts';
 import { usePersonal } from '../store/personalStore.tsx';
 import { useSync } from '../store/syncStore.tsx';
@@ -32,6 +33,8 @@ interface Candidate {
 }
 
 const MAX_ROWS = 7;
+/** 「固定」与「最近打开」各占一行图标格：一行放得下 6 个 86px 格子。 */
+const SECTION_MAX = 6;
 /** 剪贴板文本长度上限：再长就不是"一个网址/一条路径"了。 */
 const CLIP_MAX = 4096;
 
@@ -77,6 +80,9 @@ export function MiniPaletteView({ open, onClose, docked = false }: { open: boole
       text 留着原样转给"加为入口"——重新识别一遍比在这里拼 target 更可靠（.lnk 会丢原始路径）。 */
   const [clip, setClip] = useState<{ probe: EntryProbe; draft: Entry; text: string } | null>(null);
   const debounced = useDebouncedValue(query, 120);
+  /** 固定与最近打开都是本机记忆：面板开着时被主窗口更新，也要立刻跟着变。 */
+  const pinnedIds = usePinnedEntryIds();
+  const recentIds = useRecentOpenIds();
 
   const presentation = syncPresentation(snapshot);
   const teamGroups = presentation.renderable ? (snapshot.config?.groups ?? []) : [];
@@ -93,7 +99,6 @@ export function MiniPaletteView({ open, onClose, docked = false }: { open: boole
   }, [teamGroups, personal.groups]);
 
   const items = useMemo(() => candidates.map((c) => c.entry), [candidates]);
-  const icons = useEntryIcons(items);
 
   useEffect(() => {
     if (!open) {
@@ -147,15 +152,39 @@ export function MiniPaletteView({ open, onClose, docked = false }: { open: boole
     const pinnedId = pinned[0]?.entry.id ?? null;
     if (q.length === 0) {
       const byId = new Map(candidates.map((c) => [c.entry.id, c]));
-      // 最近打开：按真实记录解析，已删除/未同步的自动跳过；一条都没有才回退清单前几条。
-      const recent = recentOpenIds()
-        .map((id) => byId.get(id))
-        .filter((c): c is Candidate => Boolean(c));
-      const rest = (recent.length > 0 ? recent : candidates)
-        // 置顶行已经在上面了：同一条入口不在下面重复出现（"不重复插行"）。
-        .filter((c) => c.entry.id !== pinnedId)
-        .slice(0, Math.min(MAX_RECENT_SHOWN, Math.max(0, MAX_ROWS - pinned.length)));
-      return [...pinned, ...rest.map((c) => ({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source }))];
+
+      /* 「固定」行（2026-10-21 用户要求）：用户手动钉住的入口，一行放得下 6 个。
+         超过 6 个时显示**最近固定的 6 个**——刚固定完立刻能看到，而不是被旧固定挤出去。
+         已删除/未同步的自动跳过；与剪贴板置顶行重复时不重复插。 */
+      const fixed: PaletteHit[] = [];
+      const fixedIds = new Set<string>();
+      for (const id of [...pinnedIds].reverse()) {
+        if (id === pinnedId || fixedIds.has(id)) continue;
+        const c = byId.get(id);
+        if (!c) continue;
+        fixedIds.add(id);
+        fixed.push({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, kind: 'pinned' });
+        if (fixed.length >= SECTION_MAX) break;
+      }
+
+      /* 「最近打开」行：自动记录，已固定/剪贴板置顶的不重复出现。 */
+      const recent: PaletteHit[] = [];
+      for (const id of recentIds) {
+        if (id === pinnedId || fixedIds.has(id)) continue;
+        const c = byId.get(id);
+        if (!c) continue;
+        recent.push({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, kind: 'recent' });
+        if (recent.length >= SECTION_MAX) break;
+      }
+      if (recent.length > 0) return [...pinned, ...fixed, ...recent];
+
+      /* 一条最近记录都没有：固定行之后回退展示清单前几条。
+         kind 保持 result（不贴「最近打开」标签）——标签必须如实描述这批结果是什么。 */
+      const fallback = candidates
+        .filter((c) => c.entry.id !== pinnedId && !fixedIds.has(c.entry.id))
+        .slice(0, SECTION_MAX)
+        .map((c) => ({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source }));
+      return [...pinned, ...fixed, ...fallback];
     }
 
     const scored = candidates
@@ -171,14 +200,15 @@ export function MiniPaletteView({ open, onClose, docked = false }: { open: boole
         source: x.c.source,
       }));
     return [...pinned, ...rows];
-  }, [candidates, items, clip, debounced]);
+  }, [candidates, items, clip, debounced, pinnedIds, recentIds]);
 
-  /** 空查询时「最近打开」标签只在真有最近记录时出现（回退清单前几条时不能贴这个标签）。 */
-  const hasRecent = useMemo(() => {
-    if (debounced.trim().length > 0) return false;
-    const ids = new Set(items.map((e) => e.id));
-    return recentOpenIds().some((id) => ids.has(id));
-  }, [debounced, items]);
+  /* 图标只为**当前可见的命中**取（面板窗口常驻预热：关着时不取、也不为整份清单预取——
+     那会和主窗口抢 shell 图标链，反而把可见图标挤成 null）。 */
+  const iconEntries = useMemo(
+    () => hits.filter((h) => h.kind !== 'clip-new').map((h) => h.entry),
+    [hits],
+  );
+  const icons = useEntryIcons(iconEntries, open);
 
   useEffect(() => {
     if (selected > hits.length - 1) setSelected(0);
@@ -205,7 +235,7 @@ export function MiniPaletteView({ open, onClose, docked = false }: { open: boole
       onSelectIndex={setSelected}
       iconFor={(id) => icons[id] ?? null}
       teamUnavailable={!presentation.renderable && candidates.some((c) => c.source === '本机')}
-      emptyQueryLabel={hasRecent ? '最近打开' : null}
+      onTogglePin={(entryId) => togglePinnedEntry(entryId)}
       onClose={onClose}
       onOpen={(hit) => {
         // Enter 后立刻关闭面板，不等待打开结果

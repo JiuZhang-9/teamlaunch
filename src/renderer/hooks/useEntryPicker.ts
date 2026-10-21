@@ -21,7 +21,7 @@ export interface EntryPicker {
   /** 扫描本机入口点，返回候选列表；调用方负责渲染选择对话框。 */
   scan(): Promise<ScanCandidate[] | null>;
   /** 选择对话框确认后批量落盘，返回实际添加数量。 */
-  commitScan(picked: ScanCandidate[]): Promise<number>;
+  commitScan(picked: ScanCandidate[], groupName?: string): Promise<number>;
 }
 
 function pickedOrNull(r: PickResult): PickResult | null {
@@ -69,11 +69,12 @@ export function useEntryPicker(): EntryPicker {
     return result.items;
   }, [push]);
 
-  /** 供选择对话框确认时调用：批量落盘并如实反馈实际添加数量。 */
+  /** 供选择对话框确认时调用：批量落盘并如实反馈实际添加数量。
+      groupName = 用户在对话框里选的目标分组（空 = 默认「我的入口」）。 */
   const commitScan = useCallback(
-    async (picked: ScanCandidate[]) => {
+    async (picked: ScanCandidate[], groupName?: string) => {
       const res = await addEntries(
-        picked.map((p) => ({ kind: 'app' as const, name: p.name, target: p.target, sourcePath: p.sourcePath })),
+        picked.map((p) => ({ kind: 'app' as const, name: p.name, target: p.target, sourcePath: p.sourcePath, groupName })),
       );
       // 本机用量统计（仅落本机、不上报）：扫描添加的次数（真加进去才算）。
       if (res.added > 0) void api.usage.bump({ kind: 'feature', key: 'scanAdd' });

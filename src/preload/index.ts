@@ -108,6 +108,12 @@ ipcRenderer.on('tl:settings', (_e, settings: Settings) => {
   cache.settings = settings;
 });
 
+// 个人入口变更广播（2026-10-21）：主窗口加/删/改后，快捷面板窗口的缓存与界面立刻跟上。
+// 缓存必须在这里更新——`personal.get()` 是同步读缓存，只发事件的话渲染层拿到的仍是旧值。
+ipcRenderer.on('tl:personal', (_e, config: PersonalConfig) => {
+  cache.personal = config;
+});
+
 const api: TeamLaunchApi = {
   kind: 'electron',
   /* 预热完成信号（R23）：同步 getter 在首帧可能返回缓存默认值，挂载后 await 它再重取。 */
@@ -260,6 +266,8 @@ const api: TeamLaunchApi = {
     onPaletteShown: (cb) => subscribe<void>('tl:palette-shown', () => cb()),
     onPaletteHidden: (cb) => subscribe<void>('tl:palette-hidden', () => cb()),
     onSettingsChanged: (cb) => subscribe<Settings>('tl:settings', cb),
+    /** 任意窗口改了「我的入口」都广播到这里：快捷面板不重启也能搜到新加的入口。 */
+    onPersonalChanged: (cb) => subscribe<PersonalConfig>('tl:personal', cb),
     onAppUpdate: (cb) => subscribe<AppUpdateEvent>('tl:app-update', cb),
     /** 主进程转发的"把这段文本走一遍粘贴添加"（面板的「加为入口」用）。 */
     onQuickAdd: (cb) => subscribe<string>('tl:quick-add', cb),

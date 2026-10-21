@@ -29,7 +29,7 @@ const SELECT_CLASS =
   'h-8 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 t-sm text-[var(--fg)]';
 
 export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
-  const { addEntries } = usePersonal();
+  const { addEntries, config } = usePersonal();
   const { push } = useToasts();
   /** 第一步结果：检测到的浏览器（profiles 为空的也在这——"装了但没书签"要看得见）。 */
   const [browsers, setBrowsers] = useState<BookmarkBrowser[] | null>(null);
@@ -39,6 +39,8 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
   const [pickedSource, setPickedSource] = useState(0);
   const [keyword, setKeyword] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  /** 目标分组（2026-10-21 用户要求）：空 = 默认「我的入口」。 */
+  const [group, setGroup] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -106,10 +108,11 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
     if (source === null || picked.size === 0) return;
     setBusy(true);
     /* 按 url 去重（同一书签可能出现在多个文件夹里），名称取书签标题。 */
+    const target = group.trim() || undefined;
     const inputs = source.items
       .filter((b) => picked.has(b.url))
       .filter((b, i, arr) => arr.findIndex((x) => x.url === b.url) === i)
-      .map((b) => ({ kind: 'web' as const, name: b.title, target: b.url }));
+      .map((b) => ({ kind: 'web' as const, name: b.title, target: b.url, groupName: target }));
     const res = await addEntries(inputs);
     setBusy(false);
     // 本机用量统计（仅落本机、不上报）：书签导入的次数。
@@ -157,6 +160,25 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
             ))}
           </select>
           <span className="ml-auto t-xs text-[var(--muted)]">只读本机文件</span>
+        </div>
+
+        {/* 目标分组（2026-10-21 用户要求）：不再一律落到「我的入口」。 */}
+        <div className="mb-2 flex items-center gap-2">
+          <span className="t-xs shrink-0 text-[var(--muted)]">加入分组</span>
+          <select
+            value={group}
+            aria-label="加入分组"
+            onChange={(e) => setGroup(e.target.value)}
+            className={SELECT_CLASS}
+          >
+            <option value="">我的入口（默认）</option>
+            {config.groups.map((g) => (
+              <option key={g.id} value={g.name}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+          <span className="ml-auto t-xs text-[var(--muted)]">本机保存</span>
         </div>
 
         {empty.length > 0 && (
@@ -269,7 +291,7 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
       }
     >
       <p className="t-sm mb-2 text-[var(--fg-2)]">
-        只读本机书签文件（不改、不动原文件），勾选后只加进你的「我的入口」（本机保存，不参与团队同步）。
+        只读本机书签文件（不改、不动原文件），勾选后加进你的本机入口（默认「{group.trim() || '我的入口'}」，本机保存，不参与团队同步）。
       </p>
       {body()}
     </Dialog>

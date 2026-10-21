@@ -553,6 +553,24 @@ export function MainWindowShell() {
     [addPersonalEntries, clearDropUi, dialog, entryEditor, gateBlocking, groupUnderPointer, push, setTab, tab],
   );
   const contentBackground = editing ? 'var(--surface-editing)' : 'var(--bg-canvas)';
+  /**
+   * 批量删除分组（侧栏多选）。空组整批直接删——没有连带删除的入口，
+   * 再弹一次"确认删除"只会挡路（2026-10-21 用户要求）；只要有组非空就必须先确认。
+   */
+  const removeGroupList = (list: Group[]) => {
+    const ids = list.map((g) => g.id);
+    if (edit.editing) edit.removeGroups(ids);
+    else void personalRemoveGroups(ids);
+    void api.usage.bump({ kind: 'feature', key: 'groupMultiSelect' });
+    push({ title: `已删除 ${list.length} 个分组`, tone: 'info' });
+  };
+  const requestDeleteGroups = (list: Group[]) => {
+    if (list.every((g) => g.entries.length === 0)) {
+      removeGroupList(list);
+      return;
+    }
+    setDeleteGroups(list);
+  };
   /** 侧栏与内容头共用：编辑态只属于团队页，个人页永远是 personal，主页无操作区。 */
   const mode: SidebarMode = tab === 'home' ? 'home' : tab === 'personal' ? 'personal' : editing ? 'editing' : 'team';
   /** 侧栏分组对话框的换序边界：按真实索引算（此前硬编码 true，边界上点了不动）。 */
@@ -633,9 +651,9 @@ export function MainWindowShell() {
           updateChecking={updateChecking}
           onOpenHelp={() => openDialog('shortcuts')}
           onOpenChangelog={() => openDialog('changelog')}
-          /* 分组多选批量删除（2026-10-18）：先弹一次确认（列名字 + 说明会连带删多少入口），
-             再按当前页面把这一批交给个人 store 或团队草稿（两边都是"一次写、一步撤销"）。 */
-          onDeleteGroups={(list) => setDeleteGroups(list)}
+          /* 分组多选批量删除（2026-10-18）：空组直接删，非空组先弹一次确认（列名字 +
+             说明会连带删多少入口），再按当前页面把这一批交给个人 store 或团队草稿。 */
+          onDeleteGroups={requestDeleteGroups}
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -678,7 +696,7 @@ export function MainWindowShell() {
             aria-labelledby={`tl-tab-${tab}`}
             tabIndex={-1}
             onPointerDown={marquee.onPointerDown}
-            className="min-h-0 flex-1 px-[var(--space-6)] pt-[var(--space-5)] pb-[var(--space-6)]"
+            className="min-h-0 flex-1 px-[calc(var(--space-6)-var(--space-2))] pt-[var(--space-5)] pb-[var(--space-6)]"
             style={{
               background: contentBackground,
               transition: 'background-color var(--motion-base) var(--ease-standard)',
@@ -708,15 +726,21 @@ export function MainWindowShell() {
                   scrollTop.current[tab] = top;
                 }}
               >
-                {tab === 'home' ? (
-                  <HomePageView />
-                ) : tab === 'personal' ? (
-                  <PersonalEntriesView />
-                ) : editing ? (
-                  <AdminEditView />
-                ) : (
-                  <TeamEntriesView />
-                )}
+                {/* 边缘留白（2026-10-21 用户反馈）：多选描边 / 焦点环 / 拖拽落点虚线都画在卡片
+                    **外侧**（outline-offset 2~4px），而卡片网格正好顶到滚动容器边缘，
+                    这些线在左右两侧会被容器裁掉——"蓝色边缘被遮挡"的根因。
+                    这里给内容让出 8px，网格按自身宽度重新算列数，不影响列宽口径。 */}
+                <div className="flex h-full flex-col px-2 pb-2">
+                  {tab === 'home' ? (
+                    <HomePageView />
+                  ) : tab === 'personal' ? (
+                    <PersonalEntriesView />
+                  ) : editing ? (
+                    <AdminEditView />
+                  ) : (
+                    <TeamEntriesView />
+                  )}
+                </div>
               </ScrollArea>
             )}
           </div>
@@ -771,13 +795,9 @@ export function MainWindowShell() {
           confirmLabel="删除"
           destructive
           onConfirm={() => {
-            const ids = deleteGroups.map((g) => g.id);
             const scope = deleteGroups;
             setDeleteGroups(null);
-            if (edit.editing) edit.removeGroups(ids);
-            else void personalRemoveGroups(ids);
-            void api.usage.bump({ kind: 'feature', key: 'groupMultiSelect' });
-            push({ title: `已删除 ${scope.length} 个分组`, tone: 'info' });
+            removeGroupList(scope);
           }}
           onCancel={() => setDeleteGroups(null)}
         />

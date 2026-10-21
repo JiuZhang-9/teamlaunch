@@ -12,6 +12,55 @@
  */
 const PREFIX = 'tl.';
 
+/**
+ * 记忆变更的跨窗口通知（2026-10-21）。
+ *
+ * 主窗口与快捷面板是两个独立的 BrowserWindow，同一份 localStorage，但各自的 React
+ * 状态互不知情：主窗口记下的"最近打开"、面板里右键"固定"的条目，都要让对方立刻看到。
+ *  - 同一窗口：写完后直接回调本地订阅者（storage 事件不会在写入窗口触发）；
+ *  - 跨窗口：BroadcastChannel 广播（storage 事件在 file:// 下不保证触发，只作兜底）。
+ */
+const listeners = new Map<string, Set<() => void>>();
+let channel: BroadcastChannel | null | undefined;
+
+function notify(key: string): void {
+  for (const cb of listeners.get(key) ?? []) cb();
+}
+
+function memoryChannel(): BroadcastChannel | null {
+  if (channel !== undefined) return channel;
+  try {
+    const created = new BroadcastChannel('tl-memory');
+    created.onmessage = (e: MessageEvent) => {
+      const key = (e.data as { key?: unknown } | null)?.key;
+      if (typeof key === 'string') notify(key);
+    };
+    channel = created;
+  } catch {
+    channel = null;
+  }
+  return channel;
+}
+
+export function subscribeMemory(key: string, cb: () => void): () => void {
+  let set = listeners.get(key);
+  if (!set) {
+    set = new Set();
+    listeners.set(key, set);
+  }
+  set.add(cb);
+  memoryChannel();
+  const onStorage = (e: StorageEvent): void => {
+    if (e.key === PREFIX + key) cb();
+  };
+  window.addEventListener('storage', onStorage);
+  return () => {
+    set.delete(cb);
+    if (set.size === 0) listeners.delete(key);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+
 export function readMemoryString(key: string): string | null {
   try {
     return window.localStorage.getItem(PREFIX + key);
@@ -26,6 +75,12 @@ export function writeMemoryString(key: string, value: string): void {
     window.localStorage.setItem(PREFIX + key, value);
   } catch {
     // 写不进去只损失记忆本身，不影响当前操作
+  }
+  notify(key);
+  try {
+    memoryChannel()?.postMessage({ key });
+  } catch {
+    // 广播失败（窗口正在关闭）：记忆已经落盘，别的窗口下次读也会拿到
   }
 }
 
