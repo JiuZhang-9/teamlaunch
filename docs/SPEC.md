@@ -48,7 +48,7 @@
 | P0-03 | 单层分组与排序 | 管理员维护团队分组与顺序，个人页独立维护，不做嵌套 | 5.00 |
 | P0-04 | 一键打开与错误解释 | 点击交给系统打开；本机可判定的失败显示原因、建议与诊断详情 | 5.00 |
 | P0-05 | 失效反馈 | 可选 5 种原因上报；离线进待发送队列，恢复后自动重试 | 4.27 |
-| P0-06 | 搜索与全局热键 | 默认 `Ctrl+Space`；匹配标题、关键词、分组、路径末级/域名；冲突可改键 | 5.00 |
+| P0-06 | 搜索与全局热键 | 默认 `Ctrl+Space`（唤起上次收起的窗口：主窗口或面板；已在最前则收起）；匹配标题、关键词、分组、路径末级/域名；冲突可改键；`Ctrl+Tab` 在主窗口与面板间互换 | 5.00 |
 | P0-07 | 个人入口管理 | 本机增删改移，支持 JSON 导出/导入，冲突不静默覆盖 | 5.00 |
 | P0-08 | 管理员编辑模式 | 设备标识 + 口令解锁；员工只读；编辑态显式标记 | 4.29 |
 | P0-09 | 可视化编辑与发布 | 客户端内编辑、校验、预览变更摘要、一键发布 | 4.29 |
@@ -168,7 +168,7 @@
 |---|---|---|
 | 团队入口页 | MainWindowShell · TitleBar · Toolbar · PageTabs · GroupHeader · CardGrid · EntryCard · SyncIndicator(**8 态**) | GET /config |
 | 我的入口页 | 同上，PageTabs 第二项 | 本地 personal.json |
-| 迷你唤起面板（Ctrl+Space） | MiniPalette · ResultRow | 本地索引 |
+| 迷你唤起面板（全局热键 / Ctrl+Tab） | MiniPalette · ResultRow | 本地索引 |
 | 窗口内搜索 | SearchInput · SearchResultsState | 本地索引 |
 | 管理员编辑态 | EditActionBar · PublishDialog | PUT /config |
 | 设置面板 | SettingsPanel（热键/自启/托盘/遥测开关） | 本地 |

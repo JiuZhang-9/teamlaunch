@@ -104,8 +104,11 @@ export function MiniPalette(props: MiniPaletteProps) {
       if (hits.length) onSelectIndex((selectedIndex - 1 + hits.length) % hits.length);
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'Tab') {
       /* Ctrl+Tab（2026-10-19 用户改键，原 Ctrl+M）：收起面板并把主窗口拿到前台，
-         不依赖选中项、不改动任何数据。必须排在下面 Tab 分支之前判定。 */
+         不依赖选中项、不改动任何数据。必须排在下面 Tab 分支之前判定。
+         2026-10-21：窗口内浮层形态还要 stopPropagation——主窗口新增了 Ctrl+Tab
+         （主窗口 → 快捷面板），不拦住会变成"关浮层 + 把主窗口藏进托盘"。 */
       e.preventDefault();
+      e.stopPropagation();
       onEnterMain();
     } else if (e.key === 'Enter') {
       e.preventDefault();

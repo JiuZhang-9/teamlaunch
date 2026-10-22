@@ -26,6 +26,17 @@ const PALETTE_W = 560;
 let mainWindow: BrowserWindow | null = null;
 let palette: BrowserWindow | null = null;
 
+/**
+ * 「上次收起的是哪一面」（2026-10-21 用户要求）。
+ *
+ * Ctrl+空格 的语义从"恒定开关面板"改成"唤起上次收起的那一面"：
+ * 收起面板 → 再按开面板；主窗口进托盘 → 再按把主窗口找回来。
+ * 只活在主进程内存里——这是本次会话的交互状态，不写 settings、不跨机同步、不持久化。
+ * 首次启动默认 `palette`：第一下仍然是唤起搜索面板（保持原手感）。
+ */
+export type Surface = 'main' | 'palette';
+let lastSurface: Surface = 'palette';
+
 /** 生产加载打包产物；开发加载 Vite dev server（由 TL_DEV_URL 注入）。 */
 export function rendererUrl(hash = ''): string {
   if (process.env.TL_DEV_URL) return `${process.env.TL_DEV_URL}${hash}`;
@@ -171,8 +182,60 @@ export function preheatPalette(): void {
   });
 }
 
-export function togglePalette(): void {
-  if (!palette) {
+/**
+ * 收起主窗口（进托盘），并记下「上次收起的是主窗口」。
+ * 与 `tl:window close` 的托盘分支、Ctrl+Tab 互换共用。返回是否真的藏了。
+ */
+export function hideMainWindow(): boolean {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  lastSurface = 'main';
+  mainWindow.hide();
+  return true;
+}
+
+/**
+ * 快捷面板 → 主窗口（面板里 Ctrl+Tab / 「进入主窗口」）。
+ * 先收面板再还原：最小化要 restore，隐藏/在后台的 show+focus 一步到位。
+ */
+export function switchToMain(): boolean {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  hidePalette();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  return true;
+}
+
+/**
+ * 主窗口 → 快捷面板（主窗口里 Ctrl+Tab）。
+ *
+ * canHideMain 来自 `trayEnabled`：开着托盘才把主窗口藏起来（真正的互换）；
+ * 托盘关着时不藏——藏了就没有任何可见入口把它找回来。面板本身 alwaysOnTop，
+ * 盖在主窗口上面同样能立刻搜索；`lastSurface` 仍记为主窗口，
+ * 下一按 Ctrl+空格 就能把它带回前台。
+ */
+export function switchToPalette(canHideMain: boolean): boolean {
+  if (!palette || palette.isDestroyed()) return false;
+  showPalette();
+  if (canHideMain) hideMainWindow();
+  else lastSurface = 'main';
+  return true;
+}
+
+/**
+ * 全局热键（Ctrl+空格）的唯一动作：唤起「上次收起的那一面」。
+ *  - 上次收起的是主窗口：已在最前 → 收回托盘；最小化/隐藏/被别的应用盖住 → 还原并前台；
+ *  - 上次收起的是快捷面板（含首次启动的默认值）→ 开/关面板，保留原来的开关手感；
+ *  - 主窗口已被销毁（原生关窗）时退回面板逻辑。
+ */
+export function handleHotkeySurface(): void {
+  const main = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  if (lastSurface === 'main' && main) {
+    if (main.isVisible() && main.isFocused()) hideMainWindow();
+    else showMainWindow();
+    return;
+  }
+  if (!palette || palette.isDestroyed()) {
     preheatPalette();
     return;
   }
@@ -220,6 +283,8 @@ export function showPalette(): void {
 
 export function hidePalette(): void {
   if (!palette || palette.isDestroyed()) return;
+  // 面板每一次收起（Esc / 点外面 / 失焦 / 热键）都算"上次收起的是面板"。
+  lastSurface = 'palette';
   palette.webContents.send('tl:palette-hidden');
   palette.hide();
 }

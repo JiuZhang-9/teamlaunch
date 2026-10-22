@@ -43,11 +43,18 @@ function PaletteWindow() {
 
   // Esc 收起必须不依赖输入框焦点：MiniPalette 的 onKeyDown 只覆盖焦点在面板内的情况，
   // 焦点一旦落在 body（点击过面板空白处/系统焦点丢失）就收不到键——窗口级兜底。
+  // Ctrl+Tab 同理（2026-10-21）：MiniPalette 里按会 stopPropagation 自己处理，
+  // 焦点在 body 时由这里兜底，保证面板窗口里 Ctrl+Tab 永远能换回主窗口。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         void api.palette.hide();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Tab') {
+        e.preventDefault();
+        void api.palette.openMain();
       }
     };
     window.addEventListener('keydown', onKey);

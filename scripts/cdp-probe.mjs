@@ -17,6 +17,7 @@ const KEYS = {
   Tab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 0 },
   'Shift+Tab': { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 },
   'Ctrl+Space': { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, modifiers: 2 },
+  'Ctrl+Tab': { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 2 },
   Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, modifiers: 0 },
   Enter: { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 0 },
   'Ctrl+Enter': { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 2 },
@@ -76,12 +77,17 @@ if (mode === 'eval' || (mode === 'palette' && rest[0] === 'eval')) {
   }
   await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x2, y: y2, button: 'left', clickCount: 1, buttons: 0 });
   console.log('dragged', x1, y1, '→', x2, y2);
-} else if (mode === 'key') {
-  const combo = KEYS[rest[0] ?? ''];
-  if (!combo) throw new Error(`unknown key combo ${rest[0]}（可用：${Object.keys(KEYS).join(' / ')}）`);
+} else if (mode === 'key' || (mode === 'palette' && rest[0] === 'key')) {
+  const comboName = mode === 'palette' ? rest[1] : rest[0];
+  const combo = KEYS[comboName ?? ''];
+  if (!combo) throw new Error(`unknown key combo ${comboName}（可用：${Object.keys(KEYS).join(' / ')}）`);
   await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...combo });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', ...combo });
-  console.log('key', rest[0]);
+  console.log('key', comboName);
+} else if (mode === 'focus') {
+  // 把目标窗口拿到前台（验证"已在前台时热键收起"这类分支用）。
+  await send('Page.bringToFront');
+  console.log('focused');
 } else if (mode === 'shot' || (mode === 'palette' && rest[0] === 'shot')) {
   const r = await send('Page.captureScreenshot', { format: 'png' });
   const file = (mode === 'palette' ? rest[1] : rest[0]) ?? 'shot.png';

@@ -360,6 +360,13 @@ export function MainWindowShell() {
     onTabPersonal: () => setTab('personal'),
     onRefresh: () => void refresh(),
     onToggleMini: () => setMiniOpen((v) => !v),
+    /* Ctrl+Tab：主窗口 → 快捷面板（2026-10-21）。托盘开启时主进程会把本窗口藏到托盘，
+       面板的 Ctrl+Tab 再把本窗口换回来——两面互换。 */
+    onSwitchToPalette: () => {
+      void api.palette.show().then((ok) => {
+        if (!ok) push({ title: '没能打开快捷窗口，请稍后再试', tone: 'warn' });
+      });
+    },
     onOpenSettings: () => openSettings(),
     onToggleEdit: toggleEdit,
     onPublish: () => openDialog('publish'),

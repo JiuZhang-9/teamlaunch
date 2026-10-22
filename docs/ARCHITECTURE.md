@@ -228,7 +228,7 @@ src/
 │   ├── index.ts                 # 入口：仅装配（单实例锁/窗口/托盘/服务启动）≤120 行
 │   ├── window.ts
 │   ├── tray.ts
-│   ├── hotkey.ts                # Ctrl+Space 全局热键注册与冲突处理
+│   ├── hotkey.ts                # 全局唤醒热键注册（唤起上次收起的窗口）与冲突处理
 │   ├── lifecycle.ts             # 角色决定关闭行为、powerMonitor 挂起/恢复
 │   └── ipc/
 │       ├── index.ts             # 集中注册（薄）

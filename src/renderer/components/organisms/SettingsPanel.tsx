@@ -420,7 +420,7 @@ export function SettingsPanel({
 
         {section === 'hotkeys' && (
           <>
-            <SectionHead>全局快捷搜索热键</SectionHead>
+            <SectionHead>全局唤醒热键</SectionHead>
             <div className="flex items-center gap-2">
               {/* Input 原子恒为 w-full，宽度类会被压掉：固定宽必须由外层包裹层给足并钉死。 */}
               <div className="w-[200px] shrink-0">
@@ -429,7 +429,7 @@ export function SettingsPanel({
                   readOnly
                   mono
                   value={hotkeyText}
-                  aria-label="全局快捷搜索热键"
+                  aria-label="全局唤醒热键"
                   onKeyDown={(e) => {
                   if (!recording) return;
                   e.preventDefault();
@@ -470,6 +470,10 @@ export function SettingsPanel({
                 手动输入
               </Button>
             </div>
+            <p className="mt-1 t-2xs text-[var(--meta)]">
+              按一下唤起<strong>上次收起的那个窗口</strong>：刚收起快捷面板就再打开快捷面板，主窗口进了托盘就把它找回来；
+              它已经在最前面时按一下则收起。两个窗口之间用 Ctrl+Tab 互换。
+            </p>
             {manualHotkey !== null && (
               <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2">
                 <p className="t-2xs mb-1 text-[var(--meta)]">

@@ -9,6 +9,7 @@
  *   Ctrl+F            聚焦搜索框（用自定义事件广播，避免把 ref 传进 hook）
  *   F5                立即拉取一次
  *   Ctrl+Space        迷你面板（Electron 下由主进程注册全局热键，这里是窗口内兜底）
+ *   Ctrl+Tab          切到快捷面板（Electron 下由主进程把主窗口藏到托盘，真正互换）
  *   Ctrl+,            设置
  *   Ctrl+Shift+E      进入 / 退出管理员编辑态
  *   Ctrl+Enter        有未发布改动时直达发布
@@ -27,6 +28,11 @@ export interface GlobalHotkeyHandlers {
   onTabPersonal(): void;
   onRefresh(): void;
   onToggleMini(): void;
+  /**
+   * Ctrl+Tab：主窗口 → 快捷面板（2026-10-21 用户要求「两面互换」）。
+   * 面板里的 Ctrl+Tab 走 MiniPalette 自己的处理器（面板 → 主窗口）。
+   */
+  onSwitchToPalette(): void;
   onOpenSettings(): void;
   onToggleEdit(): void;
   onPublish(): void;
@@ -49,13 +55,24 @@ export interface GlobalHotkeyHandlers {
 
 export function useGlobalHotkeys(h: GlobalHotkeyHandlers): void {
   const {
-    onTabTeam, onTabPersonal, onRefresh, onToggleMini,
+    onTabTeam, onTabPersonal, onRefresh, onToggleMini, onSwitchToPalette,
     onOpenSettings, onToggleEdit, onPublish, onNewEntry, onToggleSidebar, onShowShortcuts, canPublish, appHotkeys,
     onSelectAll,
   } = h;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      /* Ctrl+Tab：主窗口 ↔ 快捷面板互换（2026-10-21 用户要求）。
+         只在这个窗口有焦点时生效（面板窗口不挂本 hook，它自己处理 Ctrl+Tab）。
+         两条守卫：按住不放不连续切换；模态对话框开着时不抢 Tab——那里 Tab 是焦点陷阱，
+         抢走会让键盘用户没法在对话框里移动。 */
+      if (e.ctrlKey && !e.altKey && !e.shiftKey && e.code === 'Tab') {
+        if (e.repeat) return;
+        if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+        e.preventDefault();
+        onSwitchToPalette();
+        return;
+      }
       // Ctrl+Space 是独立的窗口内兜底（OS 级全局热键被占用时仍可唤起），不走自定义表。
       if (e.ctrlKey && e.code === 'Space') {
         e.preventDefault();
@@ -125,5 +142,5 @@ export function useGlobalHotkeys(h: GlobalHotkeyHandlers): void {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [appHotkeys, onTabTeam, onTabPersonal, onRefresh, onToggleMini, onOpenSettings, onToggleEdit, onPublish, onNewEntry, onToggleSidebar, onShowShortcuts, canPublish]);
+  }, [appHotkeys, onTabTeam, onTabPersonal, onRefresh, onToggleMini, onSwitchToPalette, onOpenSettings, onToggleEdit, onPublish, onNewEntry, onToggleSidebar, onShowShortcuts, canPublish]);
 }

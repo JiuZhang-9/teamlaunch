@@ -16,7 +16,7 @@ import { recordEntryOpen, recordFeature, type UsageFeature } from './usageStats.
 import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './updater.ts';
 import { syncService } from './syncBridge.ts';
 import { serverPort } from './serverPort.ts';
-import { hidePalette, showMainWindow } from './windowManager.ts';
+import { hidePalette, hideMainWindow, showMainWindow, switchToMain, switchToPalette } from './windowManager.ts';
 import { notifySystem } from './notify.ts';
 import { localStore } from './localStore.ts';
 import { EntrySchema } from '../shared/schema/entry.ts';
@@ -141,8 +141,11 @@ export function registerIpc(deps: IpcDeps): void {
     else if (action === 'max') {
       if (win.isMaximized()) win.unmaximize();
       else win.maximize();
-    } else if (deps.closeToTray()) win.hide();
-    else app.quit();
+    } else if (deps.closeToTray()) {
+      /* 点 X 进托盘也属于「收起主窗口」：记进 lastSurface，
+         这样下一次 Ctrl+空格 会把主窗口找回来（2026-10-21）。 */
+      hideMainWindow();
+    } else app.quit();
   });
 
   ipcMain.handle('tl:entries-open', async (_e, entryId: string): Promise<OpenResult> => {
@@ -468,16 +471,15 @@ export function registerIpc(deps: IpcDeps): void {
   /**
    * 「进入主窗口」（2026-10-18 用户要求）：面板收起 → 主窗口还原（若最小化）→ 显示并聚焦。
    * 与 quickAdd 的区别是它**不改动任何数据**——只是把用户带到主界面。
+   * 2026-10-21：实现收进 windowManager（与 Ctrl+Tab 互换共用一套，顺带记"上次收起的是面板"）。
    */
-  ipcMain.handle('tl:palette-open-main', () => {
-    const main = deps.getWindows()[0];
-    if (!main || main.isDestroyed()) return false;
-    hidePalette();
-    if (main.isMinimized()) main.restore();
-    main.show();
-    main.focus();
-    return true;
-  });
+  ipcMain.handle('tl:palette-open-main', () => switchToMain());
+
+  /**
+   * 主窗口 Ctrl+Tab → 快捷面板（2026-10-21 用户要求「主窗口和快捷搜索栏互换」）。
+   * 托盘开启时把主窗口藏到托盘，实现真正的互换；托盘关着时只让面板盖上来。
+   */
+  ipcMain.handle('tl:palette-show', () => switchToPalette(deps.closeToTray()));
 
   /**
    * 剪贴板读取（快捷搜索面板的剪贴板候选行）：只读文本，**不落库、不写日志**。
