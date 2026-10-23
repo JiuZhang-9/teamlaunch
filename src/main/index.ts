@@ -135,7 +135,8 @@ if (!acquireSingleInstanceLock(() => {
     }
 
     // 读回上次的窗口位置与大小（2026-10-18）：异步读盘，所以这一步要 await。
-    const main = await createMainWindow();
+    // closeToTray 传 getter 而不是值：托盘开关在设置里随时可改，关窗时按当时的值决定。
+    const main = await createMainWindow(() => currentSettings.trayEnabled);
     preheatPalette();
     // 面板不透明度（2026-10-19）：窗口刚建出来就应用一次，否则面板会一直是不透明的原样。
     setPaletteOpacity(currentSettings.paletteOpacity);

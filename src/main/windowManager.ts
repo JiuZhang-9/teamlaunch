@@ -111,7 +111,7 @@ function watchPreloadError(win: BrowserWindow): void {
  * 恢复顺序：读 `config/window-state.json` → 校验矩形仍落在某个显示器工作区内
  * （外接屏拔掉后不按旧坐标摆放，回落居中默认）→ 建窗 → 需要时最大化 → 挂节流写盘。
  */
-export async function createMainWindow(): Promise<BrowserWindow> {
+export async function createMainWindow(closeToTray: () => boolean): Promise<BrowserWindow> {
   const userData = app.getPath('userData');
   const saved = await loadWindowState(userData);
   const areas = screen.getAllDisplays().map((d) => d.workArea);
@@ -136,8 +136,21 @@ export async function createMainWindow(): Promise<BrowserWindow> {
   watchPreloadError(mainWindow);
   const flushBounds = trackWindowBounds(userData, mainWindow);
   /* 关窗前补一次立即写：拖动后 500ms 内就关窗的话，节流计时器会随进程一起消失，
-     最后一次调整的尺寸/位置就丢了。 */
-  mainWindow.on('close', flushBounds);
+     最后一次调整的尺寸/位置就丢了。
+
+     原生 close 必须收进统一策略（2026-10-23 用户反馈 Ctrl+W 后主窗口再也打不开）：
+     Ctrl+W / Alt+F4 走的是窗口原生 close（Ctrl+W 来自 Electron 默认菜单的 Close Window），
+     此前只挂存盘、直接销毁窗口；而快捷面板是常驻预热的，window-all-closed 不触发，
+     进程活着但主窗口没了——托盘 / 热键 / Ctrl+Tab 全都对 null 直接返回，只能重启。
+     现在与标题栏 X 同一语义：托盘开启时收进托盘（可随时唤起），托盘关闭时正常退出。 */
+  mainWindow.on('close', (e) => {
+    flushBounds();
+    // 退出流程中的 close 必须放行，否则 app.quit() 永远完不成（与面板同一条纪律）。
+    if (isQuitting()) return;
+    e.preventDefault();
+    if (closeToTray()) hideMainWindow();
+    else app.quit();
+  });
   void mainWindow.loadURL(rendererUrl());
 
   mainWindow.on('closed', () => {

@@ -16,7 +16,7 @@ import { recordEntryOpen, recordFeature, type UsageFeature } from './usageStats.
 import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './updater.ts';
 import { syncService } from './syncBridge.ts';
 import { serverPort } from './serverPort.ts';
-import { hidePalette, hideMainWindow, showMainWindow, switchToMain, switchToPalette } from './windowManager.ts';
+import { hidePalette, showMainWindow, switchToMain, switchToPalette } from './windowManager.ts';
 import { notifySystem } from './notify.ts';
 import { localStore } from './localStore.ts';
 import { EntrySchema } from '../shared/schema/entry.ts';
@@ -141,11 +141,11 @@ export function registerIpc(deps: IpcDeps): void {
     else if (action === 'max') {
       if (win.isMaximized()) win.unmaximize();
       else win.maximize();
-    } else if (deps.closeToTray()) {
-      /* 点 X 进托盘也属于「收起主窗口」：记进 lastSurface，
-         这样下一次 Ctrl+空格 会把主窗口找回来（2026-10-21）。 */
-      hideMainWindow();
-    } else app.quit();
+    } else {
+      /* 走窗口原生 close，让「托盘开启 → 收进托盘 / 托盘关闭 → 退出」的策略只有一处
+         （windowManager 的 close 处理）。标题栏 X、Ctrl+W、Alt+F4 因此完全同义。 */
+      win.close();
+    }
   });
 
   ipcMain.handle('tl:entries-open', async (_e, entryId: string): Promise<OpenResult> => {

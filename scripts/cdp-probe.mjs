@@ -9,7 +9,7 @@
  */
 import { writeFileSync } from 'node:fs';
 
-const DEBUG_HOST = 'http://127.0.0.1:19222';
+const DEBUG_HOST = process.env.TL_CDP_HOST ?? `http://127.0.0.1:${process.env.TL_CDP_PORT ?? '19222'}`;
 const [, , mode, ...rest] = process.argv;
 
 /** 组合键 → CDP 按键参数（够用即可：修饰键掩码 Alt=1 Ctrl=2 Meta=4 Shift=8）。 */
@@ -18,6 +18,7 @@ const KEYS = {
   'Shift+Tab': { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 },
   'Ctrl+Space': { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, modifiers: 2 },
   'Ctrl+Tab': { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 2 },
+  'Ctrl+W': { key: 'w', code: 'KeyW', windowsVirtualKeyCode: 87, modifiers: 2 },
   Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, modifiers: 0 },
   Enter: { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 0 },
   'Ctrl+Enter': { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 2 },
