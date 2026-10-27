@@ -13,6 +13,7 @@ import { isQuitting } from './lifecycle.ts';
 import { logLine } from './appLog.ts';
 import { loadWindowState, trackWindowBounds } from './windowState.ts';
 import { defaultBounds, isRestorableBounds } from '../shared/window-bounds.ts';
+import { planSurface, type Surface, type SurfacePlan, type SurfaceSnapshot } from '../shared/surface-machine.ts';
 import { ensureProgramsFresh } from './programIndex.ts';
 
 /* 默认大小不再写死：2026-10-18 起由 windowState.defaultBounds() 按屏幕工作区自适应
@@ -23,20 +24,32 @@ import { ensureProgramsFresh } from './programIndex.ts';
 const MIN_W = 880;
 const MIN_H = 480;
 const PALETTE_W = 560;
+/** 快捷窗口高度：与 design-tokens 的 --palette-h 同一个口径（1.5.0 会一起调大）。 */
+const PALETTE_H = 420;
 
 let mainWindow: BrowserWindow | null = null;
 let palette: BrowserWindow | null = null;
 
 /**
- * 「上次收起的是哪一面」（2026-10-21 用户要求）。
+ * 窗口可见性状态机（2026-10-27，1.2.0）：两面互斥、Ctrl+Space 先照顾主窗口。
  *
- * Ctrl+空格 的语义从"恒定开关面板"改成"唤起上次收起的那一面"：
- * 收起面板 → 再按开面板；主窗口进托盘 → 再按把主窗口找回来。
+ * 判定本体在 shared/surface-machine.ts（不启动 Electron 也能测），这里只负责执行。
+ * `activeSurface` 记「最后一次**显示**的是哪一面」，**不是**最后收起的那一面：
+ * 从主窗口切到快捷窗口时主窗口只是让位，不该把「下次 Ctrl+Space 的目标」抢走。
  * 只活在主进程内存里——这是本次会话的交互状态，不写 settings、不跨机同步、不持久化。
  * 首次启动默认 `palette`：第一下仍然是唤起搜索面板（保持原手感）。
  */
-export type Surface = 'main' | 'palette';
-let lastSurface: Surface = 'palette';
+let activeSurface: Surface = 'palette';
+
+/**
+ * 托盘开关的实时值（托盘关着时「收起主窗口」只能最小化，否则藏了没有任何可见入口）。
+ * 由 index.ts 在启动时注入 getter，设置里随时改都按当时的值生效。
+ */
+let trayEnabledGetter: () => boolean = () => true;
+
+export function setTrayEnabledGetter(getter: () => boolean): void {
+  trayEnabledGetter = getter;
+}
 
 /** 快捷窗口本次打开的范围：入口搜索（默认）或本机程序搜索（Ctrl+Alt+F 专用）。 */
 export type PaletteScope = 'entries' | 'programs';
@@ -139,6 +152,13 @@ export async function createMainWindow(closeToTray: () => boolean): Promise<Brow
   );
   if (bounds.maximized) mainWindow.maximize();
   watchPreloadError(mainWindow);
+  /* 用户通过任务栏 / Alt+Tab 把主窗口拉到前台时，它才是「当前这一面」——
+     否则 activeSurface 会停在快捷窗口上，下一次 Ctrl+空格的目标就错了。
+     顺手收掉快捷窗口：互斥不能只靠调用方自觉（2026-10-27，1.2.0）。 */
+  mainWindow.on('focus', () => {
+    activeSurface = 'main';
+    hidePalette();
+  });
   const flushBounds = trackWindowBounds(userData, mainWindow);
   /* 关窗前补一次立即写：拖动后 500ms 内就关窗的话，节流计时器会随进程一起消失，
      最后一次调整的尺寸/位置就丢了。
@@ -174,7 +194,7 @@ export function preheatPalette(): void {
   palette = new BrowserWindow(
     windowOptions({
       width: PALETTE_W,
-      height: 420,
+      height: PALETTE_H,
       frame: false,
       resizable: false,
       movable: false,
@@ -184,6 +204,10 @@ export function preheatPalette(): void {
     }),
   );
   watchPreloadError(palette);
+  /* 面板拿到焦点 = 用户正在用这一面；activeSurface 必须跟着它走。 */
+  palette.on('focus', () => {
+    activeSurface = 'palette';
+  });
   void palette.loadURL(rendererUrl('#/palette'));
 
   palette.on('close', (e) => {
@@ -200,65 +224,96 @@ export function preheatPalette(): void {
   });
 }
 
-/**
- * 收起主窗口（进托盘），并记下「上次收起的是主窗口」。
- * 与 `tl:window close` 的托盘分支、Ctrl+Tab 互换共用。返回是否真的藏了。
- */
+/* ---------------- 状态机执行层 ---------------- */
+
+/** 把真实窗口状态喂给纯状态机（shared/surface-machine.ts）。 */
+function surfaceSnapshot(): SurfaceSnapshot {
+  const main = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const pal = palette && !palette.isDestroyed() ? palette : null;
+  return {
+    mainExists: main !== null,
+    mainVisible: main?.isVisible() ?? false,
+    mainMinimized: main?.isMinimized() ?? false,
+    mainFocused: main?.isFocused() ?? false,
+    paletteExists: pal !== null,
+    paletteVisible: pal?.isVisible() ?? false,
+    activeSurface,
+    trayEnabled: trayEnabledGetter(),
+  };
+}
+
+/** 收起主窗口（进托盘）。托盘关着时不能 hide——藏了没有任何可见入口能把它找回来。 */
 export function hideMainWindow(): boolean {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
-  lastSurface = 'main';
   mainWindow.hide();
   return true;
 }
 
-/**
- * 快捷面板 → 主窗口（面板里 Ctrl+Tab / 「进入主窗口」）。
- * 先收面板再还原：最小化要 restore，隐藏/在后台的 show+focus 一步到位。
- */
-export function switchToMain(): boolean {
+function minimizeMainWindow(): boolean {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
-  hidePalette();
+  mainWindow.minimize();
+  return true;
+}
+
+/** 按托盘开关让主窗口让位：托盘开 → 隐藏；托盘关 → 最小化（任务栏里还留着）。 */
+function dismissMainWindow(): boolean {
+  return trayEnabledGetter() ? hideMainWindow() : minimizeMainWindow();
+}
+
+/** 把主窗口拿到前台：最小化先还原，隐藏/在后台的 show + focus 一步到位。 */
+function focusMainWindow(): boolean {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+  activeSurface = 'main';
   return true;
+}
+
+function executePlan(plan: SurfacePlan): boolean {
+  switch (plan.kind) {
+    case 'noop':
+      return false;
+    case 'hidePalette':
+      return hidePalette();
+    case 'hideMain':
+      return plan.minimize ? minimizeMainWindow() : dismissMainWindow();
+    case 'focusMain':
+    case 'showMain':
+      return showMainWindow();
+    case 'showPalette':
+      return showPaletteNow('entries', plan.hideMain);
+  }
+}
+
+/**
+ * 快捷面板 → 主窗口（面板里 Ctrl+Tab / 「进入主窗口」）。
+ * 统一走 showMainWindow：先收面板再还原，互斥由它保证。
+ */
+export function switchToMain(): boolean {
+  return showMainWindow();
 }
 
 /**
  * 主窗口 → 快捷面板（主窗口里 Ctrl+Tab）。
- *
- * canHideMain 来自 `trayEnabled`：开着托盘才把主窗口藏起来（真正的互换）；
- * 托盘关着时不藏——藏了就没有任何可见入口把它找回来。面板本身 alwaysOnTop，
- * 盖在主窗口上面同样能立刻搜索；`lastSurface` 仍记为主窗口，
- * 下一按 Ctrl+空格 就能把它带回前台。
+ * 托盘开着时主窗口进托盘；托盘关着时最小化——两种都保证两面不同时可见。
  */
-export function switchToPalette(canHideMain: boolean): boolean {
+export function switchToPalette(): boolean {
   if (!palette || palette.isDestroyed()) return false;
-  showPalette('entries');
-  if (canHideMain) hideMainWindow();
-  else lastSurface = 'main';
-  return true;
+  return showPalette('entries');
 }
 
 /**
- * 全局热键（Ctrl+空格）的唯一动作：唤起「上次收起的那一面」。
- *  - 上次收起的是主窗口：已在最前 → 收回托盘；最小化/隐藏/被别的应用盖住 → 还原并前台；
- *  - 上次收起的是快捷面板（含首次启动的默认值）→ 开/关面板，保留原来的开关手感；
- *  - 主窗口已被销毁（原生关窗）时退回面板逻辑。
+ * 全局热键（Ctrl+空格）的唯一动作。
+ *
+ * 定稿语义（2026-10-27 用户确认）：Ctrl+Tab 负责两面互换，Ctrl+空格只开关当前可见的那一面。
+ *  - 快捷窗口可见 → 只收起它（回主窗口走 Ctrl+Tab）；
+ *  - 主窗口在屏幕上（有焦点 / 被别的窗口挡住 / 最小化）→ 只作用于主窗口，绝不去开快捷窗口；
+ *  - 两面都不可见 → 打开上次显示过的那一面。
+ * 判定全在 shared/surface-machine.ts，这里只执行。
  */
 export function handleHotkeySurface(): void {
-  const main = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
-  if (lastSurface === 'main' && main) {
-    if (main.isVisible() && main.isFocused()) hideMainWindow();
-    else showMainWindow();
-    return;
-  }
-  if (!palette || palette.isDestroyed()) {
-    preheatPalette();
-    return;
-  }
-  if (palette.isVisible()) hidePalette();
-  else showPalette('entries');
+  executePlan(planSurface('toggle', surfaceSnapshot()));
 }
 
 /**
@@ -303,12 +358,38 @@ export function setPaletteOpacity(percent: number): number {
   return Math.round(percent);
 }
 
-/** 把主窗口拿到前台（点系统通知的默认动作 / 托盘菜单都用它）。 */
-export function showMainWindow(): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.show();
-  mainWindow.focus();
+/** 把主窗口拿到前台（点系统通知的默认动作 / 托盘菜单都用它）。先收快捷窗口，保证互斥。 */
+export function showMainWindow(): boolean {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  hidePalette();
+  return focusMainWindow();
+}
+
+/** 面板定位：优先放在主窗口所在的显示器，主窗口不可用时退回光标所在屏。 */
+function positionPalette(): void {
+  if (!palette || palette.isDestroyed()) return;
+  const main = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  let area: Electron.Rectangle;
+  let displayId: number;
+  if (main) {
+    const b = main.getNormalBounds();
+    const display = screen.getDisplayNearestPoint({
+      x: b.x + Math.round(b.width / 2),
+      y: b.y + Math.round(b.height / 2),
+    });
+    area = display.workArea;
+    displayId = display.id;
+  } else {
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    area = display.workArea;
+    displayId = display.id;
+  }
+  const y = Math.round(area.y + area.height * 0.18);
+  const x = Math.round(area.x + (area.width - PALETTE_W) / 2);
+  /* setBounds 而不是 setPosition：顺带把尺寸钉回常量，窗口被系统/缩放改过之后也不会带着旧尺寸乱跑。
+     位置写进日志——用户报过"弹到左上侧"，下次直接看得到我们算的是哪个坐标、哪块屏。 */
+  palette.setBounds({ x, y, width: PALETTE_W, height: PALETTE_H }, false);
+  logLine('TL-PAL', 'position', `${x},${y} display=${displayId}`);
 }
 
 /**
@@ -317,16 +398,24 @@ export function showMainWindow(): void {
  * scope 只影响渲染层的搜索范围：entries=入口搜索（默认），programs=本机程序搜索。
  * 事件在窗口还在加载时可能丢——这里用 did-finish-load 兜底，保证冷启动按热键也能拿到范围。
  */
-export function showPalette(scope: PaletteScope = 'entries'): void {
-  if (!palette || palette.isDestroyed()) return;
+export function showPalette(scope: PaletteScope = 'entries'): boolean {
+  if (!palette || palette.isDestroyed()) return false;
+  const plan = planSurface('showPalette', surfaceSnapshot());
+  if (plan.kind !== 'showPalette') return false;
+  return showPaletteNow(scope, plan.hideMain);
+}
+
+/** 按状态机给出的让位方式打开面板；showPalette / executePlan 共用，避免两套判定。 */
+function showPaletteNow(scope: PaletteScope, hideMain: 'hide' | 'minimize' | 'none'): boolean {
+  if (!palette || palette.isDestroyed()) return false;
+  if (hideMain === 'hide') hideMainWindow();
+  else if (hideMain === 'minimize') minimizeMainWindow();
+
   paletteScope = scope;
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  const area = display.workArea;
-  const y = Math.round(area.y + area.height * 0.18);
-  const x = Math.round(area.x + (area.width - PALETTE_W) / 2);
-  palette.setPosition(x, y, false);
+  positionPalette();
   palette.show();
   palette.focus();
+  activeSurface = 'palette';
 
   // 每次打开顺手检查索引是否过期（24h）；过期只在后台重扫，不阻塞本次搜索。
   ensureProgramsFresh();
@@ -338,14 +427,16 @@ export function showPalette(scope: PaletteScope = 'entries'): void {
   };
   if (palette.webContents.isLoading()) palette.webContents.once('did-finish-load', sendScope);
   else sendScope();
+  return true;
 }
 
-export function hidePalette(): void {
-  if (!palette || palette.isDestroyed()) return;
-  // 面板每一次收起（Esc / 点外面 / 失焦 / 热键）都算"上次收起的是面板"。
-  lastSurface = 'palette';
+export function hidePalette(): boolean {
+  if (!palette || palette.isDestroyed()) return false;
+  if (!palette.isVisible()) return false;
+  /* activeSurface 刻意不动：刚收起面板，下一次 Ctrl+空格应该还能把它打开（1.1.3 的手感）。 */
   palette.webContents.send('tl:palette-hidden');
   palette.hide();
+  return true;
 }
 
 export function getPalette(): BrowserWindow | null {

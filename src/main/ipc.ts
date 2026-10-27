@@ -127,8 +127,6 @@ function broadcastPersonal(config: PersonalConfig, sender?: Electron.WebContents
 
 export interface IpcDeps {
   getWindows(): BrowserWindow[];
-  /** 关闭主窗口是否"隐藏到托盘"。false 时 X = 真退出（PRD 11.5：关闭托盘常驻时关窗含义必须明确）。 */
-  closeToTray(): boolean;
   onHotkey(report: HotkeyReport): void;
   /** 设置落盘后通知装配层：同步客户端据此换端点、换轮询间隔、开关遥测。 */
   onSettingsPatch(next: Settings): void;
@@ -480,15 +478,16 @@ export function registerIpc(deps: IpcDeps): void {
   /**
    * 「进入主窗口」（2026-10-18 用户要求）：面板收起 → 主窗口还原（若最小化）→ 显示并聚焦。
    * 与 quickAdd 的区别是它**不改动任何数据**——只是把用户带到主界面。
-   * 2026-10-21：实现收进 windowManager（与 Ctrl+Tab 互换共用一套，顺带记"上次收起的是面板"）。
+   * 2026-10-27（1.2.0）：互斥与 activeSurface 统一收进 windowManager（surface-machine.ts 判定）。
    */
   ipcMain.handle('tl:palette-open-main', () => switchToMain());
 
   /**
    * 主窗口 Ctrl+Tab → 快捷面板（2026-10-21 用户要求「主窗口和快捷搜索栏互换」）。
-   * 托盘开启时把主窗口藏到托盘，实现真正的互换；托盘关着时只让面板盖上来。
+   * 2026-10-27（1.2.0）：两面互斥收进 windowManager——托盘开着时主窗口进托盘，
+   * 托盘关着时最小化；无论哪种都不会再出现「面板盖在主窗口上」的共存状态。
    */
-  ipcMain.handle('tl:palette-show', () => switchToPalette(deps.closeToTray()));
+  ipcMain.handle('tl:palette-show', () => switchToPalette());
 
   /**
    * 剪贴板读取（快捷搜索面板的剪贴板候选行）：只读文本，**不落库、不写日志**。
@@ -504,10 +503,9 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle('tl:palette-quick-add', (_e, text: unknown) => {
     const main = deps.getWindows()[0];
     if (!main || main.isDestroyed()) return false;
-    hidePalette();
-    if (main.isMinimized()) main.restore();
-    main.show();
-    main.focus();
+    /* showMainWindow 会先收面板、再还原/显示/聚焦，互斥与「activeSurface 归主窗口」
+       都由它统一处理；这里不再手写一套窗口动作。 */
+    showMainWindow();
     main.webContents.send('tl:quick-add', String(text ?? ''));
     return true;
   });

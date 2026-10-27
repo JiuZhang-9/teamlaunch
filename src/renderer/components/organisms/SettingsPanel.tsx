@@ -566,8 +566,9 @@ export function SettingsPanel({
               value={settings.hotkey}
               hint={
                 <>
-                  按一下唤起<strong>上次收起的那个窗口</strong>：刚收起快捷面板就再打开快捷面板，主窗口进了托盘就把它找回来；
-                  它已经在最前面时按一下则收起。两个窗口之间用 Ctrl+Tab 互换。
+                  按一下开关<strong>当前那个窗口</strong>：主窗口在屏幕上（被别的窗口挡住或最小化也算）就回到主窗口；
+                  主窗口已在最前、或快捷窗口开着时，按一下收起；两面都收起时打开上次用过的那一面。
+                  两个窗口之间用 Ctrl+Tab 互换。
                 </>
               }
               onSave={(v) => onPatch({ hotkey: v })}

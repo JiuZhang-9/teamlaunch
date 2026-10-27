@@ -230,7 +230,7 @@ src/
 │   ├── index.ts                 # 入口：仅装配（单实例锁/窗口/托盘/服务启动）≤120 行
 │   ├── window.ts
 │   ├── tray.ts
-│   ├── hotkey.ts                # 两个全局热键（唤起上次收起的窗口 / 本机程序搜索）注册与冲突处理
+│   ├── hotkey.ts                # 两个全局热键（开关当前窗口 / 本机程序搜索）注册与冲突处理
 │   ├── programIndex.ts          # 本机程序索引：开始菜单扫描、缓存、TTL、文件监听、跨窗口广播
 │   ├── programScan.ts           # 扫描核心（目录树 + .lnk → 记录，依赖注入，可脱离 Electron 直测）
 │   ├── programPinyin.ts         # 程序名 → 全拼/首字母检索键（pinyin-pro）

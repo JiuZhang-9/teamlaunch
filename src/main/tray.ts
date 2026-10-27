@@ -6,7 +6,7 @@
  */
 import { Menu, Tray, app, nativeImage } from 'electron';
 import path from 'node:path';
-import { getMainWindow, showPalette } from './windowManager.ts';
+import { showMainWindow, showPalette } from './windowManager.ts';
 
 let tray: Tray | null = null;
 
@@ -26,13 +26,8 @@ export function createTray(actions: { refresh(): void }): Tray | null {
   const menu = Menu.buildFromTemplate([
     {
       label: '打开主窗口',
-      click: () => {
-        const win = getMainWindow();
-        if (win) {
-          win.show();
-          win.focus();
-        }
-      },
+      /* 统一走 showMainWindow：先收快捷窗口，保证两面不同时可见（2026-10-27，1.2.0）。 */
+      click: () => showMainWindow(),
     },
     // 不标注键位：唤起热键可在设置里改键，写死标注就是撒谎（用户明确指出）。
     { label: '唤起搜索', click: () => showPalette() },
@@ -43,8 +38,7 @@ export function createTray(actions: { refresh(): void }): Tray | null {
 
   tray.setContextMenu(menu);
   tray.on('click', () => {
-    const win = getMainWindow();
-    if (win) win.show();
+    showMainWindow();
   });
   return tray;
 }

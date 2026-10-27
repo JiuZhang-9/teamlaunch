@@ -6,7 +6,7 @@
  */
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
-import { createMainWindow, getMainWindow, getPalette, preheatPalette, setPaletteOpacity } from './windowManager.ts';
+import { createMainWindow, getMainWindow, getPalette, preheatPalette, setPaletteOpacity, setTrayEnabledGetter, showMainWindow } from './windowManager.ts';
 import { registerIpc } from './ipc.ts';
 import { bindSyncBroadcast, installSyncService, syncService } from './syncBridge.ts';
 import { setAutoCheckEnabled, startAutoUpdater } from './updater.ts';
@@ -44,6 +44,10 @@ if (profile && profile !== 'default') {
 /** 装配期读到的设置，之后由设置面板的 patch 同步更新（客户端按它决定发现与轮询）。 */
 let currentSettings: Settings = SettingsSchema.parse({});
 let memberClient: MemberSyncClient | null = null;
+
+/* 窗口状态机需要托盘的实时开关（托盘关着时「收起主窗口」只能最小化）。
+   这里注入 getter 而不是值：设置里随时可改，热键每次按下都按当时的值决定。 */
+setTrayEnabledGetter(() => currentSettings.trayEnabled);
 
 /**
  * 装配后端（D-02：同步服务内嵌在管理员客户端进程内）。
@@ -115,12 +119,9 @@ function syncTray(): void {
 }
 
 if (!acquireSingleInstanceLock(() => {
-  const main = getMainWindow();
-  if (main) {
-    if (main.isMinimized()) main.restore();
-    main.show();
-    main.focus();
-  }
+  /* 第二次启动 = 用户想把已有实例叫到前面。统一走 showMainWindow：
+     它会先收快捷窗口（两面互斥），再还原/显示/聚焦主窗口。 */
+  showMainWindow();
 })) {
   // 同一档案已有实例在跑：把焦点交给它，自己退出。
   app.quit();
@@ -164,7 +165,6 @@ if (!acquireSingleInstanceLock(() => {
 
     registerIpc({
       getWindows: allWindows,
-      closeToTray: () => currentSettings.trayEnabled,
       onHotkey: sendHotkeyReport,
       // 设置一改，客户端下一轮就按新值走（手动端点 / 轮询间隔 / 遥测开关）。
       // 角色变化必须重新装配：否则改了 role 也要重启应用才生效，用户会以为开关没用。

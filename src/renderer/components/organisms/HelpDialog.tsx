@@ -68,7 +68,7 @@ export function HelpDialog({ onClose }: { onClose(): void }) {
         <SheetRow label={APP_HOTKEY_LABELS.publish} keys={keyOf('publish')} />
       </Section>
       <Section title="全局">
-        <SheetRow label="全局唤醒热键（任何应用里：开 / 收上次那个窗口）" keys={settings.hotkey === 'none' ? ['未设置'] : [settings.hotkey]} />
+        <SheetRow label="全局唤醒热键（任何应用里：开 / 收当前那个窗口）" keys={settings.hotkey === 'none' ? ['未设置'] : [settings.hotkey]} />
         <SheetRow label="本机程序搜索热键（任何应用里：搜开始菜单程序）" keys={settings.searchHotkey === 'none' ? ['未设置'] : [settings.searchHotkey]} />
         <SheetRow label="主窗口 ↔ 快捷窗口互换" keys={['Ctrl+Tab']} />
         <SheetRow label="卡片在组内换位（键盘）" keys={['Alt+↑', 'Alt+↓']} />
