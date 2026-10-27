@@ -38,7 +38,7 @@ import { api } from '../../bridge/index.ts';
 import { APP_VERSION } from '../../lib/appVersion.ts';
 import type { AdminStatus, AppUpdateStatus, BrowserInfo } from '../../bridge/types.ts';
 import { updateStatusLine as statusLine } from '../../../shared/update-copy.ts';
-import { acceleratorOf, normalizeAcceleratorInput } from '../../../shared/app-hotkeys.ts';
+import { acceleratorOf, normalizeAcceleratorInput, type HotkeyConflictInfo } from '../../../shared/app-hotkeys.ts';
 import { formatRevDate } from './EditActionBar.tsx';
 
 export type ZoomLevel = 90 | 100 | 105 | 110;
@@ -88,8 +88,8 @@ export interface SettingsPanelProps {
   updateChecking?: boolean;
   /** 更新器状态快照（关于页状态行）；null = 还没读到。 */
   updateStatus: AppUpdateStatus | null;
-  /** AC-05：注册失败才提示，本次会话只提示一次，不得反复弹窗 */
-  hotkeyConflict?: boolean;
+  /** AC-05：注册失败的全局热键（可能是一个或两个），设置页逐行提示。 */
+  hotkeyConflicts?: HotkeyConflictInfo[];
   teamRevision: number | null;
   /** 真实设备标识（identity.json），不再是写死的演示值。 */
   deviceId: string;
@@ -127,19 +127,170 @@ function Divider() {
   return <div className="my-2 h-px w-full bg-[var(--border-subtle)]" />;
 }
 
+interface GlobalHotkeyFieldProps {
+  label: string;
+  hint: ReactNode;
+  /** 'none' = 未设置（与 settings 里的哨兵一致）。 */
+  value: string;
+  onSave(value: string): void;
+  /** 主进程回报这个键注册失败（被输入法/其他软件占用）。 */
+  conflict: boolean;
+  conflictText?: string;
+}
+
+/**
+ * 一行全局热键设置（2026-10-24 抽出来给两个键共用）。
+ *
+ * 录制/手动输入/停用三条路与旧版单键设置完全一致：
+ *  - 有些组合键被输入法在系统层吃掉，应用收不到 keydown，只能手动写；
+ *  - Backspace/Delete 或「停用」= 不注册（存 'none'）；
+ *  - 注册结果以主进程回报为准（conflict），界面不猜。
+ */
+function GlobalHotkeyField({
+  label,
+  hint,
+  value,
+  onSave,
+  conflict,
+  conflictText,
+}: GlobalHotkeyFieldProps) {
+  const [recording, setRecording] = useState(false);
+  const [manual, setManual] = useState<string | null>(null);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (recording) inputRef.current?.focus();
+  }, [recording]);
+
+  const text = recording ? '按下新的热键…' : value === 'none' ? '未设置' : value;
+
+  const commitManual = (): void => {
+    if (manual === null) return;
+    const parsed = normalizeAcceleratorInput(manual);
+    if (parsed.value === null) {
+      setManualError(parsed.reason ?? '这个写法不认识');
+      return;
+    }
+    onSave(parsed.value);
+    setManual(null);
+  };
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center gap-2">
+        {/* Input 原子恒为 w-full，宽度类会被压掉：固定宽必须由外层包裹层给足并钉死。 */}
+        <div className="w-[200px] shrink-0">
+          <Input
+            ref={inputRef}
+            readOnly
+            mono
+            value={text}
+            aria-label={label}
+            onKeyDown={(e) => {
+              if (!recording) return;
+              e.preventDefault();
+              if (e.key === 'Escape') {
+                setRecording(false);
+                return;
+              }
+              if (e.key === 'Delete' || e.key === 'Backspace') {
+                onSave('none');
+                setRecording(false);
+                return;
+              }
+              if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+              /* 归一走共享实现（shared/app-hotkeys.ts）：空格必须写成 `Space`，
+                 否则存进去的是 `Ctrl+ `，全局注册与窗口内匹配都永远失败。 */
+              const accel = acceleratorOf(e);
+              if (accel === null) return;
+              onSave(accel);
+              setRecording(false);
+            }}
+          />
+        </div>
+        <Button tone="secondary" icon={Keyboard} className="shrink-0 whitespace-nowrap" onClick={() => setRecording(true)}>
+          重新录制
+        </Button>
+        {/* 「手动输入」（2026-10-19）：有些组合键会被输入法在系统层先吃掉，
+            应用收不到 keydown——给一个直接写出来的口子。 */}
+        <Button
+          tone="ghost"
+          icon={PenLine}
+          className="shrink-0 whitespace-nowrap"
+          onClick={() => {
+            setManual(value === 'none' ? '' : value);
+            setManualError(null);
+          }}
+        >
+          手动输入
+        </Button>
+        <Button tone="ghost" className="shrink-0 whitespace-nowrap" title="不注册这个热键" onClick={() => onSave('none')}>
+          停用
+        </Button>
+      </div>
+      <p className="mt-1 t-2xs text-[var(--meta)]">{hint}</p>
+      {manual !== null && (
+        <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2">
+          <p className="t-2xs mb-1 text-[var(--meta)]">
+            直接写组合键（例如 <span className="t-mono">Ctrl+Space</span>、<span className="t-mono">Ctrl+Alt+K</span>），回车保存：
+            输入法先吃掉的键只能这样设。
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              autoFocus
+              mono
+              value={manual}
+              aria-label={`手动输入${label}`}
+              placeholder="Ctrl+Space"
+              onChange={(e) => {
+                setManual(e.target.value);
+                setManualError(null);
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Escape') {
+                  setManual(null);
+                  return;
+                }
+                if (e.key === 'Enter') commitManual();
+              }}
+            />
+            <Button tone="primary" className="shrink-0" onClick={commitManual}>
+              保存
+            </Button>
+            <Button tone="ghost" className="shrink-0" onClick={() => setManual(null)}>
+              取消
+            </Button>
+          </div>
+          {manualError !== null && <p className="mt-1 t-2xs text-[var(--warn-fg)]">{manualError}</p>}
+        </div>
+      )}
+      {conflict && value !== 'none' && (
+        <p className="mt-1 flex items-start gap-1 t-2xs text-[var(--warn-fg)]">
+          <TriangleAlert size={12} strokeWidth={1.75} aria-hidden className="mt-[2px] shrink-0" />
+          <span>
+            {conflictText ??
+              '已保存这个键位，但系统没让我们注册它（多半被输入法占用——中文输入法的中英切换默认就是 Ctrl+空格）。可以换一个组合键，或先停用。'}
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function SettingsPanel({
   settings, onPatch, onClose, onViewPrivacy, zoom, onZoom, onCopyDeviceId, onOpenChangelog,
   adminStatus, roleAdmin, onToggleAdmin, onSetOrChangePassphrase, onOpenUpdatesFolder,
   onCheckUpdate, updateChecking = false, updateStatus, announcedAt,
-  hotkeyConflict = false, teamRevision, deviceId, initialSection,
+  hotkeyConflicts = [], teamRevision, deviceId, initialSection,
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
-  const [recording, setRecording] = useState(false);
-  /** 「手动输入」面板：null = 收起；字符串 = 正在编辑的组合键写法（2026-10-19）。 */
-  const [manualHotkey, setManualHotkey] = useState<string | null>(null);
-  const [manualError, setManualError] = useState<string | null>(null);
   /** 本机已装浏览器（切到「通用」时扫一次；扫描失败就只剩"系统默认"这一项）。 */
   const [browsers, setBrowsers] = useState<BrowserInfo[]>([]);
+  /** 手动重扫本机程序索引的进行中状态与结果（扫描是显式动作，必须给回音）。 */
+  const [programRefreshing, setProgramRefreshing] = useState(false);
+  const [programRefreshNote, setProgramRefreshNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (section !== 'general') return;
@@ -163,18 +314,7 @@ export function SettingsPanel({
     if (!picked.ok) return;
     void onPatch({ browserExe: picked.target });
   };
-  const hotkeyRef = useRef<HTMLInputElement | null>(null);
   const acked = settings.telemetryNoticeAckedAt !== null;
-
-  useEffect(() => {
-    if (recording) hotkeyRef.current?.focus();
-  }, [recording]);
-
-  const hotkeyText = recording
-    ? '按下新的热键…'
-    : settings.hotkey === 'none'
-      ? '未设置'
-      : settings.hotkey;
 
   return (
     <Dialog
@@ -421,128 +561,64 @@ export function SettingsPanel({
         {section === 'hotkeys' && (
           <>
             <SectionHead>全局唤醒热键</SectionHead>
-            <div className="flex items-center gap-2">
-              {/* Input 原子恒为 w-full，宽度类会被压掉：固定宽必须由外层包裹层给足并钉死。 */}
-              <div className="w-[200px] shrink-0">
-                <Input
-                  ref={hotkeyRef}
-                  readOnly
-                  mono
-                  value={hotkeyText}
-                  aria-label="全局唤醒热键"
-                  onKeyDown={(e) => {
-                  if (!recording) return;
-                  e.preventDefault();
-                  if (e.key === 'Escape') {
-                    setRecording(false);
-                    return;
-                  }
-                  if (e.key === 'Delete' || e.key === 'Backspace') {
-                    onPatch({ hotkey: 'none' });
-                    setRecording(false);
-                    return;
-                  }
-                  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
-                  /* 归一走共享实现（shared/app-hotkeys.ts）：空格必须写成 `Space`，
-                     否则存进去的是 `Ctrl+ `，全局注册与窗口内匹配都永远失败。 */
-                  const accel = acceleratorOf(e);
-                  if (accel === null) return;
-                  onPatch({ hotkey: accel });
-                  setRecording(false);
-                }}
-                />
-              </div>
-              <Button tone="secondary" icon={Keyboard} className="shrink-0 whitespace-nowrap" onClick={() => setRecording(true)}>
-                重新录制
-              </Button>
-              {/* 「手动输入」（2026-10-19 用户反馈"Ctrl+空格确实录不进去"）：
-                  有些组合键会被输入法在系统层先吃掉，应用收不到 keydown（任何程序都一样），
-                  录制器再准也录不到。给一个直接写出来的口子：输入 Ctrl+Space 回车即生效。 */}
+            <GlobalHotkeyField
+              label="全局唤醒热键"
+              value={settings.hotkey}
+              hint={
+                <>
+                  按一下唤起<strong>上次收起的那个窗口</strong>：刚收起快捷面板就再打开快捷面板，主窗口进了托盘就把它找回来；
+                  它已经在最前面时按一下则收起。两个窗口之间用 Ctrl+Tab 互换。
+                </>
+              }
+              onSave={(v) => onPatch({ hotkey: v })}
+              conflict={hotkeyConflicts.some((c) => c.kind === 'surface')}
+            />
+
+            <div className="my-3 h-px w-full bg-[var(--border-subtle)]" />
+            <SectionHead>本机程序搜索热键</SectionHead>
+            <GlobalHotkeyField
+              label="本机程序搜索热键"
+              value={settings.searchHotkey}
+              hint={
+                <>
+                  任何应用里按一下，打开快捷窗口并直接搜索<strong>开始菜单里的程序</strong>；回车直接启动，Ctrl+回车加为入口。
+                  个别软件（例如 Word 的脚注）也用这个组合，被占用时注册会失败并在下方提示。
+                </>
+              }
+              onSave={(v) => onPatch({ searchHotkey: v })}
+              conflict={hotkeyConflicts.some((c) => c.kind === 'search')}
+              conflictText="已保存这个键位，但系统没让我们注册它（可能被输入法或其他软件占用）。可以换一个组合键，或先停用。"
+            />
+
+            <div className="mt-1 flex items-center gap-2">
               <Button
                 tone="ghost"
-                icon={PenLine}
+                icon={RefreshCw}
                 className="shrink-0 whitespace-nowrap"
+                loading={programRefreshing}
                 onClick={() => {
-                  setManualHotkey(settings.hotkey === 'none' ? '' : settings.hotkey);
-                  setManualError(null);
+                  setProgramRefreshing(true);
+                  setProgramRefreshNote(null);
+                  void api.programs
+                    .refresh()
+                    .then((snapshot) => {
+                      setProgramRefreshNote(snapshot.error ?? `已索引 ${snapshot.items.length} 个程序`);
+                    })
+                    .finally(() => setProgramRefreshing(false));
                 }}
               >
-                手动输入
+                立即刷新程序列表
               </Button>
+              <span className="t-2xs text-[var(--meta)]">
+                {programRefreshNote ?? '程序索引在启动时与开始菜单变化后自动更新；这里可手动重扫。'}
+              </span>
             </div>
-            <p className="mt-1 t-2xs text-[var(--meta)]">
-              按一下唤起<strong>上次收起的那个窗口</strong>：刚收起快捷面板就再打开快捷面板，主窗口进了托盘就把它找回来；
-              它已经在最前面时按一下则收起。两个窗口之间用 Ctrl+Tab 互换。
-            </p>
-            {manualHotkey !== null && (
-              <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2">
-                <p className="t-2xs mb-1 text-[var(--meta)]">
-                  直接写组合键（例如 <span className="t-mono">Ctrl+Space</span>、<span className="t-mono">Ctrl+Alt+K</span>），回车保存：
-                  输入法先吃掉的键只能这样设。
-                </p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    autoFocus
-                    mono
-                    value={manualHotkey}
-                    aria-label="手动输入全局热键"
-                    placeholder="Ctrl+Space"
-                    onChange={(e) => {
-                      setManualHotkey(e.target.value);
-                      setManualError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      e.stopPropagation();
-                      if (e.key === 'Escape') {
-                        setManualHotkey(null);
-                        return;
-                      }
-                      if (e.key !== 'Enter') return;
-                      const parsed = normalizeAcceleratorInput(manualHotkey);
-                      if (parsed.value === null) {
-                        setManualError(parsed.reason ?? '这个写法不认识');
-                        return;
-                      }
-                      onPatch({ hotkey: parsed.value });
-                      setManualHotkey(null);
-                    }}
-                  />
-                  <Button
-                    tone="primary"
-                    className="shrink-0"
-                    onClick={() => {
-                      const parsed = normalizeAcceleratorInput(manualHotkey);
-                      if (parsed.value === null) {
-                        setManualError(parsed.reason ?? '这个写法不认识');
-                        return;
-                      }
-                      onPatch({ hotkey: parsed.value });
-                      setManualHotkey(null);
-                    }}
-                  >
-                    保存
-                  </Button>
-                  <Button tone="ghost" className="shrink-0" onClick={() => setManualHotkey(null)}>
-                    取消
-                  </Button>
-                </div>
-                {manualError !== null && <p className="mt-1 t-2xs text-[var(--warn-fg)]">{manualError}</p>}
-              </div>
-            )}
-            {hotkeyConflict && (
-              /* 2026-10-19：把"设不进去"讲清楚——**设置已经存下来了**（字段里看得到），
-                 是系统不让我们注册它。中文输入法的中英切换默认就是 Ctrl+空格，被它占用时
-                 任何程序都抢不到这个键，只能换键位或去输入法设置里改切换键。 */
-              <p className="mt-1 flex items-start gap-1 t-2xs text-[var(--warn-fg)]">
-                <TriangleAlert size={12} strokeWidth={1.75} aria-hidden className="mt-[2px] shrink-0" />
-                <span>
-                  已保存这个键位，但系统没让我们注册它（多半被输入法占用——中文输入法的中英切换默认就是
-                  Ctrl+空格）。可以换成 Ctrl+Alt+Space，或在输入法设置里改掉切换键；窗口内仍可按这个键唤起快捷面板。
-                </span>
-              </p>
-            )}
 
-            <AppHotkeysSection overrides={settings.appHotkeys} globalHotkey={settings.hotkey} onPatch={onPatch} />
+            <AppHotkeysSection
+              overrides={settings.appHotkeys}
+              globalHotkeys={[settings.hotkey, settings.searchHotkey].filter((k) => k !== 'none')}
+              onPatch={onPatch}
+            />
           </>
         )}
 

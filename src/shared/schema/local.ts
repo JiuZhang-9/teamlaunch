@@ -47,6 +47,12 @@ export const SettingsSchema = z.object({
   autoLaunch: z.boolean().default(true),
   trayEnabled: z.boolean().default(true),
   hotkey: z.string().min(1).default('Ctrl+Space'),
+  /**
+   * 本机程序搜索热键（OS 级，2026-10-24 用户拍板）：打开快捷窗口并直接进入「本机程序」范围。
+   * 'none' = 不注册。与 hotkey 是两个独立的键，注册失败只影响自己那一行。
+   * 默认 Ctrl+Alt+F；Ctrl+Shift+F 被 VS Code / JetBrains 等大量使用，不宜做全局默认。
+   */
+  searchHotkey: z.string().min(1).default('Ctrl+Alt+F'),
   pollIntervalMs: z.int().min(5_000).max(300_000).default(30_000),
   /** 多选连锁启动的每步间隔（用户定稿 2026-10-05：默认 800ms，可在设置调节）。 */
   chainIntervalMs: z.int().min(300).max(5_000).default(800),

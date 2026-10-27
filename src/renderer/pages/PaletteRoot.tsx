@@ -25,9 +25,14 @@ function ToastLayer() {
 
 function PaletteWindow() {
   const [open, setOpen] = useState(false);
+  /** 本次打开的范围：主进程在 tl:palette-shown 里告诉我们是入口搜索还是本机程序搜索。 */
+  const [scope, setScope] = useState<'entries' | 'programs'>('entries');
 
   useEffect(() => {
-    const offShown = api.events.onPaletteShown(() => setOpen(true));
+    const offShown = api.events.onPaletteShown((info) => {
+      setScope(info.scope);
+      setOpen(true);
+    });
     const offHidden = api.events.onPaletteHidden(() => setOpen(false));
     return () => {
       offShown();
@@ -63,7 +68,7 @@ function PaletteWindow() {
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[var(--radius-lg)]" style={{ background: 'var(--bg-canvas)' }}>
-      <MiniPaletteView docked open={open} onClose={() => void api.palette.hide()} />
+      <MiniPaletteView docked open={open} scope={scope} onClose={() => void api.palette.hide()} />
       <ToastLayer />
     </div>
   );

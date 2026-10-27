@@ -28,7 +28,7 @@ import { useToolbarMenus } from '../../hooks/useToolbarMenus.ts';
 import { entryLimitCopy, groupLimitCopy } from '../../../shared/capacity-copy.ts';
 import { measure } from '../../../shared/capacity-usage.ts';
 import { CAPACITY } from '../../../shared/schema/common.ts';
-import { DEFAULT_APP_HOTKEYS } from '../../../shared/app-hotkeys.ts';
+import { DEFAULT_APP_HOTKEYS, type HotkeyConflictInfo } from '../../../shared/app-hotkeys.ts';
 import { useEntryIcons } from '../../hooks/useEntryIcons.ts';
 import { useEntrySearch } from '../../hooks/useEntrySearch.ts';
 import { syncPresentation } from '../../services/syncCopy.ts';
@@ -82,7 +82,7 @@ export function MainWindowShell() {
   const [updateSignal, setUpdateSignal] = useState(0);
   const [updateChecking, setUpdateChecking] = useState(false);
   /** 热键注册状态只信主进程推送：此前这里写死 true + 按默认键名猜测，横幅常年说谎。 */
-  const [hotkeyConflict, setHotkeyConflict] = useState(false);
+  const [hotkeyConflicts, setHotkeyConflicts] = useState<HotkeyConflictInfo[]>([]);
   const [locateId, setLocateId] = useState<string | null>(null);
   /** 侧栏分组右键触发的分组操作对话框（重命名/删除按当前页分发到对应 store）。 */
   const [sidebarGroup, setSidebarGroup] = useState<Group | null>(null);
@@ -103,10 +103,24 @@ export function MainWindowShell() {
   const searching = debouncedQuery.trim().length > 0;
   const { editing, dirtyCount, unlocked, phase } = edit;
 
-  /* 热键注册结果由主进程推送（注册失败每次会话只报一次，见 hotkey.ts）。 */
+  /* 热键注册结果由主进程推送（注册失败每个键每次会话只报一次，见 hotkey.ts）。
+     两个全局键分别记账：某一个冲突时，另一个仍然正常工作，界面不能一起判死。 */
   useEffect(() => {
-    const offConflict = api.events.onHotkeyConflict(() => setHotkeyConflict(true));
-    const offStatus = api.events.onHotkeyStatus((r) => setHotkeyConflict(!r.registered));
+    const addConflict = (info: HotkeyConflictInfo) => {
+      setHotkeyConflicts((prev) =>
+        prev.some((x) => x.accelerator === info.accelerator && x.kind === info.kind) ? prev : [...prev, info],
+      );
+    };
+    const offConflict = api.events.onHotkeyConflict(addConflict);
+    const offStatus = api.events.onHotkeyStatus((r) => {
+      /* 'empty'（用户停用）不是失败：accelerator 为空时只清掉该键的旧冲突，
+         不要给用户挂一条"热键没能注册"的横幅。 */
+      if (r.registered || r.accelerator.length === 0) {
+        setHotkeyConflicts((prev) => prev.filter((x) => x.kind !== r.kind));
+      } else {
+        addConflict({ accelerator: r.accelerator, kind: r.kind });
+      }
+    });
     return () => {
       offConflict();
       offStatus();
@@ -170,6 +184,18 @@ export function MainWindowShell() {
       push({ title: '检查更新没能完成，可以稍后再试', tone: 'warn' });
     } finally {
       setUpdateChecking(false);
+    }
+  }, [push]);
+
+  /** 小窗里的「立即更新并重启」：安装器起不来时必须当场说出来——点下去没反应是最糟的答案。 */
+  const installUpdate = useCallback(async () => {
+    try {
+      const r = await api.updater.install();
+      if (!r.ok) {
+        push({ title: r.reason ?? '没能开始安装，可以稍后再试', tone: 'warn', duration: 8000 });
+      }
+    } catch {
+      push({ title: '没能开始安装，详情见 logs\\main.log', tone: 'danger' });
     }
   }, [push]);
 
@@ -653,7 +679,7 @@ export function MainWindowShell() {
           editLocked={editing}
           update={appUpdate}
           updateSignal={updateSignal}
-          onInstallUpdate={() => void api.updater.install()}
+          onInstallUpdate={() => void installUpdate()}
           onCheckUpdate={() => void checkUpdate()}
           updateChecking={updateChecking}
           onOpenHelp={() => openDialog('shortcuts')}
@@ -680,13 +706,15 @@ export function MainWindowShell() {
             />
           )}
 
-          {hotkeyConflict && !gateBlocking && (
+          {hotkeyConflicts.length > 0 && !gateBlocking && (
             <Banner
               tone="warn"
               title="全局热键没能注册"
-              detail="此热键可能已被输入法或其他软件占用，建议到设置改为 Ctrl+Alt+Space。"
+              detail={`${hotkeyConflicts
+                .map((c) => `${c.accelerator}（${c.kind === 'search' ? '本机程序搜索' : '快捷窗口唤出'}）`)
+                .join('、')} 可能已被输入法或其他软件占用，建议到设置改键。`}
               action={{ label: '去设置修改', onSelect: () => openSettings('hotkeys') }}
-              onDismiss={() => setHotkeyConflict(false)}
+              onDismiss={() => setHotkeyConflicts([])}
             />
           )}
 
@@ -934,7 +962,7 @@ export function MainWindowShell() {
 
       <DialogRouter
         dialog={dialog}
-        hotkeyConflict={hotkeyConflict}
+        hotkeyConflicts={hotkeyConflicts}
         feedbackTargetId={feedbackTargetId}
         closeDialog={closeDialog}
         dirtyCount={dirtyCount}

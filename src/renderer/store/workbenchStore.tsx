@@ -408,7 +408,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
           : identified.kind === 'app'
             ? {
                 id: '', name: identified.name, type: 'app', target: identified.target,
-                sourcePath: identified.sourcePath, args: identified.args ?? '', cwd: '', expandEnv: true,
+                sourcePath: identified.sourcePath, args: identified.args ?? '', cwd: identified.cwd ?? '', expandEnv: true,
                 sort: 0, description: null, icon: { kind: 'local' }, iconAssetHash: null, updatedAt: now,
               }
             : {

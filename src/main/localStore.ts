@@ -77,4 +77,14 @@ export const localStore = {
   saveUsageStats(value: unknown): Promise<void> {
     return writeJsonAtomic(path.join('config', 'usage-stats.json'), value);
   },
+  /**
+   * 本机程序索引缓存（2026-10-24）：只服务快捷窗口搜索，**不是入口**、不同步。
+   * 丢了也没关系——下次启动重扫开始菜单即可（扫描只读目录，不写系统）。
+   */
+  programsIndex<T>(fallback: T): Promise<T> {
+    return readJson(path.join('config', 'programs-index.json'), fallback);
+  },
+  saveProgramsIndex(value: unknown): Promise<void> {
+    return writeJsonAtomic(path.join('config', 'programs-index.json'), value);
+  },
 };

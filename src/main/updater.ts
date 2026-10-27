@@ -27,6 +27,7 @@
  */
 import { app } from 'electron';
 import { autoUpdater } from 'electron-updater';
+import { spawn } from 'node:child_process';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
@@ -73,11 +74,28 @@ export interface AppUpdateStatus {
   lastCheckedAt: string | null;
 }
 
+/** 安装动作的结果：ok=false 时 reason 是给用户看的一句话（界面 toast 直接显示）。 */
+export interface InstallUpdateResult {
+  ok: boolean;
+  reason?: string;
+}
+
 let started = false;
 /** 事件出口（startAutoUpdater 注入）：runCheck 里的"复用已下载包"也要能播报事件。 */
 let emitTo: ((event: AppUpdateEvent) => void) | null = null;
 let inFlight: Promise<void> | null = null;
 let announcedVersion: string | null = null;
+/**
+ * 本进程里 electron-updater 是否真的下载完成过。
+ *
+ * 为什么必须记它：electron-updater 的 downloadedUpdateHelper 是**进程内**状态，只有本进程
+ * 执行过 downloadUpdate 才存在；跨重启复用的包它一概不知道，此时 quitAndInstall() 会抛
+ * "No update filepath provided, can't quit and install"（2026-10-23 用户现场：1.1.2 下载完，
+ * 第二天点「立即更新并重启」毫无反应，日志里全是这条）。所以安装要分两条路走。
+ */
+let downloadedInThisProcess = false;
+/** 安装已发起：挡重复点击（失败会复位，允许重试）。 */
+let installInFlight = false;
 /** 配置加固的落地句柄：检查前先等它写完，免得与 setFeedURL 抢 clientPromise。 */
 let configReady: Promise<void> | null = null;
 /** 调试开关：开发态强制启用检查链（仅排障用，不会真的执行安装器）。 */
@@ -170,6 +188,32 @@ async function clearPendingUpdate(): Promise<void> {
 }
 
 /**
+ * 把"上一轮已经下好、用户还没装"的包摆成可安装状态（复用或离线兜底）：不重下、不找 electron-updater。
+ *
+ * 复用也要提醒（2026-10-19）：用户上次可能没注意到，而这条记录只在"还没装"时存在；
+ * 每次启动各提醒一次（进程内去重），装完记录自然消失。
+ */
+function reusePending(pending: PendingUpdate): void {
+  status.availableVersion = pending.version;
+  status.readyToInstall = true;
+  status.downloadPercent = 100;
+  status.source = pending.source;
+  status.lastResult = null;
+  status.lastError = null;
+  status.lastCheckedAt = new Date().toISOString();
+  log('pending update reused', { version: pending.version, file: pending.file });
+  if (announcedVersion !== pending.version) {
+    announcedVersion = pending.version;
+    emitTo?.({ type: 'available', version: pending.version });
+  }
+  emitTo?.({ type: 'downloaded', version: pending.version });
+  notifySystem({
+    title: `新版本 v${pending.version} 已下载`,
+    body: '点这里打开 TeamLaunch，点「立即更新并重启」完成安装',
+  });
+}
+
+/**
  * 自己写一份更新器配置并指过去（加固，2026-10-12）。
  *
  * 为什么需要：electron-updater 下载前**必须**从配置里读 `updaterCacheDirName`
@@ -221,46 +265,16 @@ async function runCheck(): Promise<void> {
 
   /* ①先看有没有**上一轮已经下好、用户还没装**的包（2026-10-19 用户反馈："每次都会检测并自动下载，
      即使之前已下载但未安装"）。electron-updater 自己的 DownloadedUpdateHelper 只在同一进程内记着，
-     跨重启就靠"缓存目录里那个文件"——我们不信推断，直接看自己落的记录 + 文件是否还在。
-     命中就直接进入"已就绪"，不再重复下载 117MB。 */
+     跨重启就靠"缓存目录里那个文件"——我们不信推断，直接看自己落的记录 + 文件是否还在。 */
   const pending = await readPendingUpdate();
   if (pending !== null && !isVersionNewer(pending.version, app.getVersion())) {
     /* 记录里的版本已经不比当前新 = 那次安装成功了（或用户手动装了）：清掉记录，往下走正常检查。 */
     void clearPendingUpdate();
   }
-  if (pending !== null && isVersionNewer(pending.version, app.getVersion())) {
-    status.availableVersion = pending.version;
-    status.readyToInstall = true;
-    status.downloadPercent = 100;
-    status.source = pending.source;
-    status.lastResult = null;
-    status.lastError = null;
-    status.lastCheckedAt = new Date().toISOString();
-    log('pending update reused', { version: pending.version, file: pending.file });
-    if (announcedVersion !== pending.version) {
-      announcedVersion = pending.version;
-      emitTo?.({ type: 'available', version: pending.version });
-    }
-    emitTo?.({ type: 'downloaded', version: pending.version });
-    /* 复用也要提醒（2026-10-19）：用户上次可能没注意到，而这条记录只在"还没装"时存在；
-       每次启动各提醒一次（进程内去重），装完记录自然消失。 */
-    notifySystem({
-      title: `新版本 v${pending.version} 已下载`,
-      body: '点这里打开 TeamLaunch，点「立即更新并重启」完成安装',
-    });
-    return;
-  }
+  const reusable = pending !== null && isVersionNewer(pending.version, app.getVersion());
 
   const mirror = mirrorFeedUrl();
-  /* 走到这里说明**没有可复用的"已下载"**：清掉上一轮遗留的"已就绪"状态。
-     否则文件被清掉/记录失效之后，界面会一直显示"vX 已下载，点安装"——点下去只会报错
-     （2026-10-19 自验时抓到的状态残留）。真需要的话下面的 checkForUpdates 会重新点亮它。 */
-  if (status.readyToInstall || status.availableVersion !== null) {
-    status.readyToInstall = false;
-    status.availableVersion = null;
-    status.downloadPercent = null;
-  }
-  // 两个源都探一次：不知道镜像里有没有"同一个新版本"，就决定不了该从哪儿下。
+  // 两个源都探一次：既为选源，也用来判断本地已下好的包是不是源头最新的那个。
   const [githubVersion, mirrorVersion] = await Promise.all([
     probeFeedVersion(UPDATE_FEED.githubBaseUrl),
     mirror === null ? Promise.resolve(null) : probeFeedVersion(mirror),
@@ -273,6 +287,9 @@ async function runCheck(): Promise<void> {
     status.lastResult = 'unreachable';
     status.lastError = null;
     log('skip: no feed reachable', { mirrorRegistered: mirror !== null });
+    /* 源不可达但本地已有下好的包：仍然算"可安装"（离线也能升）。
+       否则这里会把就绪状态清掉，用户手里明明有包却再也装不上。 */
+    if (reusable) reusePending(pending);
     return;
   }
 
@@ -284,6 +301,23 @@ async function runCheck(): Promise<void> {
   const feedUrl = githubWins ? UPDATE_FEED.githubBaseUrl : (mirror as string);
   status.source = source;
   status.lastError = null;
+
+  /* 本地已下好的版本仍不落后于源头 → 直接复用，不重新下载（2026-10-19 的原始意图）。
+     但源上若已有**比它更新**的版本，就必须往下走：否则一个下好没装的旧包会把新版本永久挡住
+     （2026-10-23 用户现场：本地躺着 1.1.2、源上已经是 1.1.3，界面始终只提示 1.1.2）。 */
+  if (reusable && (newest === null || !isVersionNewer(newest, pending.version))) {
+    reusePending(pending);
+    return;
+  }
+
+  /* 走到这里：要么没有可复用的包，要么源上已经有更新的版本。清掉上一轮遗留的"已就绪"，
+     否则文件被清掉/记录失效之后，界面会一直显示"vX 已下载，点安装"——点下去只会报错
+     （2026-10-19 自验时抓到的状态残留）。真需要的话下面的 checkForUpdates 会重新点亮它。 */
+  if (status.readyToInstall || status.availableVersion !== null) {
+    status.readyToInstall = false;
+    status.availableVersion = null;
+    status.downloadPercent = null;
+  }
 
   if (newest === null || !isVersionNewer(newest, app.getVersion())) {
     // 没有比当前更新的版本。刻意**不**再让 electron-updater 跑一轮：两次探测已经回答了
@@ -399,6 +433,9 @@ export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
     status.availableVersion = info.version;
     status.readyToInstall = true;
     status.downloadPercent = 100;
+    /* 本进程下载完的包：安装仍优先走 update-pending.json 那条自控路径（见 installDownloadedUpdate），
+       这里只用于兜底"记录没写成功"的极端情况。 */
+    downloadedInThisProcess = true;
     /* 落盘记住"哪个版本已经下好了"（2026-10-19）：重启或下一轮检查直接复用它，
        不再重复下载整包（用户反馈"即使之前已下载但未安装，每次都会重新下载"）。 */
     const file = (info as { downloadedFile?: string }).downloadedFile;
@@ -442,11 +479,103 @@ export function getUpdateStatus(): AppUpdateStatus {
   };
 }
 
-/** 用户点了「立即更新并重启」：静默安装 + 重启回新版本（per-machine 安装会要一次 UAC）。 */
-export function installDownloadedUpdate(): void {
-  if (!started) return;
-  log('quitAndInstall: 用户确认安装');
-  /* 记录不在这一刻删：安装器起来之前进程就退了，删了反而可能让"装失败"后没有可重试的包。
-     下次启动时若版本已经升上去，runCheck 会因为"pending 不比当前新"而自然忽略它。 */
-  autoUpdater.quitAndInstall(true, true);
+/**
+ * 读安装包同目录的 update-info.json（electron-updater 下载成功时写的）里的提权标记。
+ * 读不到就当作不需要提权——与 electron-updater 的默认行为一致。
+ */
+async function isAdminRightsRequired(file: string): Promise<boolean> {
+  try {
+    const raw: unknown = JSON.parse(await readFile(join(dirname(file), 'update-info.json'), 'utf8'));
+    return raw !== null && typeof raw === 'object' && (raw as Record<string, unknown>).isAdminRightsRequired === true;
+  } catch {
+    return false;
+  }
+}
+
+/** 起一个与本进程脱钩的子进程；等到系统真正创建进程（'spawn'）就算成功，不等它退出。 */
+function spawnDetached(exe: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(exe, args, { detached: true, stdio: 'ignore' });
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+    child.once('error', reject);
+  });
+}
+
+/**
+ * 静默运行已下载的 NSIS 安装包。参数与 electron-updater 的 NsisUpdater.doInstall 一致：
+ * `--updated` 表示原地升级、`/S` 静默、`--force-run` 装完把应用拉回来。
+ *
+ * 提权：electron-builder 的安装器在"静默升级 per-machine 安装"时会自己走 UAC（installer.nsi
+ * 里的 UAC_RunElevated），一般不用我们代劳；只有直接启动被系统拒绝（EACCES/UNKNOWN）时，
+ * 才按 electron-updater 的做法改走 resources\elevate.exe。
+ */
+async function runDownloadedInstaller(file: string): Promise<void> {
+  const args = ['--updated', '/S', '--force-run'];
+  const elevate = join(process.resourcesPath, 'elevate.exe');
+  if (await isAdminRightsRequired(file)) {
+    log('install: 安装包要求管理员权限，走 elevate.exe');
+    await spawnDetached(elevate, [file, ...args]);
+    return;
+  }
+  try {
+    await spawnDetached(file, args);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'EACCES' && code !== 'UNKNOWN') throw err;
+    log('install: 直接运行被系统拒绝，改走 elevate.exe', code);
+    await spawnDetached(elevate, [file, ...args]);
+  }
+}
+
+/**
+ * 用户点了「立即更新并重启」：静默安装 + 重启回新版本（per-machine 安装会要一次 UAC）。
+ *
+ * 主路径是**自己运行已下载的安装包**（2026-10-23 修）：electron-updater 的
+ * downloadedUpdateHelper 只活在下载进程里，跨重启后它的 quitAndInstall 直接抛
+ * "No update filepath provided, can't quit and install"——用户看到的就是"点了没反应"。
+ * 我们的 update-pending.json 记着包在哪、文件也验过还在，参数与 electron-updater 的
+ * NsisUpdater.doInstall 完全一致（--updated /S --force-run），不依赖网络，也不依赖
+ * 库的内部状态；同一进程内下载完的也走这条路，只有记录缺失时才退回 quitAndInstall。
+ */
+export async function installDownloadedUpdate(): Promise<InstallUpdateResult> {
+  if (!started) return { ok: false, reason: '开发态没有安装器，无法自动安装' };
+  if (installInFlight) return { ok: false, reason: '正在安装，请稍候' };
+  installInFlight = true;
+
+  const pending = await readPendingUpdate();
+  /* 记录可能已经过期（用户手动装过/上一轮装成功了但还没轮到检查）：过期就清掉，绝不拿旧包降级。 */
+  if (pending !== null && !isVersionNewer(pending.version, app.getVersion())) {
+    void clearPendingUpdate();
+  }
+  if (pending !== null && isVersionNewer(pending.version, app.getVersion())) {
+    log('install: 直接运行已下载的安装包', { version: pending.version, file: pending.file });
+    try {
+      await runDownloadedInstaller(pending.file);
+    } catch (err) {
+      installInFlight = false;
+      const reason = `安装程序没能启动：${err instanceof Error ? err.message : String(err)}`;
+      log('install: launch failed', err);
+      return { ok: false, reason };
+    }
+    log('install: 安装器已启动，退出本体');
+    /* 与 electron-updater 同款收尾：安装器起来后退出本体，让它替换文件；--force-run 装完会把应用拉回来。
+       记录**不**在这里删：万一安装失败，下次启动还能用同一个包重试（版本真升上去时 runCheck 会自然忽略它）。 */
+    setTimeout(() => app.quit(), 100);
+    return { ok: true };
+  }
+
+  /* 记录缺失但本进程刚下载完：electron-updater 手里有句柄，只有它能装（极少数：落盘记录写失败）。 */
+  if (downloadedInThisProcess) {
+    log('quitAndInstall: 用户确认安装（本进程已下载，无待安装记录）');
+    autoUpdater.quitAndInstall(true, true);
+    return { ok: true };
+  }
+
+  installInFlight = false;
+  const reason = '没有找到已下载的安装包，请点「检查更新」重新下载';
+  log('install: no pending update');
+  return { ok: false, reason };
 }

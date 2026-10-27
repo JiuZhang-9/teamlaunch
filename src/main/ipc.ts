@@ -31,10 +31,11 @@ import type {
   PersonalSaveResult,
   PublishOutcome,
 } from '../renderer/bridge/types.ts';
-import { registerHotkey, type HotkeyStatus } from './hotkey.ts';
+import { registerHotkeys, type HotkeyReport } from './hotkey.ts';
 import { commitPersonalImport, personalService, previewPersonalImport, savePersonal } from './personalPort.ts';
 import { identifyAsEntry, pickEntry, scanEntryPoints } from './picker.ts';
 import { scanBrowsers } from './browsers.ts';
+import { getProgramSnapshot, refreshPrograms } from './programIndex.ts';
 import { ensureDeviceIdentity } from './deviceIdentity.ts';
 
 const EMPTY_PERSONAL: PersonalConfig = { schemaVersion: 1, groups: [] };
@@ -128,7 +129,7 @@ export interface IpcDeps {
   getWindows(): BrowserWindow[];
   /** 关闭主窗口是否"隐藏到托盘"。false 时 X = 真退出（PRD 11.5：关闭托盘常驻时关窗含义必须明确）。 */
   closeToTray(): boolean;
-  onHotkey(status: HotkeyStatus, accelerator: string): void;
+  onHotkey(report: HotkeyReport): void;
   /** 设置落盘后通知装配层：同步客户端据此换端点、换轮询间隔、开关遥测。 */
   onSettingsPatch(next: Settings): void;
 }
@@ -379,11 +380,14 @@ export function registerIpc(deps: IpcDeps): void {
       BrowserWindow.fromWebContents(_e.sender)?.webContents.setZoomFactor(next.uiZoom / 100);
     }
     deps.onSettingsPatch(next);
-    if ('hotkey' in patch) {
-      const r = registerHotkey(patch.hotkey ?? null, deps.getWindows()[0] ?? null, (report) =>
-        deps.onHotkey(report.status, report.accelerator),
+    if ('hotkey' in patch || 'searchHotkey' in patch) {
+      /* 两个全局键必须整组重注册：hotkey.ts 内部先 unregisterAll，
+         只注册改动的那个会把另一个悄悄注销（单键时代遗留的坑）。 */
+      registerHotkeys(
+        { surface: next.hotkey, search: next.searchHotkey },
+        deps.getWindows()[0] ?? null,
+        (report) => deps.onHotkey(report),
       );
-      deps.onHotkey(r.status, r.accelerator);
     }
     return next;
   });
@@ -459,6 +463,11 @@ export function registerIpc(deps: IpcDeps): void {
   // 入口采集：这两条此前界面上有菜单、后端却从未实现，点了没反应。
   ipcMain.handle('tl:entries-pick', (_e, kind: 'app' | 'folder') => pickEntry(kind));
   ipcMain.handle('tl:entries-scan', () => scanEntryPoints());
+
+  /* 本机程序索引（2026-10-24）：快捷窗口搜索用。索引不是入口——不落个人配置、
+     不占容量、不同步；用户按 Ctrl+回车才走既有添加流程把它变成入口。 */
+  ipcMain.handle('tl:programs-snapshot', () => getProgramSnapshot());
+  ipcMain.handle('tl:programs-refresh', () => refreshPrograms('manual'));
 
   // 「设置 · 通用 · 打开网页的浏览器」的候选：只读注册表，不写任何东西。
   ipcMain.handle('tl:browsers-scan', () => scanBrowsers());

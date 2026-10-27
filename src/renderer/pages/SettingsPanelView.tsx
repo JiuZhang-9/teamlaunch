@@ -22,11 +22,12 @@ import { useSync } from '../store/syncStore.tsx';
 import { useToasts } from '../store/toastStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
 import type { AdminStatus, AppUpdateStatus } from '../bridge/types.ts';
+import type { HotkeyConflictInfo } from '../../shared/app-hotkeys.ts';
 
 export interface SettingsPanelViewProps {
   onClose(): void;
-  /** 外壳从主进程推送得出的真实热键注册状态。 */
-  hotkeyConflict?: boolean;
+  /** 外壳从主进程推送得出的真实热键注册状态（可能两个都冲突）。 */
+  hotkeyConflicts?: HotkeyConflictInfo[];
 }
 
 type PassphraseMode = 'set' | 'change';
@@ -157,7 +158,7 @@ function PassphraseDialog({ mode, onDone, onCancel }: PassphraseDialogProps) {
   );
 }
 
-export function SettingsPanelView({ onClose, hotkeyConflict = false }: SettingsPanelViewProps) {
+export function SettingsPanelView({ onClose, hotkeyConflicts = [] }: SettingsPanelViewProps) {
   const { settings, patch } = useSettings();
   const { snapshot } = useSync();
   const { push } = useToasts();
@@ -239,7 +240,7 @@ export function SettingsPanelView({ onClose, hotkeyConflict = false }: SettingsP
         onCheckUpdate={() => void checkUpdate()}
         updateChecking={updateChecking}
         updateStatus={updateStatus}
-        hotkeyConflict={hotkeyConflict}
+        hotkeyConflicts={hotkeyConflicts}
         initialSection={settingsSection}
         onPatch={(p) => {
           void patch(p).then(() => {

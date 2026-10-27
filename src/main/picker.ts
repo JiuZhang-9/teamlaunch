@@ -12,6 +12,7 @@ import { probe as probePath } from './opener.ts';
 // K-12：控制台输出（reg.exe）必须按系统代码页解码——实现集中在 winConsole.ts，别在这里用 utf8 直读。
 import { decodeConsoleOutput, regQueryBytes } from './winConsole.ts';
 import { defaultWebName } from '../shared/web-name.ts';
+import { isNoiseProgramName } from '../shared/program-filter.ts';
 
 export interface PickResult {
   ok: boolean;
@@ -47,27 +48,9 @@ function displayName(p: string): string {
   return path.basename(p).replace(/\.(exe|lnk)$/i, '');
 }
 
-/** 「只有版本号 / 只有位数」这类残名（1.4.0、2022.0.7、2018、(x64)、64-bit)）。 */
-const VERSION_ONLY = /^\d+(\.\d+)*$/;
-const BIT_ONLY = /^[(_\-\s]*(x64|x86|64-bit|32-bit|64|32)[)_\-\s]*$/i;
-/** 这些名字进来只会让列表没法用：卸载/修复/更新/说明之类不是程序本体。 */
-const NOISE_EXACT = new Set([
-  '安装程序', 'setup', 'install', 'installer', 'update', 'updater', 'repair', '修复',
-  'readme', '说明', '帮助', 'help', 'license', '许可', '关于', 'about', '卸载', '更多',
-]);
-
-function isNoiseName(name: string): boolean {
-  const n = name.trim();
-  if (n.length === 0) return true;
-  if (n.includes('卸载') || /uninstall/i.test(n)) return true;
-  if (NOISE_EXACT.has(n.toLowerCase())) return true;
-  if (VERSION_ONLY.test(n) || BIT_ONLY.test(n)) return true;
-  return false;
-}
-
 export type IdentifyResult =
   | { kind: 'web'; url: string; name: string }
-  | { kind: 'app'; target: string; sourcePath: string | null; args: string | null; name: string }
+  | { kind: 'app'; target: string; sourcePath: string | null; args: string | null; cwd: string | null; name: string }
   | { kind: 'folder'; target: string; name: string }
   | { kind: 'none'; reason: string };
 
@@ -95,14 +78,21 @@ export async function identifyAsEntry(raw: string): Promise<IdentifyResult> {
     try {
       const link = shell.readShortcutLink(p);
       if (link.target && link.target.length > 0) {
-        return { kind: 'app', target: link.target, sourcePath: p, args: link.args || null, name: displayName(p) };
+        return {
+          kind: 'app',
+          target: link.target,
+          sourcePath: p,
+          args: link.args || null,
+          cwd: link.cwd || null,
+          name: displayName(p),
+        };
       }
     } catch {
       // 解析失败就按原路径当程序处理（交给系统打开仍然可用）
     }
-    return { kind: 'app', target: p, sourcePath: p, args: null, name: displayName(p) };
+    return { kind: 'app', target: p, sourcePath: p, args: null, cwd: null, name: displayName(p) };
   }
-  if (/\.exe$/i.test(p)) return { kind: 'app', target: p, sourcePath: p, args: null, name: displayName(p) };
+  if (/\.exe$/i.test(p)) return { kind: 'app', target: p, sourcePath: p, args: null, cwd: null, name: displayName(p) };
   return { kind: 'none', reason: '只支持网址、程序（exe/lnk）或文件夹' };
 }
 
@@ -192,7 +182,7 @@ async function walkShortcuts(
     // 同一目标只保留一个（先去重者胜：开始菜单 > 桌面 > 任务栏 > 已安装程序）
     if (found.has(target)) continue;
     const name = displayName(entry.name);
-    if (isNoiseName(name)) continue;
+    if (isNoiseProgramName(name)) continue;
     found.set(target, { name, target, sourcePath: full, source });
   }
 }
@@ -247,7 +237,7 @@ async function scanInstalledPrograms(found: Map<string, ScanCandidate>): Promise
       if (found.size >= SCAN_LIMIT) return;
       const target = exeFromDisplayIcon(row.icon);
       if (target === null || found.has(target)) continue;
-      if (isNoiseName(row.name)) continue;
+      if (isNoiseProgramName(row.name)) continue;
       found.set(target, { name: row.name, target, sourcePath: target, source: '已安装程序' });
     }
   }

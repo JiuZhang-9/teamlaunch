@@ -47,6 +47,7 @@
 11. 互联网远程访问同步服务。
 12. macOS / Linux / Web / 小程序端。
 13. 第三方互联网埋点服务（原因见 T9 埋点章节）。
+14. **全盘文件/程序遍历搜索**：本机程序索引只读开始菜单（公共 + 当前用户）的 `.lnk`（用户 2026-10-24 拍板）；便携软件需手动添加，或把快捷方式放进开始菜单。
 
 ---
 
@@ -70,6 +71,7 @@
 | vite | **8.3.1** | 渲染层构建（经 electron-vite） | 需 Node 20.19+，本机 Node v22.22.2 满足 |
 | typescript | **5.9.3**（**已回退**，原定 7.0.2） | 类型系统 | **D-04 已触发**：`typescript-eslint@8.71.0` 的 peer 为 `typescript ">=4.8.4 <6.1.0"`，与 7.0.2 冲突，npm ERESOLVE 失败。按 Spec §11 K-10 整体回退 5.9.3（已实测确认 peer 区间）。**开发必须按 5.9.3 的 API 写代码，不得使用 TS 7 特有语法或编译器行为** |
 | zod | **4.6.5** | 请求/配置/校验的唯一 Schema 来源 | 主进程与 Fastify 共用 |
+| pinyin-pro | **3.29.5** | 本机程序索引的中文全拼/首字母检索键 | MIT，纯 JS 无原生模块；2026-10-24 引入。只在主进程构建索引时用，渲染层拿预计算键做纯字符串匹配（不把拼音库打进渲染包） |
 | **lucide-react** | **1.48.0** | **唯一图标库（已锁定）** | 见 §1.3 |
 | tailwindcss / @tailwindcss/vite | **4.3.3** | 样式 | v4 Vite 插件方案 |
 | radix-ui | **1.6.7** | 对话框/菜单/气泡等无样式交互原语 | 无障碍（WCAG 2.1 AA）由它兜底 |
@@ -228,7 +230,10 @@ src/
 │   ├── index.ts                 # 入口：仅装配（单实例锁/窗口/托盘/服务启动）≤120 行
 │   ├── window.ts
 │   ├── tray.ts
-│   ├── hotkey.ts                # 全局唤醒热键注册（唤起上次收起的窗口）与冲突处理
+│   ├── hotkey.ts                # 两个全局热键（唤起上次收起的窗口 / 本机程序搜索）注册与冲突处理
+│   ├── programIndex.ts          # 本机程序索引：开始菜单扫描、缓存、TTL、文件监听、跨窗口广播
+│   ├── programScan.ts           # 扫描核心（目录树 + .lnk → 记录，依赖注入，可脱离 Electron 直测）
+│   ├── programPinyin.ts         # 程序名 → 全拼/首字母检索键（pinyin-pro）
 │   ├── lifecycle.ts             # 角色决定关闭行为、powerMonitor 挂起/恢复
 │   └── ipc/
 │       ├── index.ts             # 集中注册（薄）
@@ -793,6 +798,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 | `autoLaunch` | boolean | true | 开机自启 |
 | `trayEnabled` | boolean | true | 托盘常驻 |
 | `hotkey` | string | `Ctrl+Space` | 全局热键加速器串 |
+| `searchHotkey` | string | `Ctrl+Alt+F` | 本机程序搜索热键（OS 级）；`none` = 不注册。与 `hotkey` 独立注册、独立报冲突（2026-10-24） |
 | `pollIntervalMs` | int | 30000 | 轮询间隔（schema 夹紧 5s–300s） |
 | `editIdleTimeoutMs` | int | 600000 | 编辑态闲置自动退出（PRD §14.1）；草稿保留，解锁态是否同清见 T6.2 |
 | `theme` | enum `system`/`light`/`dark` | `system` | 跟随系统；读取失败兜底深色（Spec §8） |
@@ -1296,3 +1302,5 @@ SERVICE_NOT_LISTENING  >  PUBLIC_NETWORK_PROFILE  >  FIREWALL_RULE_MISSING
 | K-10 | TypeScript 7.0.2 是新编译器主线 | §1.1 + `OPEN-DECISIONS.md` D-04 | **已触发并回退**：`typescript-eslint@8.71.0` peer `<6.1.0` 冲突 → 5.9.3。开发必须按 5.9.3 的 API 写 |
 | **K-11** | **scrypt 参数必须客户端夹紧** | **ADR-006 §1.2**（`N/r/p` 线上字段须先比对本地常量再派生） | 造假服务回 `N=2^20` → 客户端申请约 1 GB 内存 → 主线程卡死。现象是"双击应用就假死"，**无日志、无报错、无法解释**。用例：构造回异常 N 的假 `/auth/challenge`，客户端必须拒绝派生且应用不卡 |
 | K-13（2026-10-17 补） | **"模块写好了"不等于"接线了"**：L2 UDP 信标（`src/server/beacon.ts`）实现完整、smoke 直测通过、安装器连防火墙规则都开好了，但管理员机进程**从未 `start()` 它** —— "员工端广播永远无人应答"这个真现象躲过了当时全部自动化检查，直到排查一处无关退出码噪音时才被日志逼出来（门禁只查"文件存在/函数可调"，查不出"没人调用"） | 规则：新模块进入运行时的唯一凭据是**装配级断言** —— 在真实启停路径上验行为（`verify:wiring` 的 UDP 应答探针：真实启动同步服务 → 发广播询问 → 必须收到报出**当前实际端口**的 offer）。孤立模块的 smoke 通过**不能**当集成通过 | `src/main/backendService.ts`（信标随服务 start/stop）+ `scripts/verify-main-wiring.mjs` |
+| **K-14**（2026-10-23 补） | **跨重启的"续作"不能依赖库的进程内句柄**：electron-updater 的 `downloadedUpdateHelper` 只活在执行下载的那个进程里；用户下载完先重启、再点「立即更新并重启」时，`quitAndInstall()` 直接抛 `No update filepath provided, can't quit and install`，又被它自己的 `error` 事件吞成一行日志 —— 现象就是"点了没反应"（v1.1.3 及更早） | 规则：① 跨进程复用的安装包必须**自己拿记录 + 文件存在性**作为凭据，按库的同一套 NSIS 参数（`--updated /S --force-run`）直接拉起安装器，不依赖内部状态；② 用户显式动作失败必须**回给界面**（IPC 返回 `{ ok, reason }` + toast），只写日志等于假装成功 | `src/main/updater.ts`（`installDownloadedUpdate` / `runDownloadedInstaller`）、`src/main/ipc.ts`、`MainWindowShell.tsx` |
+| **K-15**（2026-10-24 补） | **本机程序索引不是入口，生命周期必须独立**：塞进 personal 配置会占 200 条容量、被同步、被编辑态污染；每个窗口各扫一份又会让面板与主窗口结果不一致 | 规则：① 索引由主进程**单点构建**（`config/programs-index.json` 缓存 + 启动/TTL/`fs.watch`/手动刷新，单飞）；② 跨窗口只广播**同一份快照**，渲染层不自行扫描；③ 只读开始菜单 `.lnk`，不遍历磁盘（用户 2026-10-24 拍板）；④ 搜索结果合成临时 Entry 只用于打开/取图标，`Ctrl+回车` 才走既有「粘贴快捷添加」落库 | `src/main/programIndex.ts` + `programScan.ts`、`src/shared/schema/programs.ts`、`src/shared/program-match.ts`、`scripts/verify-programs.mjs` |

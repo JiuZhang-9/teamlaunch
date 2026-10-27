@@ -8,7 +8,7 @@
  *     所以 Tab / Shift+Tab 一律 preventDefault，改当作"下一条 / 上一条"（见 onKeyDown）。
  *  3. **本视图 100% 本地**，不得出现任何网络请求相关字样。
  */
-import { ChevronDown, ChevronUp, LayoutGrid, Pin, Plus, RotateCcwClock, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, AppWindow, LayoutGrid, Pin, Plus, RotateCcwClock, Search, X } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { SearchInput } from '../atoms/SearchInput.tsx';
 import { Button } from '../atoms/Button.tsx';
@@ -19,20 +19,20 @@ import { SourceTag } from '../atoms/Tag.tsx';
 import { firstLetterOf } from '../../lib/entry.ts';
 import type { Entry } from '../../../shared/schema/entry.ts';
 
-/**
- * 行的种类（默认 result）：
+/* 行的种类（默认 result）：
+ *  - `system`        本机程序（开始菜单索引，不在入口清单里）：回车直接启动，Ctrl+回车加为入口；
  *  - `clip-new`      剪贴板里的内容**还不在清单里**：回车=直接打开，Ctrl+回车/行尾按钮=加为入口；
  *  - `clip-existing` 剪贴板里的内容**已经是清单里的某一条**：置顶显示，回车=直接打开（快捷进入）；
  *  - `pinned`        用户手动固定的入口（空查询的「固定」行）；
  *  - `recent`        最近打开（空查询的「最近打开」行）。
- * 前两者算"剪贴板置顶行"，排在最上面。
+ * 前三者算"额外来源行"，排在最上面/单独分段。
  */
-export type PaletteHitKind = 'result' | 'clip-new' | 'clip-existing' | 'pinned' | 'recent';
+export type PaletteHitKind = 'result' | 'system' | 'clip-new' | 'clip-existing' | 'pinned' | 'recent';
 
 export interface PaletteHit {
   entry: Entry;
   subtitle: string;
-  source: '团队' | '本机';
+  source: '团队' | '本机' | '程序';
   kind?: PaletteHitKind;
 }
 
@@ -50,7 +50,7 @@ export interface MiniPaletteProps {
   onSelectIndex(i: number): void;
   iconFor(entryId: string): string | null;
   onOpen(hit: PaletteHit): void;
-  /** 剪贴板候选行的「加为入口」：走主窗口那套预填编辑器（Ctrl+回车 / 行尾按钮）。 */
+  /** 剪贴板候选行 / 本机程序行的「加为入口」：走主窗口那套预填编辑器。 */
   onAddToPersonal(hit: PaletteHit): void;
   /** Ctrl+回车（非剪贴板行）＝进入主窗口；面板窗口由调用方收起。 */
   onEnterMain(): void;
@@ -64,12 +64,17 @@ export interface MiniPaletteProps {
    * （overlay 形态供主窗口内唤起用；两种形态共用同一套键盘与结果逻辑）。
    */
   docked?: boolean;
+  /** entries=入口搜索（默认）；programs=Ctrl+Alt+F 打开的本机程序专用搜索。 */
+  scope?: 'entries' | 'programs';
+  /** 索引正在扫描 / 最近失败原因：程序范围的空态要如实说明。 */
+  programScanning?: boolean;
+  programError?: string | null;
 }
 
 export function MiniPalette(props: MiniPaletteProps) {
   const {
     open, query, onQueryChange, hits, selectedIndex, onSelectIndex, iconFor, onOpen, onAddToPersonal, onEnterMain, onClose, onTogglePin,
-    teamUnavailable, docked = false,
+    teamUnavailable, docked = false, scope = 'entries', programScanning = false, programError = null,
   } = props;
   const inputRef = useRef<HTMLInputElement | null>(null);
   /** 右键菜单：位置 + 命中的那条结果。菜单开着时 Esc 只收菜单，不收起面板。 */
@@ -114,9 +119,9 @@ export function MiniPalette(props: MiniPaletteProps) {
       e.preventDefault();
       const hit = hits[selectedIndex];
       if (hit) {
-        // 剪贴板候选行：回车就是"直接打开"，**绝不弹任何窗口**；
+        // 剪贴板候选行 / 本机程序行：回车就是"直接打开"，**绝不弹任何窗口**；
         // 加为入口是第二个动作（Ctrl+回车），与回车分开，避免误触编辑器。
-        if (hit.kind === 'clip-new' && (e.ctrlKey || e.metaKey)) onAddToPersonal(hit);
+        if ((hit.kind === 'clip-new' || hit.kind === 'system') && (e.ctrlKey || e.metaKey)) onAddToPersonal(hit);
         else onOpen(hit);
       }
     } else if (e.key === 'Escape') {
@@ -138,18 +143,21 @@ export function MiniPalette(props: MiniPaletteProps) {
   };
 
   /* 视觉分段（2026-10-21 用户要求：空查询分「固定」与「最近打开」两行）：
-     剪贴板置顶行 → 固定行 → 最近打开行 → 其余结果。
+     剪贴板置顶行 → 固定行 → 最近打开行 → 入口结果 → 本机程序。
      键盘游标仍走完整的 hits 顺序，与视觉从上到下一致。 */
   const clipHits = hits.filter(isPinnedHit);
   const fixedHits = hits.filter((h) => h.kind === 'pinned');
   const recentHits = hits.filter((h) => h.kind === 'recent');
+  const systemHits = hits.filter((h) => h.kind === 'system');
   const resultHits = hits.filter((h) => !isPinnedHit(h) && (h.kind === undefined || h.kind === 'result'));
   const hitIndex = (hit: PaletteHit): number => hits.indexOf(hit);
   const emptyQuery = query.length === 0;
+  const programScope = scope === 'programs';
+  const placeholder = programScope ? '搜索本机程序（开始菜单）' : '搜索入口、程序或路径';
 
-  /** 右键菜单：固定 / 取消固定。剪贴板新内容没有真实入口 id，不提供固定。 */
+  /** 右键菜单：固定 / 取消固定。剪贴板新内容与本机程序没有真实入口 id，不提供固定。 */
   const openMenu = (e: MouseEvent, hit: PaletteHit): void => {
-    if (hit.kind === 'clip-new') return;
+    if (hit.kind === 'clip-new' || hit.kind === 'system') return;
     e.preventDefault();
     onSelectIndex(hitIndex(hit));
     setMenu({ x: e.clientX, y: e.clientY, hit });
@@ -243,7 +251,20 @@ export function MiniPalette(props: MiniPaletteProps) {
         trailing={
           <span className="flex shrink-0 items-center gap-2">
             <SourceTag source={hit.source} />
-            <span className="t-2xs t-mono text-[var(--meta)]">Alt+{i + 1}</span>
+            {hit.kind === 'system' && (
+              <Button
+                tone="ghost"
+                size="sm"
+                icon={Plus}
+                aria-label="加为入口"
+                title="加为入口（Ctrl+回车）"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddToPersonal(hit);
+                }}
+              />
+            )}
+            <span className="t-2xs t-mono text-[var(--meta)]">{i < 9 ? `Alt+${i + 1}` : ''}</span>
           </span>
         }
       />
@@ -285,14 +306,26 @@ export function MiniPalette(props: MiniPaletteProps) {
           variant="palette"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          aria-label="搜索入口、分组或路径"
-          placeholder="搜索入口、分组或路径"
+          aria-label={placeholder}
+          placeholder={placeholder}
         />
         <div className="mt-2 h-px w-full bg-[var(--border-subtle)]" />
 
         <div className="tl-scroll min-h-0 flex-1 overflow-y-auto py-1" role="listbox" aria-label="搜索结果">
           {hits.length === 0 ? (
-            query.length === 0 ? (
+            programScope ? (
+              <EmptyBlock
+                compact
+                icon={Search}
+                title={query.length === 0 ? '输入程序名搜索本机程序' : `没有找到「${query}」相关的程序`}
+                detail={
+                  programError ??
+                  (programScanning
+                    ? '正在索引开始菜单里的程序…'
+                    : '只索引开始菜单里的快捷方式；没有快捷方式的软件不会出现在这里，也可以到「我的入口」里手动添加。')
+                }
+              />
+            ) : query.length === 0 ? (
               /* 清单完全为空（团队 + 我的入口都没有内容）：这不是"没搜到"，
                  而是"还没有东西可开"，所以如实说清楚去哪里加。 */
               <EmptyBlock
@@ -306,7 +339,7 @@ export function MiniPalette(props: MiniPaletteProps) {
                 compact
                 icon={Search}
                 title={`没有找到「${query}」相关的入口`}
-                detail="换个词试试，或到我的入口里添加"
+                detail="换个词试试；本机程序只索引开始菜单里的快捷方式"
               />
             )
           ) : (
@@ -373,11 +406,22 @@ export function MiniPalette(props: MiniPaletteProps) {
                        标签不能说谎，它们只是清单前几条。 */
                     tileGrid(resultHits, false)
                   : null
-                : /* 搜索结果：沿用"前 6 条图标格 + 其余列表"（2026-10-18 用户要求的第一行图标格）。 */
-                  resultHits.length > 0 && (
+                : /* 搜索结果：入口沿用"前 6 条图标格 + 其余列表"，本机程序单独一段列表。 */
+                  (resultHits.length > 0 || systemHits.length > 0) && (
                     <>
-                      {tileGrid(resultHits.slice(0, 6), false)}
-                      {resultHits.slice(6).map(renderResultRow)}
+                      {resultHits.length > 0 && (
+                        <>
+                          {systemHits.length > 0 && sectionLabel('入口', LayoutGrid)}
+                          {tileGrid(resultHits.slice(0, 6), false)}
+                          {resultHits.slice(6).map(renderResultRow)}
+                        </>
+                      )}
+                      {systemHits.length > 0 && (
+                        <>
+                          {sectionLabel('本机程序', AppWindow)}
+                          {systemHits.map(renderResultRow)}
+                        </>
+                      )}
                     </>
                   )}
             </>

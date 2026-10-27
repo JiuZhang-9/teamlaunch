@@ -20,12 +20,12 @@ import { useToasts } from '../../store/toastStore.tsx';
 export interface AppHotkeysSectionProps {
   /** 用户覆盖表（settings.appHotkeys，可能为空对象）。 */
   overrides: Record<string, string>;
-  /** 全局快捷搜索热键（OS 级）：应用内键位与它相同也视为冲突（全局热键会先吞掉按键）。 */
-  globalHotkey: string;
+  /** 两个 OS 级全局热键（唤醒 / 本机程序搜索，'none' 已过滤）：应用内键位与它们相同也视为冲突。 */
+  globalHotkeys: string[];
   onPatch(patch: { appHotkeys: Record<string, string> }): void;
 }
 
-export function AppHotkeysSection({ overrides, globalHotkey, onPatch }: AppHotkeysSectionProps) {
+export function AppHotkeysSection({ overrides, globalHotkeys, onPatch }: AppHotkeysSectionProps) {
   const { push } = useToasts();
   const [recording, setRecording] = useState<AppHotkeyAction | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -52,7 +52,7 @@ export function AppHotkeysSection({ overrides, globalHotkey, onPatch }: AppHotke
   const finishRecording = (id: AppHotkeyAction, accel: string | null) => {
     setRecording(null);
     if (accel === null) return; // Esc 取消
-    // 冲突检查：同应用内其他动作 + 全局快捷搜索热键
+    // 冲突检查：同应用内其他动作 + 两个全局热键
     const clash = (Object.keys(DEFAULT_APP_HOTKEYS) as AppHotkeyAction[])
       .filter((k) => k !== id)
       .find((k) => effective(k) === accel);
@@ -60,8 +60,8 @@ export function AppHotkeysSection({ overrides, globalHotkey, onPatch }: AppHotke
       push({ title: `与「${APP_HOTKEY_LABELS[clash]}」的快捷键冲突，请换一个键`, tone: 'warn' });
       return;
     }
-    if (accel === globalHotkey) {
-      push({ title: '与全局快捷搜索热键冲突，请换一个键', tone: 'warn' });
+    if (globalHotkeys.includes(accel)) {
+      push({ title: '与全局热键冲突，请换一个键', tone: 'warn' });
       return;
     }
     onPatch({ appHotkeys: { ...overrides, [id]: accel } });

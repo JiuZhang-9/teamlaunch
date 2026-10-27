@@ -9,6 +9,9 @@
  *   config.ts 团队配置与 1MB 闸门 ／ local.ts settings 与 personal
  *   feedback.ts 失效反馈 ／ telemetry.ts 遥测 ／ envelope.ts 响应信封
  *
+ * 另有 `schema/programs.ts`（本机程序索引）刻意**不**在本文件 re-export：
+ * 它只服务本机搜索，不进入团队配置、不参与同步、不是服务端契约。
+ *
  * 三条硬约束（写进 schema，不靠 UI 提示）：≤8 分组、≤200 入口（跨组求和）、≤1MB（UTF-8 字节）
  *
  * 校验门（提交前必跑，见 docs/ARCHITECTURE.md §14.1）：

@@ -9,6 +9,10 @@ import type { TeamConfig } from '../../shared/schema/config.ts';
 import type { PersonalConfig, Settings } from '../../shared/schema/local.ts';
 import type { FeedbackItem } from '../../shared/schema/feedback.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
+import type { ProgramIndexSnapshot } from '../../shared/schema/programs.ts';
+import type { GlobalHotkeyKind } from '../../shared/app-hotkeys.ts';
+
+export type { ProgramIndexSnapshot, ProgramItem } from '../../shared/schema/programs.ts';
 
 /* ------------------------------------------------------------------ *
  * 同步：8 态 + offlineReason + hasCache（架构 v1.4 T3.6 / T3.6.1）
@@ -70,7 +74,7 @@ export type OpenResult =
 /** 剪贴板快捷添加的识别结果（与 main/picker.ts 的 IdentifyResult 结构一致，改两处要同步）。 */
 export type IdentifyResult =
   | { kind: 'web'; url: string; name: string }
-  | { kind: 'app'; target: string; sourcePath: string | null; args: string | null; name: string }
+  | { kind: 'app'; target: string; sourcePath: string | null; args: string | null; cwd: string | null; name: string }
   | { kind: 'folder'; target: string; name: string }
   | { kind: 'none'; reason: string };
 
@@ -112,6 +116,13 @@ export interface AppUpdateStatus {
   lastError: string | null;
   /** 最近一次检查完成时间（ISO）。 */
   lastCheckedAt: string | null;
+}
+
+/** 「立即更新并重启」的结果（与 main/updater.ts 的 InstallUpdateResult 一致）。 */
+export interface InstallUpdateResult {
+  ok: boolean;
+  /** ok=false 时能直接显示给用户的原因。 */
+  reason?: string;
 }
 
 /** 主页收藏（2026-10-05）：本机各存各的，只存入口 id。 */
@@ -417,8 +428,9 @@ export interface TeamLaunchApi {
     /**
      * 静默安装已下载的更新并重启。
      * per-user 安装无提权、秒装；per-machine 安装会要一次管理员确认。
+     * ok=false 时 reason 是能直接给用户看的一句话（例如安装包不在了）。
      */
-    install(): Promise<void>;
+    install(): Promise<InstallUpdateResult>;
     /** 打开更新分发目录（管理员把构建产物放进来）。 */
     openUpdatesFolder(): Promise<boolean>;
     /** 手动跑一轮检查，返回检查后的状态。 */
@@ -531,6 +543,21 @@ export interface TeamLaunchApi {
     quickAdd(text: string): Promise<boolean>;
   };
 
+  /**
+   * 本机程序索引（2026-10-24）：快捷窗口搜索开始菜单里的程序。
+   *
+   * 只读内存缓存：索引在主进程构建并落盘，渲染层不发起扫描（面板打开预算是 80ms 级）。
+   * 索引里的条目**不是入口**——不占容量、不同步，`Ctrl+回车` 才走既有添加流程。
+   */
+  programs: {
+    /** 当前快照（preload 同步缓存，首帧即可用）。 */
+    snapshot(): ProgramIndexSnapshot;
+    /** 订阅索引更新（启动扫描 / 文件变化 / 手动刷新都会推送）。 */
+    subscribe(cb: (snapshot: ProgramIndexSnapshot) => void): () => void;
+    /** 手动重扫开始菜单；返回扫描完成后的快照。 */
+    refresh(): Promise<ProgramIndexSnapshot>;
+  };
+
   clipboard: {
     /** 只读剪贴板文本（快捷面板的剪贴板候选行）；单条判定与去重在渲染层做。 */
     read(): Promise<string>;
@@ -561,9 +588,10 @@ export interface TeamLaunchApi {
    *  - `onPaletteShown/Hidden`：迷你面板窗口的 open 状态由主进程驱动（显示/失焦/热键切换）。
    */
   events: {
-    onHotkeyConflict(cb: (info: { accelerator: string }) => void): () => void;
-    onHotkeyStatus(cb: (info: { registered: boolean }) => void): () => void;
-    onPaletteShown(cb: () => void): () => void;
+    onHotkeyConflict(cb: (info: { accelerator: string; kind: GlobalHotkeyKind }) => void): () => void;
+    onHotkeyStatus(cb: (info: { registered: boolean; accelerator: string; kind: GlobalHotkeyKind }) => void): () => void;
+    /** 面板显示：payload.scope 决定本次是入口搜索还是本机程序搜索。 */
+    onPaletteShown(cb: (info: { scope: 'entries' | 'programs' }) => void): () => void;
     onPaletteHidden(cb: () => void): () => void;
     /** 任意窗口改了设置都广播到这里：跨窗口主题/热键/缩放同步的唯一通道。 */
     onSettingsChanged(cb: (settings: Settings) => void): () => void;
@@ -577,6 +605,8 @@ export interface TeamLaunchApi {
     onAppUpdate(cb: (event: AppUpdateEvent) => void): () => void;
     /** 主进程转发的"把这段文本走一遍粘贴添加"（快捷面板的「加为入口」用）。 */
     onQuickAdd(cb: (text: string) => void): () => void;
+    /** 本机程序索引更新（启动扫描 / 开始菜单变化 / 手动刷新）。 */
+    onProgramsChanged(cb: (snapshot: ProgramIndexSnapshot) => void): () => void;
     /** 用户点了系统通知：界面据此做"去主页看公告"这类收尾（窗口前台化由主进程已做掉）。 */
     onNoticeClick(cb: () => void): () => void;
   };

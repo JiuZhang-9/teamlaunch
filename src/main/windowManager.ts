@@ -13,6 +13,7 @@ import { isQuitting } from './lifecycle.ts';
 import { logLine } from './appLog.ts';
 import { loadWindowState, trackWindowBounds } from './windowState.ts';
 import { defaultBounds, isRestorableBounds } from '../shared/window-bounds.ts';
+import { ensureProgramsFresh } from './programIndex.ts';
 
 /* 默认大小不再写死：2026-10-18 起由 windowState.defaultBounds() 按屏幕工作区自适应
    （用户反馈"起始默认窗口有点小，想大点，让页面能容纳更多卡片"——目标 1280×820，
@@ -36,6 +37,10 @@ let palette: BrowserWindow | null = null;
  */
 export type Surface = 'main' | 'palette';
 let lastSurface: Surface = 'palette';
+
+/** 快捷窗口本次打开的范围：入口搜索（默认）或本机程序搜索（Ctrl+Alt+F 专用）。 */
+export type PaletteScope = 'entries' | 'programs';
+let paletteScope: PaletteScope = 'entries';
 
 /** 生产加载打包产物；开发加载 Vite dev server（由 TL_DEV_URL 注入）。 */
 export function rendererUrl(hash = ''): string {
@@ -229,7 +234,7 @@ export function switchToMain(): boolean {
  */
 export function switchToPalette(canHideMain: boolean): boolean {
   if (!palette || palette.isDestroyed()) return false;
-  showPalette();
+  showPalette('entries');
   if (canHideMain) hideMainWindow();
   else lastSurface = 'main';
   return true;
@@ -253,7 +258,31 @@ export function handleHotkeySurface(): void {
     return;
   }
   if (palette.isVisible()) hidePalette();
-  else showPalette();
+  else showPalette('entries');
+}
+
+/**
+ * 第二个全局热键（Ctrl+Alt+F）：打开快捷窗口并直接进入「本机程序」范围。
+ *
+ * 与 Ctrl+空格的区别：这里不关心"上次收起的是谁"，目标始终是程序搜索窗口；
+ * 面板已经在程序范围且在最前时，再按一次收起（和启动器的手感一致）。
+ */
+export function handleHotkeySearch(): void {
+  if (!palette || palette.isDestroyed()) {
+    preheatPalette();
+    const created = palette;
+    if (created) {
+      created.webContents.once('did-finish-load', () => {
+        if (created === palette && !created.isDestroyed()) showPalette('programs');
+      });
+    }
+    return;
+  }
+  if (palette.isVisible() && paletteScope === 'programs' && palette.isFocused()) {
+    hidePalette();
+    return;
+  }
+  showPalette('programs');
 }
 
 /**
@@ -282,8 +311,15 @@ export function showMainWindow(): void {
   mainWindow.focus();
 }
 
-export function showPalette(): void {
+/**
+ * 打开快捷窗口。
+ *
+ * scope 只影响渲染层的搜索范围：entries=入口搜索（默认），programs=本机程序搜索。
+ * 事件在窗口还在加载时可能丢——这里用 did-finish-load 兜底，保证冷启动按热键也能拿到范围。
+ */
+export function showPalette(scope: PaletteScope = 'entries'): void {
   if (!palette || palette.isDestroyed()) return;
+  paletteScope = scope;
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const area = display.workArea;
   const y = Math.round(area.y + area.height * 0.18);
@@ -291,7 +327,17 @@ export function showPalette(): void {
   palette.setPosition(x, y, false);
   palette.show();
   palette.focus();
-  palette.webContents.send('tl:palette-shown');
+
+  // 每次打开顺手检查索引是否过期（24h）；过期只在后台重扫，不阻塞本次搜索。
+  ensureProgramsFresh();
+
+  const sendScope = (): void => {
+    if (palette && !palette.isDestroyed()) {
+      palette.webContents.send('tl:palette-shown', { scope });
+    }
+  };
+  if (palette.webContents.isLoading()) palette.webContents.once('did-finish-load', sendScope);
+  else sendScope();
 }
 
 export function hidePalette(): void {

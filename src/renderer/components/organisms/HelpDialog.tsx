@@ -69,6 +69,7 @@ export function HelpDialog({ onClose }: { onClose(): void }) {
       </Section>
       <Section title="全局">
         <SheetRow label="全局唤醒热键（任何应用里：开 / 收上次那个窗口）" keys={settings.hotkey === 'none' ? ['未设置'] : [settings.hotkey]} />
+        <SheetRow label="本机程序搜索热键（任何应用里：搜开始菜单程序）" keys={settings.searchHotkey === 'none' ? ['未设置'] : [settings.searchHotkey]} />
         <SheetRow label="主窗口 ↔ 快捷窗口互换" keys={['Ctrl+Tab']} />
         <SheetRow label="卡片在组内换位（键盘）" keys={['Alt+↑', 'Alt+↓']} />
         <SheetRow label="关闭对话框 / 快捷窗口" keys={['Esc']} />
@@ -79,6 +80,7 @@ export function HelpDialog({ onClose }: { onClose(): void }) {
         <div className="flex flex-col gap-2 t-sm text-[var(--fg-2)]">
           <p>· 复制了网址或程序路径后，在窗口空白处直接按 Ctrl+V，可以快速添加入口。</p>
           <p>· 快捷搜索面板（全局热键唤起）里：↑↓ 或 Tab / Shift+Tab 换选中项，⏎ 直接打开；Ctrl+Tab 直接换回主窗口（在主窗口按则换回面板）；复制了网址或路径后唤起面板，顶部会出现一行候选，⏎ 直接打开、Ctrl+⏎ 加为入口。</p>
+          <p>· 面板里输入程序名会同时搜「开始菜单」里的程序（不用先加为入口）：⏎ 直接启动，Ctrl+⏎ 或行尾「+」加为入口。Ctrl+Alt+F 可以直接打开程序搜索；没有快捷方式的软件不会出现在这里，可以手动添加。</p>
           <p>· 应用入口打不开（比如换了电脑）：右键卡片选「在本机重新定位…」，在本机重新指一次程序位置，本机会记住。</p>
           <p>· 卡片上没显示程序图标：通常是目标路径在这台电脑上不存在；重新定位后图标会自动恢复。</p>
           <p>· 左下角「工作区」按钮：展开同步状态、手动刷新与诊断入口。</p>

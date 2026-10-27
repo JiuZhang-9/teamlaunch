@@ -26,12 +26,13 @@ import { SettingsPanelView } from '../../pages/SettingsPanelView.tsx';
 import { FeedbackDialogView } from '../../pages/FeedbackDialogView.tsx';
 import { PrivacyGateView } from '../../pages/PrivacyGateView.tsx';
 import { DiagnosticsPage } from '../../pages/DiagnosticsPage.tsx';
+import type { HotkeyConflictInfo } from '../../../shared/app-hotkeys.ts';
 
 export interface DialogRouterProps {
   /** workbenchStore 的当前对话框标识 */
   dialog: string | null;
-  /** 真实热键注册状态（由外壳订阅主进程推送得出），设置页展示用 */
-  hotkeyConflict?: boolean;
+  /** 真实热键注册状态（由外壳订阅主进程推送得出），设置页逐行展示 */
+  hotkeyConflicts?: HotkeyConflictInfo[];
   feedbackTargetId: string | null;
   closeDialog(): void;
   dirtyCount: number;
@@ -55,7 +56,7 @@ export interface DialogRouterProps {
 }
 
 export function DialogRouter({
-  dialog, hotkeyConflict = false, feedbackTargetId, closeDialog,
+  dialog, hotkeyConflicts = [], feedbackTargetId, closeDialog,
   dirtyCount, revision, gateBlocking, miniOpen, onMiniClose,
   onLocate,
   confirmExit, onCancelExit, onConfirmExit,
@@ -70,7 +71,7 @@ export function DialogRouter({
       {/* 入口编辑器（管理员草稿的新建/编辑），挂在最外层：编辑模式下随时可打开 */}
       <EntryEditDialogView />
 
-      {dialog === 'settings' && <SettingsPanelView hotkeyConflict={hotkeyConflict} onClose={closeDialog} />}
+      {dialog === 'settings' && <SettingsPanelView hotkeyConflicts={hotkeyConflicts} onClose={closeDialog} />}
 
       {dialog === 'publish' && <PublishDialogView onClose={closeDialog} onLocate={onLocate} />}
 

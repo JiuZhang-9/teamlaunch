@@ -20,6 +20,20 @@ export type AppHotkeyAction =
   | 'selectAll'
   | 'shortcuts';
 
+/**
+ * 两个 OS 级全局热键的身份（2026-10-24）：
+ *  - surface：唤起「上次收起的那个窗口」（settings.hotkey，默认 Ctrl+Space）；
+ *  - search：打开快捷窗口并进入「本机程序」范围（settings.searchHotkey，默认 Ctrl+Alt+F）。
+ * 它们不在应用内键位表里，但冲突提示与设置页需要同一个类型。
+ */
+export type GlobalHotkeyKind = 'surface' | 'search';
+
+/** 注册失败的热键（accelerator + 身份），界面据此指出是哪一行没生效。 */
+export interface HotkeyConflictInfo {
+  accelerator: string;
+  kind: GlobalHotkeyKind;
+}
+
 export const DEFAULT_APP_HOTKEYS: Record<AppHotkeyAction, string> = {
   tabTeam: 'Ctrl+Q',
   tabPersonal: 'Ctrl+E',

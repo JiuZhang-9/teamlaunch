@@ -20,7 +20,8 @@ import {
   stopEmbeddedService,
   sweepService,
 } from './backendService.ts';
-import { registerHotkey, unregisterAll } from './hotkey.ts';
+import { registerHotkeys, unregisterAll, type HotkeyReport } from './hotkey.ts';
+import { startProgramIndex, stopProgramIndex } from './programIndex.ts';
 import { createTray, destroyTray } from './tray.ts';
 import { acquireSingleInstanceLock, markQuitting } from './lifecycle.ts';
 import { localStore } from './localStore.ts';
@@ -137,6 +138,18 @@ if (!acquireSingleInstanceLock(() => {
     // 读回上次的窗口位置与大小（2026-10-18）：异步读盘，所以这一步要 await。
     // closeToTray 传 getter 而不是值：托盘开关在设置里随时可改，关窗时按当时的值决定。
     const main = await createMainWindow(() => currentSettings.trayEnabled);
+    /* 热键注册发生在窗口 load 期间，早于渲染层订阅：启动时的注册结果必须先缓存，
+       等窗口加载完再补发一次——否则"Ctrl+Alt+F 被占用"这类提示会永远看不到。 */
+    let lastHotkeyReports: HotkeyReport[] = [];
+    const sendHotkeyReport = (report: HotkeyReport): void => {
+      lastHotkeyReports = [...lastHotkeyReports.filter((r) => r.kind !== report.kind), report];
+      if (!main.isDestroyed()) main.webContents.send('tl:hotkey-status', report);
+    };
+    const resendHotkeyReports = (): void => {
+      if (main.isDestroyed()) return;
+      for (const report of lastHotkeyReports) main.webContents.send('tl:hotkey-status', report);
+    };
+    main.webContents.once('did-finish-load', resendHotkeyReports);
     preheatPalette();
     // 面板不透明度（2026-10-19）：窗口刚建出来就应用一次，否则面板会一直是不透明的原样。
     setPaletteOpacity(currentSettings.paletteOpacity);
@@ -152,9 +165,7 @@ if (!acquireSingleInstanceLock(() => {
     registerIpc({
       getWindows: allWindows,
       closeToTray: () => currentSettings.trayEnabled,
-      onHotkey: (status, accelerator) => {
-        main.webContents.send('tl:hotkey-status', { status, accelerator });
-      },
+      onHotkey: sendHotkeyReport,
       // 设置一改，客户端下一轮就按新值走（手动端点 / 轮询间隔 / 遥测开关）。
       // 角色变化必须重新装配：否则改了 role 也要重启应用才生效，用户会以为开关没用。
       onSettingsPatch: (next) => {
@@ -178,8 +189,21 @@ if (!acquireSingleInstanceLock(() => {
 
     bindSyncBroadcast(allWindows);
 
-    registerHotkey(currentSettings.hotkey, main, (report) => {
-      main.webContents.send('tl:hotkey-status', report);
+    registerHotkeys(
+      { surface: currentSettings.hotkey, search: currentSettings.searchHotkey },
+      main,
+      sendHotkeyReport,
+    );
+    // 窗口已经加载完（file:// 加载很快）时 did-finish-load 已错过：立即补发一次。
+    if (!main.webContents.isLoading()) resendHotkeyReports();
+
+    /* 本机程序索引（2026-10-24）：先读磁盘缓存广播（快捷窗口立刻可搜），
+       缓存缺失/过期再后台扫开始菜单；之后靠文件监听 + TTL 收敛。
+       必须在真实启动路径上调用——只导出不调用是 K-13 的老坑。 */
+    startProgramIndex((snapshot) => {
+      for (const win of allWindows()) {
+        if (!win.isDestroyed()) win.webContents.send('tl:programs', snapshot);
+      }
     });
 
     syncTray();
@@ -204,6 +228,7 @@ if (!acquireSingleInstanceLock(() => {
 
     app.on('will-quit', () => {
       unregisterAll();
+      stopProgramIndex();
       destroyTray();
     });
 

@@ -20,9 +20,11 @@ import type {
   ImportDecisions,
   IdentifyResult,
   ImportPreviewResult,
+  InstallUpdateResult,
   OpenResult,
   PersonalSaveResult,
   PickResult,
+  ProgramIndexSnapshot,
   PublishOutcome,
   RelocateResult,
   ScanResult,
@@ -31,6 +33,7 @@ import type {
 } from '../renderer/bridge/types.ts';
 import { PersonalConfigSchema, SettingsSchema } from '../shared/schema/local.ts';
 import { EntrySchema } from '../shared/schema/entry.ts';
+import { EMPTY_PROGRAM_INDEX } from '../shared/schema/programs.ts';
 import type { PersonalConfig, Settings } from '../shared/schema/local.ts';
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> =>
@@ -71,10 +74,12 @@ const cache: {
   sync: SyncSnapshot;
   settings: Settings;
   personal: PersonalConfig;
+  programs: ProgramIndexSnapshot;
 } = {
   sync: NEVER,
   settings: SettingsSchema.parse({}),
   personal: PersonalConfigSchema.parse({ groups: [] }),
+  programs: EMPTY_PROGRAM_INDEX,
 };
 
 /**
@@ -86,14 +91,18 @@ const cache: {
  */
 const ready: Promise<void> = (async () => {
   try {
-    const [s, st, p] = await Promise.all([
-      invoke<SyncSnapshot | null>('tl:sync-snapshot'),
-      invoke<Settings | null>('tl:settings-get'),
-      invoke<PersonalConfig | null>('tl:personal-get'),
+    /* 每个通道单独兜底：某个 handler 还没注册（启动竞态）时，
+       不能把已就绪的 settings / personal / sync 缓存一起丢掉。 */
+    const [s, st, p, pg] = await Promise.all([
+      invoke<SyncSnapshot | null>('tl:sync-snapshot').catch(() => null),
+      invoke<Settings | null>('tl:settings-get').catch(() => null),
+      invoke<PersonalConfig | null>('tl:personal-get').catch(() => null),
+      invoke<ProgramIndexSnapshot | null>('tl:programs-snapshot').catch(() => null),
     ]);
     if (s) cache.sync = s;
     if (st) cache.settings = { ...cache.settings, ...st };
     if (p) cache.personal = p;
+    if (pg) cache.programs = pg;
   } catch {
     // 预热失败保持默认：NEVER_SYNCED 与默认 settings 都是安全态，不伪造"已同步"
   }
@@ -112,6 +121,11 @@ ipcRenderer.on('tl:settings', (_e, settings: Settings) => {
 // 缓存必须在这里更新——`personal.get()` 是同步读缓存，只发事件的话渲染层拿到的仍是旧值。
 ipcRenderer.on('tl:personal', (_e, config: PersonalConfig) => {
   cache.personal = config;
+});
+
+// 本机程序索引广播（2026-10-24）：启动扫描/开始菜单变化/手动刷新都推一次。
+ipcRenderer.on('tl:programs', (_e, snapshot: ProgramIndexSnapshot) => {
+  cache.programs = snapshot;
 });
 
 const api: TeamLaunchApi = {
@@ -249,6 +263,20 @@ const api: TeamLaunchApi = {
     quickAdd: (text) => invoke<boolean>('tl:palette-quick-add', text),
   },
 
+  programs: {
+    // 同步读 preload 缓存：首帧就能拿到上次扫描结果，搜索框不会先空一下。
+    snapshot: () => cache.programs,
+    subscribe: (cb) => {
+      const handler = (_e: unknown, snapshot: ProgramIndexSnapshot): void => {
+        cb(snapshot);
+      };
+      ipcRenderer.on('tl:programs', handler);
+      cb(cache.programs);
+      return () => ipcRenderer.removeListener('tl:programs', handler);
+    },
+    refresh: () => invoke<ProgramIndexSnapshot>('tl:programs-refresh'),
+  },
+
   clipboard: {
     /** 只读文本（剪贴板候选行）。单条判定与清单去重在渲染层做。 */
     read: () => invoke<string>('tl:clipboard-read'),
@@ -263,12 +291,18 @@ const api: TeamLaunchApi = {
   },
 
   events: {
-    onHotkeyConflict: (cb) => subscribe<{ accelerator: string }>('tl:hotkey-conflict', cb),
-    // 主进程推的是 { status, accelerator }，契约只向外暴露"是否注册成功"这一个布尔；
+    onHotkeyConflict: (cb) =>
+      subscribe<{ accelerator: string; kind: 'surface' | 'search' }>('tl:hotkey-conflict', cb),
+    // 主进程推的是 { status, accelerator, kind }，契约只向外暴露"是否注册成功"这一个布尔；
     // 冲突细节由 onHotkeyConflict 单独通知，两条通道不重复表达同一件事。
     onHotkeyStatus: (cb) =>
-      subscribe<{ status: string }>('tl:hotkey-status', (p) => cb({ registered: p.status === 'registered' })),
-    onPaletteShown: (cb) => subscribe<void>('tl:palette-shown', () => cb()),
+      subscribe<{ status: string; accelerator: string; kind: 'surface' | 'search' }>('tl:hotkey-status', (p) =>
+        cb({ registered: p.status === 'registered', accelerator: p.accelerator, kind: p.kind }),
+      ),
+    onPaletteShown: (cb) =>
+      subscribe<{ scope?: 'entries' | 'programs' } | undefined>('tl:palette-shown', (p) =>
+        cb({ scope: p?.scope ?? 'entries' }),
+      ),
     onPaletteHidden: (cb) => subscribe<void>('tl:palette-hidden', () => cb()),
     onSettingsChanged: (cb) => subscribe<Settings>('tl:settings', cb),
     /** 任意窗口改了「我的入口」都广播到这里：快捷面板不重启也能搜到新加的入口。 */
@@ -276,10 +310,12 @@ const api: TeamLaunchApi = {
     onAppUpdate: (cb) => subscribe<AppUpdateEvent>('tl:app-update', cb),
     /** 主进程转发的"把这段文本走一遍粘贴添加"（面板的「加为入口」用）。 */
     onQuickAdd: (cb) => subscribe<string>('tl:quick-add', cb),
+    /** 本机程序索引更新：面板窗口与主窗口共享同一份快照。 */
+    onProgramsChanged: (cb) => subscribe<ProgramIndexSnapshot>('tl:programs', cb),
     onNoticeClick: (cb) => subscribe<void>('tl:notice-click', () => cb()),
   },
   updater: {
-    install: () => invoke<void>('tl:app-update-install'),
+    install: () => invoke<InstallUpdateResult>('tl:app-update-install'),
     openUpdatesFolder: () => invoke<boolean>('tl:app-updates-folder'),
     /** 手动跑一轮检查，返回检查后的状态（设置页「检查更新」）。 */
     check: () => invoke<AppUpdateStatus>('tl:app-update-check'),
