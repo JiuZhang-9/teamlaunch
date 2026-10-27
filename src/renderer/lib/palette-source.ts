@@ -42,11 +42,12 @@ export interface ClipboardCandidate {
 
 type Identified = Exclude<IdentifyResult, { kind: 'none' }>;
 
-export const MAX_ROWS = 7;
+export const MAX_ROWS = 9;
 export const MAX_PROGRAM_ROWS = 8;
-export const MAX_PROGRAM_SCOPE_ROWS = 12;
-/** 「固定」与「最近打开」各占一行图标格：一行放得下 6 个 86px 格子。 */
+export const MAX_PROGRAM_SCOPE_ROWS = 14;
+/** 「固定」与「最近打开」各占一行图标格：面板 720px 下 7 列，主窗口 6 列。 */
 export const SECTION_MAX = 6;
+export const PALETTE_SECTION_MAX = 7;
 /** 剪贴板文本长度上限：再长就不是"一个网址/一条路径"了。 */
 export const CLIP_MAX = 4096;
 /** 主窗口内容区更宽：入口结果与程序结果都可以多显示一些。 */
@@ -143,6 +144,8 @@ export interface BuildHitsInput {
   scope?: 'entries' | 'programs';
   /** 入口结果最多显示几条。 */
   maxRows?: number;
+  /** 固定/最近打开各显示几个（面板 7、主窗口 6）。 */
+  sectionMax?: number;
 }
 
 export function isPinnedHit(hit: PaletteHit | undefined): boolean {
@@ -153,6 +156,7 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
   const { candidates, clip, query, pinnedIds, recentIds, programHits, scope = 'entries' } = input;
   const searchPool = input.searchCandidates ?? candidates;
   const maxRows = input.maxRows ?? MAX_ROWS;
+  const sectionMax = input.sectionMax ?? SECTION_MAX;
   const q = query.trim();
 
   /* 程序专用范围（Ctrl+Alt+F）：只搜本机程序。空查询不铺列表——
@@ -197,7 +201,7 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
       if (!c) continue;
       fixedIds.add(id);
       fixed.push({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, kind: 'pinned', groupName: c.groupName });
-      if (fixed.length >= SECTION_MAX) break;
+      if (fixed.length >= sectionMax) break;
     }
 
     /* 「最近打开」行：自动记录，已固定/剪贴板置顶的不重复出现。 */
@@ -207,7 +211,7 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
       const c = byId.get(id);
       if (!c) continue;
       recent.push({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, kind: 'recent', groupName: c.groupName });
-      if (recent.length >= SECTION_MAX) break;
+      if (recent.length >= sectionMax) break;
     }
     if (recent.length > 0) return [...pinned, ...fixed, ...recent];
 
@@ -215,7 +219,7 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
        kind 保持 result（不贴「最近打开」标签）——标签必须如实描述这批结果是什么。 */
     const fallback = searchPool
       .filter((c) => c.entry.id !== pinnedId && !fixedIds.has(c.entry.id))
-      .slice(0, SECTION_MAX)
+      .slice(0, sectionMax)
       .map((c) => ({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, groupName: c.groupName }));
     return [...pinned, ...fixed, ...fallback];
   }

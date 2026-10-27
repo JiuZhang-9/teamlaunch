@@ -128,7 +128,7 @@ export function MiniPalette(props: MiniPaletteProps) {
             ? { background: 'var(--bg-overlay)' }
             : {
                 width: 'var(--palette-w)',
-                maxHeight: 'var(--palette-h)',
+                maxHeight: 'min(var(--palette-h), calc(100vh - 140px))',
                 transform: 'translateX(-50%)',
                 top: '18vh',
                 background: 'var(--bg-overlay)',
@@ -161,6 +161,8 @@ export function MiniPalette(props: MiniPaletteProps) {
           programScanning={programScanning}
           programError={programError}
           teamUnavailable={teamUnavailable}
+          tileColumns={7}
+          tileHeight={96}
           className="py-1"
         />
 

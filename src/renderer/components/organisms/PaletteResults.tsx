@@ -41,6 +41,9 @@ export interface PaletteResultsProps {
   /** 结果行图标尺寸：面板 16/24，主窗口 24/24。 */
   rowGlyphSize?: 16 | 24;
   rowIconSize?: 16 | 24;
+  /** 图标格列数与高度：面板 7 列 × 96px，主窗口 6 列 × 86px。 */
+  tileColumns?: 6 | 7;
+  tileHeight?: number;
   /** 主窗口用：从 runtime 取 opening/failed 态。 */
   phaseFor?(entryId: string): 'idle' | 'opening' | 'failed';
   className?: string;
@@ -64,6 +67,8 @@ export function PaletteResults({
   onClear,
   rowGlyphSize = 16,
   rowIconSize = 24,
+  tileColumns = 6,
+  tileHeight = 86,
   phaseFor,
   className = '',
 }: PaletteResultsProps) {
@@ -123,8 +128,9 @@ export function PaletteResults({
         onClick={() => onOpen(hit)}
         onMouseEnter={() => onSelectIndex(i)}
         onContextMenu={(e) => openMenu(e, hit)}
-        className="group relative flex h-[86px] w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--radius-md)] border px-1 pt-2 transition-colors duration-[var(--motion-fast)]"
+        className="group relative flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--radius-md)] border px-1 pt-2 transition-colors duration-[var(--motion-fast)]"
         style={{
+          height: tileHeight,
           borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)',
           background: selected ? 'var(--accent-tint)' : 'var(--card-bg)',
         }}
@@ -165,7 +171,7 @@ export function PaletteResults({
   };
 
   const tileGrid = (list: PaletteHit[], pinned: boolean) => (
-    <div className="grid grid-cols-6 gap-1.5 px-2 pb-1.5 pt-1">
+    <div className={['grid gap-1.5 px-2 pb-1.5 pt-1', tileColumns === 7 ? 'grid-cols-7' : 'grid-cols-6'].join(' ')}>
       {list.map((hit) => renderTile(hit, pinned))}
     </div>
   );

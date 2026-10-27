@@ -24,7 +24,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
         'group relative flex items-center rounded-md border border-[var(--input-border)]',
         'bg-[var(--input-bg)] transition-colors duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
         'focus-within:border-[var(--input-border-focus)]',
-        palette ? 'h-10' : 'h-8',
+        palette ? 'h-11' : 'h-8',
         className,
       ]
         .filter(Boolean)

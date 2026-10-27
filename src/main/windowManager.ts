@@ -23,9 +23,12 @@ import { ensureProgramsFresh } from './programIndex.ts';
    与 design-tokens.css 的 --win-w-min 保持一致。 */
 const MIN_W = 880;
 const MIN_H = 480;
-const PALETTE_W = 560;
-/** 快捷窗口高度：与 design-tokens 的 --palette-h 同一个口径（1.5.0 会一起调大）。 */
-const PALETTE_H = 420;
+const PALETTE_W = 720;
+/** 快捷窗口高度：与 design-tokens 的 --palette-h 同一个口径（1.5.0 从 560×420 调大）。 */
+const PALETTE_H = 520;
+/** 小屏夹紧的下限：再小就不像快捷面板了，宁可让系统把它挪进工作区。 */
+const PALETTE_MIN_W = 480;
+const PALETTE_MIN_H = 360;
 
 let mainWindow: BrowserWindow | null = null;
 let palette: BrowserWindow | null = null;
@@ -384,12 +387,16 @@ function positionPalette(): void {
     area = display.workArea;
     displayId = display.id;
   }
-  const y = Math.round(area.y + area.height * 0.18);
-  const x = Math.round(area.x + (area.width - PALETTE_W) / 2);
+  /* 1.5.0：面板 720×520，但小屏/高缩放下要夹进工作区——
+     高度给上下留 160px（顶距 12% + 底部余量），宽度给左右留 80px。 */
+  const width = Math.min(PALETTE_W, Math.max(PALETTE_MIN_W, area.width - 80));
+  const height = Math.min(PALETTE_H, Math.max(PALETTE_MIN_H, area.height - 160));
+  const y = Math.round(area.y + area.height * 0.12);
+  const x = Math.round(area.x + (area.width - width) / 2);
   /* setBounds 而不是 setPosition：顺带把尺寸钉回常量，窗口被系统/缩放改过之后也不会带着旧尺寸乱跑。
-     位置写进日志——用户报过"弹到左上侧"，下次直接看得到我们算的是哪个坐标、哪块屏。 */
-  palette.setBounds({ x, y, width: PALETTE_W, height: PALETTE_H }, false);
-  logLine('TL-PAL', 'position', `${x},${y} display=${displayId}`);
+     位置与尺寸写进日志——用户报过"弹到左上侧"，下次直接看得到我们算的是哪个坐标、哪块屏。 */
+  palette.setBounds({ x, y, width, height }, false);
+  logLine('TL-PAL', 'position', `${x},${y} ${width}x${height} display=${displayId}`);
 }
 
 /**

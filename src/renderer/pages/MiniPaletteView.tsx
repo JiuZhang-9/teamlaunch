@@ -19,6 +19,7 @@ import { useEntryIcons } from '../hooks/useEntryIcons.ts';
 import { useDebouncedValue } from '../hooks/useDebouncedValue.ts';
 import {
   MAX_PROGRAM_ROWS,
+  PALETTE_SECTION_MAX,
   MAX_PROGRAM_SCOPE_ROWS,
   buildCandidates,
   buildHits,
@@ -95,7 +96,7 @@ export function MiniPaletteView({
   );
 
   const hits = useMemo(
-    () => buildHits({ candidates, clip, query: debounced, pinnedIds, recentIds, programHits, scope }),
+    () => buildHits({ candidates, clip, query: debounced, pinnedIds, recentIds, programHits, scope, sectionMax: PALETTE_SECTION_MAX }),
     [candidates, clip, debounced, pinnedIds, recentIds, programHits, scope],
   );
 
