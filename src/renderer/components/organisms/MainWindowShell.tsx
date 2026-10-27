@@ -31,7 +31,19 @@ import { measure } from '../../../shared/capacity-usage.ts';
 import { CAPACITY } from '../../../shared/schema/common.ts';
 import { DEFAULT_APP_HOTKEYS, type HotkeyConflictInfo } from '../../../shared/app-hotkeys.ts';
 import { useEntryIcons } from '../../hooks/useEntryIcons.ts';
-import { useEntrySearch } from '../../hooks/useEntrySearch.ts';
+import {
+  MAX_WINDOW_PROGRAM_ROWS,
+  MAX_WINDOW_ROWS,
+  buildCandidates,
+  buildHits,
+  buildProgramHits,
+  readClipboardCandidate,
+  type ClipboardCandidate,
+  type PaletteHit,
+} from '../../lib/palette-source.ts';
+import { usePrograms } from '../../lib/programs.ts';
+import { usePinnedEntryIds } from '../../lib/pinnedEntries.ts';
+import { useRecentOpenIds } from '../../lib/recentOpens.ts';
 import { syncPresentation } from '../../services/syncCopy.ts';
 import { useEdit } from '../../store/editStore.tsx';
 import { useChains } from '../../store/chainStore.tsx';
@@ -72,6 +84,10 @@ export function MainWindowShell() {
 
   const [miniOpen, setMiniOpen] = useState(false);
   const [searchIndex, setSearchIndex] = useState(0);
+  /** 搜索框是否聚焦（1.4.0）：聚焦且未输入时显示固定 + 最近打开的快速打开面板。 */
+  const [searchFocused, setSearchFocused] = useState(false);
+  /** 搜索框聚焦时读一次的剪贴板候选（不持续监听）。 */
+  const [clip, setClip] = useState<ClipboardCandidate | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const [importOutcome, setImportOutcome] = useState<ImportOutcome>(null);
   const [updateBanner, setUpdateBanner] = useState<string | null>(null);
@@ -211,7 +227,50 @@ export function MainWindowShell() {
   const entriesFlat = useMemo(() => groups.flatMap((g) => g.entries), [groups]);
   const icons = useEntryIcons(entriesFlat);
 
-  const hits = useEntrySearch(groups, debouncedQuery);
+  /* ---------- 主窗口搜索（1.4.0）：与快捷窗口共用候选/打分/去重 ---------- */
+  const programs = usePrograms();
+  const pinnedIds = usePinnedEntryIds();
+  const recentIds = useRecentOpenIds();
+  /** 全部候选（团队 + 本机）：固定/最近/剪贴板去重用。团队侧用已发布配置，不用编辑草稿。 */
+  const allCandidates = useMemo(
+    () => buildCandidates(snapshot.config?.groups ?? [], personal.groups),
+    [snapshot.config, personal.groups],
+  );
+  /** 入口查询只搜当前 Tab（沿用 V-04 纪律）；固定/最近/程序仍是全局。 */
+  const searchCandidates = useMemo(
+    () => allCandidates.filter((c) => (tab === 'personal' ? c.source === '本机' : c.source === '团队')),
+    [allCandidates, tab],
+  );
+  const programHits = useMemo(
+    () => buildProgramHits(programs, debouncedQuery, MAX_WINDOW_PROGRAM_ROWS),
+    [programs, debouncedQuery],
+  );
+  const hits = useMemo(
+    () =>
+      buildHits({
+        candidates: allCandidates,
+        searchCandidates,
+        clip,
+        query: debouncedQuery,
+        pinnedIds,
+        recentIds,
+        programHits,
+        maxRows: MAX_WINDOW_ROWS,
+      }),
+    [allCandidates, searchCandidates, clip, debouncedQuery, pinnedIds, recentIds, programHits],
+  );
+
+  /* 搜索态：输入框聚焦（空查询 = 快速打开）或已有查询词；编辑态不参与搜索。 */
+  const showSearch = !editing && (searching || searchFocused);
+  const quickAccess = showSearch && !searching;
+
+  /* 搜索结果的图标：当前 Tab 的卡片图标已有；固定/最近可能来自另一页，按命中补取。 */
+  const searchHitEntries = useMemo(
+    () => hits.filter((h) => h.kind !== 'clip-new').map((h) => h.entry),
+    [hits],
+  );
+  const searchIcons = useEntryIcons(searchHitEntries, showSearch);
+  const iconsForSearch = useMemo(() => ({ ...icons, ...searchIcons }), [icons, searchIcons]);
 
   useEffect(() => {
     if (searchIndex > hits.length - 1) setSearchIndex(0);
@@ -228,6 +287,28 @@ export function MainWindowShell() {
   /* 隐私门未确认时，一律不打扰（零上报状态下也不弹业务提示）。声明提前到这里：
      下面的公告广播 effect 与粘贴处理都要用，而 effect 的依赖必须在它之前可见。 */
   const gateBlocking = settings.telemetryNoticeAckedAt === null;
+
+  /* 搜索进入活跃态时读一次剪贴板（1.4.0）：不持续监听；隐私门未确认时不读。
+     用 showSearch 而不是 searchFocused：查询词已经让搜索成立时（例如刚打开过编辑器、
+     焦点状态被重置过），也应该补读一次；失焦且清空后关闭搜索再清空。 */
+  useEffect(() => {
+    if (!showSearch || gateBlocking) {
+      setClip(null);
+      return;
+    }
+    let cancelled = false;
+    void readClipboardCandidate().then((c) => {
+      if (!cancelled) setClip(c);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showSearch, gateBlocking]);
+
+  /* 切页 / 进出编辑时收起搜索态：输入框可能还留着焦点，但当前页已经换了。 */
+  useEffect(() => {
+    setSearchFocused(false);
+  }, [tab, editing]);
 
   /* 主页公告广播（2026-10-17 用户要求"让所有人知晓"；2026-10-19 改为**系统通知**）：
      挑出"没提示过的公告"，走 Windows 系统 toast——应用在后台/最小化/被托盘藏着时也能看到，
@@ -319,6 +400,37 @@ export function MainWindowShell() {
     }
     push({ title: '团队入口由管理员维护，本机未开启管理员模式', tone: 'info' });
   }, [tab, editing, settings.role, openEntryEditor, toggleEdit, push]);
+
+  /** 主窗口搜索结果：系统程序直接开（不进最近打开），其余走既有 openEntry（含失败解释）。 */
+  const handleSearchOpen = useCallback(
+    (hit: PaletteHit) => {
+      if (hit.kind === 'system') {
+        void api.entries.openObject(hit.entry).then((r) => {
+          if (!r.ok) {
+            push({ title: `没能打开「${hit.entry.name}」，可能已被卸载或没有权限`, tone: 'danger', duration: 6000 });
+          }
+        });
+        return;
+      }
+      void openEntry(hit.entry);
+    },
+    [openEntry, push],
+  );
+
+  /** 搜索结果里的「加为入口」：系统程序交 .lnk 路径，剪贴板新内容交原文，走粘贴添加同一条链路。 */
+  const handleSearchAdd = useCallback(
+    (hit: PaletteHit) => {
+      const text =
+        hit.kind === 'system'
+          ? hit.entry.type === 'app'
+            ? (hit.entry.sourcePath ?? hit.entry.target)
+            : ''
+          : (clip?.text ?? '');
+      if (text.length === 0) return;
+      void quickAddFromText(text);
+    },
+    [clip, quickAddFromText],
+  );
 
   /** 应用内快捷键：内置默认 + 用户覆盖（settings.appHotkeys 只存改过的动作）。 */
   const appHotkeys = useMemo(() => ({ ...DEFAULT_APP_HOTKEYS, ...settings.appHotkeys }), [settings.appHotkeys]);
@@ -732,6 +844,8 @@ export function MainWindowShell() {
               selecting={selecting}
               onToggleSelecting={toggleSelecting}
               actions={contentActions}
+              onSearchFocus={() => setSearchFocused(true)}
+              onSearchBlur={() => setSearchFocused(false)}
             />
           )}
 
@@ -766,19 +880,24 @@ export function MainWindowShell() {
               transition: 'background-color var(--motion-base) var(--ease-standard)',
             }}
           >
-            {searching && !editing ? (
+            {showSearch ? (
               <div className="h-full">
                 <WindowSearchView
                   query={debouncedQuery}
                   hits={hits}
                   debouncing={query !== debouncedQuery}
+                  quickAccess={quickAccess}
                   tabLabel={tab === 'team' ? '团队入口' : '我的入口'}
-                  icons={icons}
+                  icons={iconsForSearch}
                   runtime={runtime}
                   selectedIndex={searchIndex}
                   onSelectIndex={setSearchIndex}
-                  onOpen={(hit) => void openEntry(hit.entry)}
+                  onOpen={handleSearchOpen}
+                  onAddToPersonal={handleSearchAdd}
                   onClear={() => setQuery('')}
+                  programScanning={programs.scanning}
+                  programError={programs.error}
+                  teamUnavailable={!p.renderable && personal.groups.some((g) => g.entries.length > 0)}
                 />
               </div>
             ) : (

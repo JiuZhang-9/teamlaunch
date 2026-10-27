@@ -41,7 +41,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 
 ## 当前状态（2026-10-27）
 
-- v1.0.13 起逐版发布到 **v1.3.0**（latest = v1.3.0；自 1.1.0 起小修改按最后一位递增，
+- v1.0.13 起逐版发布到 **v1.4.0**（latest = v1.4.0；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
 - 用户反馈多批：v1.0.33（隐私门披露 / 书签两步 / 更新进度环）、v1.0.34（窗口尺寸记忆 / 卡片框选 /
   分组多选删 / 组名点击改名）、v1.0.35（连锁收藏 / 面板透明度 / Ctrl+空格 / Ctrl+Tab / 图标重画）、
@@ -54,7 +54,8 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   v1.2.0（主窗口↔快捷窗口互斥 / Ctrl+Space 只开关当前窗口 / 托盘关时最小化 /
   快捷窗口按主窗口所在显示器定位；窗口状态机抽 shared 并加 verify:surface）、
   v1.3.0（侧栏只留分组 / 操作进工作区弹窗 + 工作栏 / 顶栏更新进度 / 编辑态补回退出编辑；
-  工作栏溢出判定抽 shared 并加 verify:toolbar）
+  工作栏溢出判定抽 shared 并加 verify:toolbar）、
+  v1.4.0（主窗口搜索吸收剪贴板候选 / 本机程序 / 固定+最近；候选与去重抽 lib/palette-source.ts 共用）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、

@@ -42,12 +42,15 @@ export interface ContentHeaderProps {
   onToggleSelecting?(): void;
   /** 工作栏动作（2026-10-27，1.3.0）：与工作区弹窗共用同一份数据。 */
   actions?: ToolbarAction[];
+  /** 搜索框聚焦/失焦（1.4.0）：聚焦且未输入时，内容区显示固定 + 最近打开的快速打开面板。 */
+  onSearchFocus?(): void;
+  onSearchBlur?(): void;
 }
 
 export function ContentHeader(props: ContentHeaderProps) {
   const {
     tab, mode, query, onQueryChange, snapshot, onRefresh, typeFilter, onToggleTypeFilter, onClearTypeFilter,
-    selecting, onToggleSelecting, actions = [],
+    selecting, onToggleSelecting, actions = [], onSearchFocus, onSearchBlur,
   } = props;
   const searchRef = useRef<HTMLInputElement | null>(null);
   const actionsRef = useRef<HTMLDivElement | null>(null);
@@ -135,6 +138,8 @@ export function ContentHeader(props: ContentHeaderProps) {
         className="min-w-[160px] max-w-[420px] flex-1"
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
+        onFocus={onSearchFocus}
+        onBlur={onSearchBlur}
         aria-label="搜索入口"
         placeholder={tab === 'team' ? '搜索团队入口' : '搜索我的入口'}
       />
