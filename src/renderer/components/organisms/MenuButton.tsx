@@ -13,6 +13,8 @@ export interface MenuItemSpec {
   label: string;
   onSelect(): void;
   destructive?: boolean;
+  /** 非空 = 不可用原因：菜单项置灰，并把原因显示在第二行（容量上限等）。 */
+  disabledReason?: string | null;
 }
 
 export interface MenuButtonProps {
@@ -84,6 +86,8 @@ export function MenuButton({
               key={it.id}
               role="menuitem"
               label={it.label}
+              detail={it.disabledReason ?? undefined}
+              disabled={Boolean(it.disabledReason)}
               destructive={it.destructive}
               onSelect={() => {
                 it.onSelect();

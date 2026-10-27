@@ -1,21 +1,23 @@
 /**
- * Sidebar —— 左侧 240px 导航与操作栏（2026-10-02 定稿：V2 工作区条形态）。
+ * Sidebar —— 左侧 240px 导航与分组锚点（2026-10-02 定稿：V2 工作区条形态）。
  *
- * 自上而下：导航（两入口页，选中态 = 左侧 3px 竖条 + accent tint 底）
+ * 自上而下：导航（三入口页，选中态 = 左侧 3px 竖条 + accent tint 底）
  *   → 分组锚点（组名 + 计数，点击平滑滚动到对应组头；**分组多了这一段自己滚**，不挤压下面）
- *   → 随模式切换的主操作（team=编辑模式入口；editing=pill+撤销/新建；personal=新建/添加/导入/导出）
  *   → 弹性空白（app-region: drag）
  *   → V2 工作区条：[工作区方块 + 双行文案] ｜ 设置齿轮（点击工作区条弹出窗口内同步弹层）
+ *
+ * 1.3.0（2026-10-27 用户要求）：**中段不再放操作区，只留分组**。
+ * 团队页「操作」与我的页「本机管理」语义统一叫「操作」，全部收进左下工作区弹窗；
+ * 工作栏（搜索栏同行）另有一份同样的动作，侧栏收起时也能直接用。
+ * 两处共用外壳构建的 `actions`，不各写一套——否则会出现"这边能点、那边点不动"。
  *
  * 折叠：collapsed 时整条 width→0 完全消失（非图标栏形态），内部固定 240 宽防挤压；
  * 弹性空白与底部区声明 app-region: drag，与顶部 TitleBar 一起构成"整条左侧都能拖窗口"。
  * 可拖区域内的交互元素必须逐个 no-drag。
  *
- * 底部固定（2026-10-17）：工作区条/设置永远可见——**中段（分组 + 操作）整段用 ScrollArea 吸收
- * 高度**，两侧只留导航、32px 拖拽条与底部条为固定项（480 最小窗高下固定 ≈ 217px）。
- * 只让分组滚是不够的：固定项本身就会超过最小窗高（实测 474 > 440），底部仍会被推出可视区。
+ * 底部固定（2026-10-17）：工作区条/设置永远可见——**中段（分组）整段用 ScrollArea 吸收高度**。
  */
-import { Bookmark, CircleHelp, Download, FileDown, FileUp, FolderPlus, Layers, Pencil, Plus, RefreshCw, RotateCw, ScanSearch, ScrollText, Settings, Stethoscope, SunMoon, Undo2, type LucideIcon } from 'lucide-react';
+import { CircleHelp, Download, RefreshCw, RotateCw, ScrollText, Settings, Stethoscope, SunMoon } from 'lucide-react';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -29,11 +31,10 @@ import { MenuItem } from '../molecules/MenuItem.tsx';
 import { ProgressRing } from '../molecules/ProgressRing.tsx';
 import { ThemePicker } from '../molecules/ThemePicker.tsx';
 import { useSettings } from '../../store/settingsStore.tsx';
-import { useToasts } from '../../store/toastStore.tsx';
-import { StatusPill } from '../molecules/StatusPill.tsx';
 import { SyncIndicator } from '../molecules/SyncIndicator.tsx';
 import { PageTabs } from './PageTabs.tsx';
 import type { TabKey } from '../../store/workbenchStore.tsx';
+import type { ToolbarAction } from '../../lib/toolbar-actions.ts';
 
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
@@ -53,37 +54,11 @@ export interface SidebarProps {
   /** 当前页的分组（外壳已按 tab/editing 选好），用于锚点区。 */
   groups: Group[];
   snapshot: SyncSnapshot | null;
+  /** 当前页可执行的操作（与工作栏同一份数据，保证两处不漂移）。 */
+  actions: ToolbarAction[];
   onOpenSettings(): void;
   onOpenDiagnostics(): void;
   onRefresh(): void;
-  /** 个人页：与团队编辑态同构的两个主按钮（统一性，用户明确要求）。 */
-  onAddPersonalGroup(): void;
-  onAddPersonalEntry(): void;
-  /** 个人页的两条批量入口：多行粘贴 / 扫描本机程序（入口点扫描）。 */
-  onBatchAddPersonal(): void;
-  onScanPersonal(): void;
-  /** 团队编辑态的「批量添加」：同款对话框，落点进草稿（与个人页对称）。 */
-  onBatchAddTeam(): void;
-  /** 从浏览器书签导入（个人页，只读本机书签文件）。 */
-  onImportBookmarks(): void;
-  /**
-   * 非空 = 该动作不可用的原因（容量撞上限）。**按动作分开**（2026-10-17 用户反馈）：
-   * 「新建分组」只受分组上限约束；「添加入口 / 批量添加 / 扫描程序」只受入口上限约束——
-   * 此前四件事共用一个 OR 门控，8 组时连还剩 181 个入口额度也用不了，属过度拦截。
-   * 用 softDisabled 而非原生 disabled：按钮留在 tab 序列里，键盘用户能聚焦到它
-   * 并读到为什么按不动，否则他只会遇到一个"点了没反应"的按钮。
-   */
-  addGroupDisabledReason?: string | null;
-  addEntryDisabledReason?: string | null;
-  onImport(): void;
-  onExport(): void;
-  /** 团队编辑态 */
-  onUndo(): void;
-  onAddGroup(): void;
-  onAddEntry(): void;
-  /** 本机是管理员角色时，团队页显示可见的编辑入口（此前只有隐藏热键能进编辑，无人知晓）。 */
-  showEditEntry?: boolean;
-  onToggleEdit(): void;
   collapsed?: boolean;
   /**
    * 分组锚点右键菜单的动作出口：open=打开分组操作对话框，up/down=换序，
@@ -95,6 +70,7 @@ export interface SidebarProps {
   /**
    * 应用更新（2026-10-18 用户要求）：有新版时在工作区条上方的小窗里提示 + 圆形下载进度。
    * null = 没有可用更新。`updateSignal` 每次"该提醒一次"时自增，小窗据此自动弹出。
+   * 1.3.0：顶栏也有一份同样的提示（TitleBar），这里保留原样。
    */
   update?: { version: string; percent: number | null; ready: boolean } | null;
   updateSignal?: number;
@@ -112,48 +88,18 @@ export interface SidebarProps {
   onDeleteGroups?(groups: Group[]): void;
 }
 
-/** 侧栏里的行式操作按钮：整行可点、左对齐、主文字色（用户反馈"太细不够亮"后的定稿）。 */
-function SidebarAction({
-  icon,
-  children,
-  ...rest
-}: { icon: LucideIcon; children: ReactNode } & Omit<React.ComponentProps<typeof Button>, 'icon' | 'children'>) {
-  return (
-    <Button
-      tone="ghost"
-      size="sm"
-      icon={icon}
-      iconSize={16}
-      fullWidth
-      className="justify-start text-[var(--fg)]"
-      style={{ height: 'var(--sidebar-action-h, 32px)' }}
-      {...rest}
-    >
-      {children}
-    </Button>
-  );
-}
-
 function SectionCap({ children }: { children: ReactNode }) {
   return <div className="t-2xs px-3 pb-1 pt-0.5 text-[var(--meta)]">{children}</div>;
 }
 
 export function Sidebar(props: SidebarProps) {
   const {
-    tab, mode, onTabChange, groups, snapshot, onOpenSettings, onOpenDiagnostics, onRefresh,
-    onAddPersonalGroup, onAddPersonalEntry, onBatchAddPersonal, onScanPersonal, onBatchAddTeam, onImportBookmarks,
-    addGroupDisabledReason = null, addEntryDisabledReason = null, onImport, onExport,
-    onUndo, onAddGroup, onAddEntry, showEditEntry = false, onToggleEdit, collapsed = false, editLocked = false,
-  onGroupAction,
+    tab, mode, onTabChange, groups, snapshot, actions, onOpenSettings, onOpenDiagnostics, onRefresh,
+    collapsed = false, editLocked = false, onGroupAction,
     update = null, updateSignal = 0, onInstallUpdate, onCheckUpdate, updateChecking = false,
     onOpenHelp, onOpenChangelog, onDeleteGroups,
   } = props;
   const { settings, patch } = useSettings();
-  const { push } = useToasts();
-  /** 撞上限的按钮点下去要说话：点击被 softDisabled 挡下是设计，但静默就是"点了没反应"。 */
-  const blockReason = (reason?: string | null): void => {
-    if (reason) push({ title: reason, tone: 'warn' });
-  };
   const reduced = useReducedMotion();
   const [syncPop, setSyncPop] = useState(false);
   const popRef = useRef<HTMLDivElement | null>(null);
@@ -266,14 +212,9 @@ export function Sidebar(props: SidebarProps) {
           />
         </nav>
 
-        {/* 中段（分组锚点 + 随模式切换的操作）**整段可滚**：窗口小或分组多时由它让出空间，
-            底部工作区条/设置永远钉在可视区里（2026-10-17 用户反馈：分组一多底部就被挤下去）。
-            只让分组滚不够——480 最小窗高下"分组 + 操作区"的固定高度本身就超（474 > 440），
-            所以两段一起滚才是完备解。 */}
-        <ScrollArea
-          className="mt-[var(--space-3)] min-h-0 flex-1"
-          ariaLabel="侧栏中段"
-        >
+        {/* 中段只剩分组锚点（1.3.0）：窗口小或分组多时由它让出空间，
+            底部工作区条/设置永远钉在可视区里（2026-10-17 用户反馈：分组一多底部就被挤下去）。 */}
+        <ScrollArea className="mt-[var(--space-3)] min-h-0 flex-1" ariaLabel="侧栏中段">
           {mode !== 'home' && (
             <div className="border-t border-[var(--border-subtle)] px-[var(--sidebar-pad)] pt-[var(--space-2)]">
               <SectionCap>分组</SectionCap>
@@ -354,148 +295,6 @@ export function Sidebar(props: SidebarProps) {
               )}
             </div>
           )}
-
-          <div className="mt-[var(--space-3)] flex flex-col gap-1 border-t border-[var(--border-subtle)] px-[var(--sidebar-pad)] pt-[var(--space-2)]">
-          {mode === 'editing' && (
-            <>
-              <SectionCap>编辑操作</SectionCap>
-              {/* 「编辑模式」是开关而不是纯徽标：再点一次即退出编辑（外观保持徽标形态）。
-                  此前它不可点，鼠标用户只能滑到底部「放弃改动」，既费事又容易误点；
-                  快捷键 Ctrl+Shift+E 与「放弃改动」都保留，三条路都走同一个 toggleEdit
-                  （退出前照旧过"放弃未发布的改动？"确认）。 */}
-              <button
-                type="button"
-                aria-pressed
-                aria-label="退出编辑模式"
-                title="退出编辑模式"
-                onClick={onToggleEdit}
-                className="block w-full rounded-[var(--radius-pill)] text-left transition-opacity duration-[var(--motion-fast)] hover:opacity-90 focus-visible:shadow-[var(--ring-focus)]"
-              >
-                <StatusPill tone="draft" icon={Pencil} iconSize={16} className="w-full justify-start">
-                  编辑模式
-                </StatusPill>
-              </button>
-              <SidebarAction icon={Undo2} onClick={onUndo}>
-                撤销
-              </SidebarAction>
-              {/* 团队草稿同样有容量前置门控（2026-10-17）：此前没有守卫，草稿能超到发布才被 413 拦。 */}
-              <SidebarAction
-                icon={FolderPlus}
-                onClick={onAddGroup}
-                softDisabled={Boolean(addGroupDisabledReason)}
-                title={addGroupDisabledReason ?? undefined}
-                aria-describedby={addGroupDisabledReason ? 'tl-capacity-reason-group' : undefined}
-                onDisabledClick={() => blockReason(addGroupDisabledReason)}
-              >
-                新建分组
-              </SidebarAction>
-              <SidebarAction
-                icon={Plus}
-                onClick={onAddEntry}
-                softDisabled={Boolean(addEntryDisabledReason)}
-                title={addEntryDisabledReason ?? undefined}
-                aria-describedby={addEntryDisabledReason ? 'tl-capacity-reason-entry' : undefined}
-                onDisabledClick={() => blockReason(addEntryDisabledReason)}
-              >
-                新建入口
-              </SidebarAction>
-              <SidebarAction
-                icon={Layers}
-                onClick={onBatchAddTeam}
-                softDisabled={Boolean(addEntryDisabledReason)}
-                title={addEntryDisabledReason ?? undefined}
-                aria-describedby={addEntryDisabledReason ? 'tl-capacity-reason-entry' : undefined}
-                onDisabledClick={() => blockReason(addEntryDisabledReason)}
-              >
-                批量添加
-              </SidebarAction>
-              {/* 「更多编辑操作」菜单已移除：内容与上方行按钮完全重复。
-                  退出编辑有三个入口：上方「编辑模式」开关（再点一次）、Ctrl+Shift+E、底部「放弃改动」。 */}
-            </>
-          )}
-
-          {mode === 'team' && showEditEntry && (
-            <>
-              <SectionCap>操作</SectionCap>
-              <SidebarAction icon={Pencil} onClick={onToggleEdit}>
-                编辑模式
-              </SidebarAction>
-            </>
-          )}
-
-          {mode === 'personal' && (
-            <>
-              <SectionCap>本机管理</SectionCap>
-              <SidebarAction
-                icon={FolderPlus}
-                onClick={onAddPersonalGroup}
-                softDisabled={Boolean(addGroupDisabledReason)}
-                title={addGroupDisabledReason ?? undefined}
-                aria-describedby={addGroupDisabledReason ? 'tl-capacity-reason-group' : undefined}
-                onDisabledClick={() => blockReason(addGroupDisabledReason)}
-              >
-                新建分组
-              </SidebarAction>
-              <SidebarAction
-                icon={Plus}
-                onClick={onAddPersonalEntry}
-                softDisabled={Boolean(addEntryDisabledReason)}
-                title={addEntryDisabledReason ?? undefined}
-                aria-describedby={addEntryDisabledReason ? 'tl-capacity-reason-entry' : undefined}
-                onDisabledClick={() => blockReason(addEntryDisabledReason)}
-              >
-                添加入口
-              </SidebarAction>
-              {/* 两条"批量"入口：贴多行 / 扫本机。只受入口上限约束（与分组数无关）。 */}
-              <SidebarAction
-                icon={Layers}
-                onClick={onBatchAddPersonal}
-                softDisabled={Boolean(addEntryDisabledReason)}
-                title={addEntryDisabledReason ?? undefined}
-                onDisabledClick={() => blockReason(addEntryDisabledReason)}
-              >
-                批量添加
-              </SidebarAction>
-              <SidebarAction
-                icon={ScanSearch}
-                onClick={onScanPersonal}
-                softDisabled={Boolean(addEntryDisabledReason)}
-                title={addEntryDisabledReason ?? undefined}
-                onDisabledClick={() => blockReason(addEntryDisabledReason)}
-              >
-                扫描程序
-              </SidebarAction>
-              {/* 从浏览器书签导入（2026-10-17）：同样只受入口上限约束。 */}
-              <SidebarAction
-                icon={Bookmark}
-                onClick={onImportBookmarks}
-                softDisabled={Boolean(addEntryDisabledReason)}
-                title={addEntryDisabledReason ?? undefined}
-                onDisabledClick={() => blockReason(addEntryDisabledReason)}
-              >
-                导入书签
-              </SidebarAction>
-              <SidebarAction icon={FileUp} onClick={onImport}>
-                导入设置
-              </SidebarAction>
-              <SidebarAction icon={FileDown} onClick={onExport}>
-                导出设置
-              </SidebarAction>
-            </>
-          )}
-          {/* 禁用原因必须能被读屏读到：hover 只对鼠标用户存在。
-              放在两个模式块之外：个人页与团队编辑态共用同一条容量口径（原因只在对应该模式时非空）。 */}
-          {addGroupDisabledReason && (
-            <span id="tl-capacity-reason-group" className="sr-only" role="status">
-              {addGroupDisabledReason}
-            </span>
-          )}
-          {addEntryDisabledReason && (
-            <span id="tl-capacity-reason-entry" className="sr-only" role="status">
-              {addEntryDisabledReason}
-            </span>
-          )}
-          </div>
         </ScrollArea>
 
         {/* 弹性拖拽条：中段已整段可滚，这里留一条固定高度的空白用来拖窗口。
@@ -560,21 +359,18 @@ export function Sidebar(props: SidebarProps) {
         </div>
       </div>
 
-      {/* 同步弹层：挂在侧栏内部（absolute），物理上不可能跑出窗口框。
-          内容 = 同步状态 + 刷新 + 分隔 + 诊断（关于只在 设置·关于 与标题栏版本号，
-          三处入口是重复，用户定稿 2026-10-05 只保留前两处）。
+      {/* 工作区弹层：挂在 body（fixed 定位），物理上不可能跑出窗口框。
+          1.3.0：页面操作也收进来了——更新区 → 操作 → 同步状态 → 主题 → 帮助/更新日志/诊断。
+          内容变长时内部滚动，480px 最小窗高下也不会顶出屏幕。
           两条硬规则：①收起时不渲染——aside 宽 0 会把它裁成"看不见但仍在命中"
-          的隐形盲区，正好盖住首列卡片（2026-10-05 用户实测）；②自身必须 no-drag——
-          它垫在弹性空白的拖拽区上面，不声明 no-drag 整个弹层的行都点不动。 */}
-      {/* 弹层经 portal 挂到 body（fixed 定位）：aside 宽 240 装不下这个宽度的弹层，
-          留在侧栏里右缘必被 overflow 裁掉（2026-10-05 用户发现右缘缺一块）；portal 后永不被裁。 */}
+          的隐形盲区，正好盖住首列卡片（2026-10-05 用户实测）；②自身必须 no-drag。 */}
       {syncPop && !collapsed &&
         createPortal(
         <div
           ref={popRef}
           role="dialog"
-          aria-label="工作区与同步"
-          className="fixed bottom-[64px] left-2 z-[var(--z-dropdown)] w-[236px] rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2.5"
+          aria-label="工作区"
+          className="tl-scroll fixed bottom-[64px] left-2 z-[var(--z-dropdown)] max-h-[calc(100vh-104px)] w-[236px] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2.5"
           style={{
             background: 'var(--menu-bg)',
             boxShadow: 'var(--menu-elev)',
@@ -611,6 +407,27 @@ export function Sidebar(props: SidebarProps) {
                   立即更新并重启
                 </Button>
               )}
+              <div className="mx-1 my-1.5 h-px bg-[var(--border-subtle)]" />
+            </>
+          )}
+
+          {/* 操作（1.3.0）：与工作栏同一份动作列表；不可用时把原因写在第二行。 */}
+          {mode !== 'home' && actions.length > 0 && (
+            <>
+              <div className="t-2xs mb-1.5 px-1 text-[var(--meta)]">操作</div>
+              {actions.map((a) => (
+                <MenuItem
+                  key={a.id}
+                  icon={a.icon}
+                  label={a.label}
+                  detail={a.disabledReason ?? undefined}
+                  disabled={Boolean(a.disabledReason)}
+                  onSelect={() => {
+                    setSyncPop(false);
+                    a.onSelect();
+                  }}
+                />
+              ))}
               <div className="mx-1 my-1.5 h-px bg-[var(--border-subtle)]" />
             </>
           )}
@@ -706,4 +523,3 @@ export function Sidebar(props: SidebarProps) {
     </aside>
   );
 }
-

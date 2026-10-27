@@ -14,9 +14,11 @@ export interface ProgressRingProps {
   /** 无障碍名（必填：进度环本身没有可见标题）。 */
   label: string;
   className?: string;
+  /** false = 不画环内的百分比文字（外面已经有数字时，例如顶栏胶囊）。 */
+  showValue?: boolean;
 }
 
-export function ProgressRing({ percent, size = 36, strokeWidth = 3.5, label, className = '' }: ProgressRingProps) {
+export function ProgressRing({ percent, size = 36, strokeWidth = 3.5, label, className = '', showValue = true }: ProgressRingProps) {
   const value = Math.max(0, Math.min(100, Math.round(percent)));
   const r = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * r;
@@ -52,7 +54,7 @@ export function ProgressRing({ percent, size = 36, strokeWidth = 3.5, label, cla
           style={{ transition: 'stroke-dasharray var(--motion-fast) linear' }}
         />
       </svg>
-      <span className="t-2xs absolute leading-none text-[var(--fg-2)]">{value}%</span>
+      {showValue && <span className="t-2xs absolute leading-none text-[var(--fg-2)]">{value}%</span>}
     </span>
   );
 }

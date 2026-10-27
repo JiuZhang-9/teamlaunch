@@ -8,6 +8,7 @@
  * 配合覆盖式滚动条（atoms/ScrollArea，原生条宽度归零）才不会被滚动条挤掉一列（K-A）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bookmark, FileDown, FileUp, FolderPlus, Layers, LogOut, Pencil, Plus, ScanSearch, Undo2 } from 'lucide-react';
 
 import { api } from '../../bridge/index.ts';
 import { ScrollArea } from '../atoms/ScrollArea.tsx';
@@ -45,6 +46,7 @@ import { PersonalEntriesView } from '../../pages/PersonalEntriesView.tsx';
 import { AdminEditView } from '../../pages/AdminEditView.tsx';
 import { HomePageView } from '../../pages/HomePageView.tsx';
 import type { Group } from '../../../shared/schema/group.ts';
+import type { ToolbarAction } from '../../lib/toolbar-actions.ts';
 import { updateStatusLine } from '../../../shared/update-copy.ts';
 
 /** 本机记忆键：已提示过的公告 id（见 lib/localMemory.ts 的三条边界）。 */
@@ -606,6 +608,42 @@ export function MainWindowShell() {
   };
   /** 侧栏与内容头共用：编辑态只属于团队页，个人页永远是 personal，主页无操作区。 */
   const mode: SidebarMode = tab === 'home' ? 'home' : tab === 'personal' ? 'personal' : editing ? 'editing' : 'team';
+
+  /**
+   * 工作栏 / 工作区弹窗共用的操作列表（1.3.0）。
+   * 两处用同一份数据：侧栏收起时点工作栏，展开时点左下工作区，动作与顺序不会分叉。
+   * 顺序按使用频率排；放不下的由 ContentHeader 自动收进「更多」。
+   * 编辑态额外保留「退出编辑」——原侧栏那块可点的"编辑模式"徽标搬走后，
+   * 这里补回同一个出口（底部「放弃改动」与 Ctrl+Shift+E 仍在）。
+   */
+  const contentActions = useMemo<ToolbarAction[]>(() => {
+    if (tab === 'home') return [];
+    if (tab === 'personal') {
+      return [
+        { id: 'newEntry', label: '新建入口', icon: Plus, disabledReason: entryAddReason, onSelect: () => openEntryEditor({ mode: 'create', groupId: null, scope: 'personal' }) },
+        { id: 'newGroup', label: '新建分组', icon: FolderPlus, disabledReason: groupAddReason, onSelect: () => setNewGroupScope('personal') },
+        { id: 'batchAdd', label: '批量添加', icon: Layers, disabledReason: entryAddReason, onSelect: () => openDialog('batchAdd') },
+        { id: 'scan', label: '扫描程序', icon: ScanSearch, disabledReason: entryAddReason, onSelect: () => openDialog('scanPicker') },
+        { id: 'bookmarks', label: '导入书签', icon: Bookmark, disabledReason: entryAddReason, onSelect: () => openDialog('bookmarks') },
+        { id: 'import', label: '导入设置', icon: FileUp, onSelect: () => fileRef.current?.click() },
+        { id: 'export', label: '导出设置', icon: FileDown, onSelect: () => void doExport() },
+      ];
+    }
+    if (editing) {
+      return [
+        { id: 'undo', label: '撤销', icon: Undo2, onSelect: () => edit.undo() },
+        { id: 'newEntry', label: '新建入口', icon: Plus, disabledReason: entryAddReason, onSelect: () => openEntryEditor({ mode: 'create', groupId: null, scope: 'team' }) },
+        { id: 'newGroup', label: '新建分组', icon: FolderPlus, disabledReason: groupAddReason, onSelect: () => setNewGroupScope('team') },
+        { id: 'batchAdd', label: '批量添加', icon: Layers, disabledReason: entryAddReason, onSelect: () => openDialog('batchAddTeam') },
+        { id: 'exitEdit', label: '退出编辑', icon: LogOut, onSelect: toggleEdit },
+      ];
+    }
+    if (settings.role === 'admin') {
+      return [{ id: 'editMode', label: '编辑模式', icon: Pencil, onSelect: toggleEdit }];
+    }
+    return [];
+  }, [tab, editing, settings.role, entryAddReason, groupAddReason, openEntryEditor, openDialog, edit, doExport, toggleEdit]);
+
   /** 侧栏分组对话框的换序边界：按真实索引算（此前硬编码 true，边界上点了不动）。 */
   const sidebarGroupIdx = sidebarGroup ? groups.findIndex((g) => g.id === sidebarGroup.id) : -1;
 
@@ -625,6 +663,10 @@ export function MainWindowShell() {
         onOpenAbout={() => openSettings('about')}
         onOpenHelp={() => openDialog('shortcuts')}
         teamRevision={snapshot.revision}
+        update={appUpdate}
+        onInstallUpdate={() => void installUpdate()}
+        onCheckUpdate={() => void checkUpdate()}
+        updateChecking={updateChecking}
       />
 
       {/* 侧栏化：顶栏只留 40px 拖拽条，导航与主操作进左侧栏，内容区独占剩余横向空间。 */}
@@ -660,21 +702,7 @@ export function MainWindowShell() {
             }
             setSidebarGroup(group);
           }}
-          onAddPersonalGroup={() => setNewGroupScope('personal')}
-          onAddPersonalEntry={() => openEntryEditor({ mode: 'create', groupId: null, scope: 'personal' })}
-          onBatchAddPersonal={() => openDialog('batchAdd')}
-          onScanPersonal={() => openDialog('scanPicker')}
-          onBatchAddTeam={() => openDialog('batchAddTeam')}
-          onImportBookmarks={() => openDialog('bookmarks')}
-          addGroupDisabledReason={groupAddReason}
-          addEntryDisabledReason={entryAddReason}
-          onImport={() => fileRef.current?.click()}
-          onExport={() => void doExport()}
-          onUndo={edit.undo}
-          onAddGroup={() => setNewGroupScope('team')}
-          onAddEntry={() => openEntryEditor({ mode: 'create', groupId: null, scope: 'team' })}
-          showEditEntry={settings.role === 'admin'}
-          onToggleEdit={toggleEdit}
+          actions={contentActions}
           collapsed={settings.sidebarCollapsed}
           editLocked={editing}
           update={appUpdate}
@@ -703,6 +731,7 @@ export function MainWindowShell() {
               onClearTypeFilter={clearTypeFilter}
               selecting={selecting}
               onToggleSelecting={toggleSelecting}
+              actions={contentActions}
             />
           )}
 

@@ -2,14 +2,21 @@
  * TitleBar —— 无边框窗口的标题栏（h40，**唯一横贯全窗的 app-region: drag 区**）。
  *
  * 2026-10-02 侧栏化定稿：最左侧新增侧栏折叠按钮（PanelLeft，点击侧栏完全消失/恢复，
- * 状态持久化在 settings.sidebarCollapsed）；Logo 换成 BrandMark 框线 T（随主题色）；
+ * 状态持久化在 settings.sidebarCollapsed）；Logo 换成 BrandMark 框线 T（随主题色），
  * 产品名降为次级灰（fg-2）弱化存在感。交互元素逐个声明 no-drag。
+ *
+ * 1.3.0（2026-10-27 用户要求）：更新进度**顶栏也显示**（工作区弹窗里保留一份）。
+ * 胶囊 = 进度环 + 版本 + 百分比；下载完变成"可安装"；点开小浮层放安装/检测。
+ * 顶栏在所有页面都可见，主页也能看到更新进度——工作栏只在内容页出现，所以不放那里。
  */
-import { PanelLeft, Minus, Square, X, CircleHelp } from 'lucide-react';
-import type { CSSProperties } from 'react';
+import { CircleHelp, Download, Minus, PanelLeft, RefreshCw, Square, X } from 'lucide-react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { api } from '../../bridge/index.ts';
 import { APP_VERSION } from '../../lib/appVersion.ts';
+import { Button } from '../atoms/Button.tsx';
 import { BrandMark } from '../atoms/BrandMark.tsx';
+import { MenuItem } from '../molecules/MenuItem.tsx';
+import { ProgressRing } from '../molecules/ProgressRing.tsx';
 
 const DRAG = { WebkitAppRegion: 'drag' } as CSSProperties;
 const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
@@ -25,6 +32,11 @@ export interface TitleBarProps {
   /** 点击 ？ 圆形按钮打开帮助中心（快捷键速查 + 使用说明）。 */
   onOpenHelp?(): void;
   teamRevision?: number | null;
+  /** 应用更新（1.3.0）：非 null 时在顶栏显示进度胶囊；工作区弹窗里也有一份。 */
+  update?: { version: string; percent: number | null; ready: boolean } | null;
+  onInstallUpdate?(): void;
+  onCheckUpdate?(): void;
+  updateChecking?: boolean;
 }
 
 const BTN =
@@ -33,7 +45,40 @@ const BTN =
 const TOGGLE =
   'grid h-10 w-10 shrink-0 place-items-center transition-colors duration-[var(--motion-fast)] ease-[var(--ease-standard)]';
 
-export function TitleBar({ closeDisabled = false, collapsed = false, onToggleSidebar, onOpenAbout, onOpenHelp, teamRevision = null }: TitleBarProps) {
+export function TitleBar({
+  closeDisabled = false,
+  collapsed = false,
+  onToggleSidebar,
+  onOpenAbout,
+  onOpenHelp,
+  teamRevision = null,
+  update = null,
+  onInstallUpdate,
+  onCheckUpdate,
+  updateChecking = false,
+}: TitleBarProps) {
+  const [updatePop, setUpdatePop] = useState(false);
+  const updateRef = useRef<HTMLDivElement | null>(null);
+
+  /* 点浮层外面 / Esc 收起：与工作区弹窗同一套交互，不额外引入组件。 */
+  useEffect(() => {
+    if (!updatePop) return;
+    const onDown = (e: MouseEvent) => {
+      if (!updateRef.current?.contains(e.target as Node)) setUpdatePop(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setUpdatePop(false);
+    };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [updatePop]);
+
+  const percent = update?.ready ? 100 : (update?.percent ?? 0);
+
   return (
     // 无边框窗口的拖拽区：整个标题栏可拖动窗口，交互元素逐个声明 no-drag。
     <div
@@ -91,6 +136,71 @@ export function TitleBar({ closeDisabled = false, collapsed = false, onToggleSid
         </>
       )}
       <div className="flex-1" />
+
+      {/* 更新胶囊（1.3.0）：所有页面都能看到；点开是安装/检测浮层。 */}
+      {update && (
+        <div ref={updateRef} className="relative shrink-0" style={NO_DRAG}>
+          <button
+            type="button"
+            aria-expanded={updatePop}
+            aria-haspopup="dialog"
+            aria-label={
+              update.ready
+                ? `新版本 v${update.version} 已下载，点击安装`
+                : `新版本 v${update.version} 正在后台下载 ${percent}%`
+            }
+            title={update.ready ? `新版本 v${update.version} 已就绪` : `新版本 v${update.version} 正在后台下载`}
+            onClick={() => setUpdatePop((v) => !v)}
+            className="flex h-8 items-center gap-2 rounded-[var(--radius-pill)] border border-[var(--accent-border)] px-2 transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
+            style={{ background: 'var(--accent-tint)', color: 'var(--accent-text)' }}
+          >
+            <ProgressRing percent={percent} size={20} strokeWidth={2.5} showValue={false} label={`新版本 v${update.version} 下载进度`} />
+            <span className="t-2xs w-emph whitespace-nowrap">
+              v{update.version}
+              {update.ready ? ' 可安装' : ` ${percent}%`}
+            </span>
+          </button>
+
+          {updatePop && (
+            <div
+              role="dialog"
+              aria-label="版本更新"
+              className="absolute right-0 top-full z-[var(--z-dropdown)] mt-1 w-[248px] rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2.5"
+              style={{
+                background: 'var(--menu-bg)',
+                boxShadow: 'var(--menu-elev)',
+                WebkitAppRegion: 'no-drag',
+              } as CSSProperties}
+            >
+              <div className="flex items-center gap-3 px-1 pb-2 pt-1">
+                <ProgressRing percent={percent} label={`新版本 v${update.version} 下载进度`} />
+                <div className="min-w-0 flex-1">
+                  <p className="t-sm w-emph m-0 truncate-1 text-[var(--fg)]">新版本 v{update.version}</p>
+                  <p className="t-2xs m-0 text-[var(--fg-2)]">
+                    {update.ready ? '已下载完成，可以立即安装' : '正在后台下载，你可以继续用'}
+                  </p>
+                </div>
+              </div>
+              {update.ready && (
+                <Button tone="primary" size="sm" fullWidth icon={Download} className="mb-1" onClick={onInstallUpdate}>
+                  立即更新并重启
+                </Button>
+              )}
+              <div className="mx-1 my-1.5 h-px bg-[var(--border-subtle)]" />
+              <MenuItem
+                icon={RefreshCw}
+                label={updateChecking ? '正在检测…' : '检测版本更新'}
+                disabled={updateChecking}
+                onSelect={() => {
+                  setUpdatePop(false);
+                  onCheckUpdate?.();
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {onOpenHelp && (
         <button
           type="button"
