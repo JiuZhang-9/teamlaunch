@@ -323,7 +323,12 @@ export function MainWindowShell() {
   useEffect(() => {
     const onToggle = () => {
       if (showSearch) closeSearch();
-      else window.dispatchEvent(new Event('tl:focus-search-open'));
+      else {
+        /* 输入框可能已经被窗口默认焦点占住：focus() 不再触发 onFocus，
+           这里直接把搜索态置真，保证 Ctrl+F 打开时快速打开面板一定出现。 */
+        setSearchFocused(true);
+        window.dispatchEvent(new Event('tl:focus-search-open'));
+      }
     };
     window.addEventListener('tl:focus-search', onToggle);
     return () => window.removeEventListener('tl:focus-search', onToggle);
@@ -333,7 +338,11 @@ export function MainWindowShell() {
      用页面可见性变化判断"窗口被打开"，比 window.focus 精确——切回一个本来就可见的窗口不抢焦点。
      首次挂载时页面已经是 visible（启动即显示），visibilitychange 不会再触发，补一次。 */
   useEffect(() => {
-    const focusSearch = () => window.dispatchEvent(new Event('tl:focus-search-open'));
+    const focusSearch = () => {
+      /* 同理：窗口显示时输入框可能已带焦点，focus() 不触发 onFocus，状态要自己置真。 */
+      setSearchFocused(true);
+      window.dispatchEvent(new Event('tl:focus-search-open'));
+    };
     const timer = document.visibilityState === 'visible' ? window.setTimeout(focusSearch, 0) : null;
     const onVisibility = () => {
       if (document.visibilityState === 'visible') focusSearch();
@@ -356,6 +365,7 @@ export function MainWindowShell() {
     document.addEventListener('mousedown', onDown, true);
     return () => document.removeEventListener('mousedown', onDown, true);
   }, [showSearch, closeSearch]);
+
 
   /* 主页公告广播（2026-10-17 用户要求"让所有人知晓"；2026-10-19 改为**系统通知**）：
      挑出"没提示过的公告"，走 Windows 系统 toast——应用在后台/最小化/被托盘藏着时也能看到，
@@ -478,6 +488,45 @@ export function MainWindowShell() {
     },
     [clip, quickAddFromText],
   );
+
+  /* 主窗口搜索的键盘操作（1.5.2）：方向键移动、回车 / 空格打开、Ctrl+回车加为入口。
+     挂在 window 上而不是输入框：输入框在 ContentHeader，结果区在外壳，统一在这里收口。
+     输入法组词中一律不拦截——这是"回车很多时候不跟手"的根因之一。 */
+  useEffect(() => {
+    if (!showSearch) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest('[data-tl-search-surface]')) return;
+      if (hits.length === 0) return;
+      const current = hits[searchIndex] ?? hits[0];
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        setSearchIndex((i) => (i + 1) % hits.length);
+        return;
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setSearchIndex((i) => (i - 1 + hits.length) % hits.length);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if ((e.ctrlKey || e.metaKey) && (current.kind === 'system' || current.kind === 'clip-new')) handleSearchAdd(current);
+        else handleSearchOpen(current);
+        return;
+      }
+      if (e.key === ' ' || e.code === 'Space') {
+        /* 空格进入（uTools 手感）；带修饰键时不拦截：
+           Shift+空格仍可输入字面空格，Ctrl+空格是全局热键。 */
+        if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+        e.preventDefault();
+        handleSearchOpen(current);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showSearch, hits, searchIndex, handleSearchAdd, handleSearchOpen]);
 
   /** 应用内快捷键：内置默认 + 用户覆盖（settings.appHotkeys 只存改过的动作）。 */
   const appHotkeys = useMemo(() => ({ ...DEFAULT_APP_HOTKEYS, ...settings.appHotkeys }), [settings.appHotkeys]);

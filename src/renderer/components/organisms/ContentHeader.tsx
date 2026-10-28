@@ -164,9 +164,13 @@ export function ContentHeader(props: ContentHeaderProps) {
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onFocus={onSearchFocus}
+          /* 输入框可能已经带焦点（切页后 searchFocused 被重置）：再点一下也要把搜索态打开。 */
+          onClick={onSearchFocus}
           onBlur={onSearchBlur}
           onKeyDown={(e) => {
             if (e.key !== 'Escape') return;
+            /* 输入法组词中 Esc 是取消候选，不能拿来清空/退出搜索。 */
+            if (e.nativeEvent.isComposing) return;
             e.preventDefault();
             if (query.length > 0) onQueryChange('');
             else onSearchEscape?.();

@@ -63,6 +63,9 @@ export function MiniPalette(props: MiniPaletteProps) {
   if (!open) return null;
 
   const onKeyDown = (e: KeyboardEvent) => {
+    /* 输入法组词中：回车 / 空格 / 方向键都交给输入法，否则会"回车不跟手"或误开候选。
+       这是 2026-10-27 用户反馈"回车很多时候不跟手"的根因之一。 */
+    if (e.nativeEvent.isComposing) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
       /* ←/→ 与 ↑/↓ 都能移动选中项（2026-10-19 用户要求："变成按钮后，上下左右方向键是否也可以调整选中项"）：
          图标格是一行，左右是它的自然轴；上下继续沿用原来的线性游标（进入下方列表）。 */
@@ -88,6 +91,15 @@ export function MiniPalette(props: MiniPaletteProps) {
         if ((hit.kind === 'clip-new' || hit.kind === 'system') && (e.ctrlKey || e.metaKey)) onAddToPersonal(hit);
         else onOpen(hit);
       }
+    } else if (e.key === ' ' || e.code === 'Space') {
+      /* 空格进入（2026-10-27 用户要求，uTools 手感）：空查询时打开固定/最近/剪贴板，
+         有查询词时打开当前选中结果。搜索是子串匹配，输入 `Visual` 就能出 `Visual Studio`，
+         所以不需要为"打空格"再留一个键位。
+         带 Shift/Alt/Ctrl 时不拦截：Shift+空格仍可输入字面空格，Ctrl+空格是全局热键。 */
+      if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      const hit = hits[selectedIndex];
+      if (hit) onOpen(hit);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
@@ -189,7 +201,7 @@ export function MiniPalette(props: MiniPaletteProps) {
           <span className="mx-1">·</span>
           <span>Tab 切换</span>
           <span className="mx-1">·</span>
-          <span>⏎ 打开</span>
+          <span>⏎ / 空格 打开</span>
           <span className="mx-1">·</span>
           <span>Ctrl+⏎ 加入口</span>
           <span>·</span>
