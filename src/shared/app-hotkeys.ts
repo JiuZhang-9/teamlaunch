@@ -52,7 +52,7 @@ export const APP_HOTKEY_LABELS: Record<AppHotkeyAction, string> = {
   tabTeam: '切换到团队入口',
   tabPersonal: '切换到我的入口',
   newEntry: '新建入口（跟随当前页）',
-  focusSearch: '聚焦搜索栏',
+  focusSearch: '搜索栏开关',
   refresh: '刷新团队入口',
   settings: '打开设置',
   toggleEdit: '进出编辑模式',

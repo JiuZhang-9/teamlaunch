@@ -40,7 +40,7 @@ export function WindowSearchView({
   programScanning, programError, teamUnavailable,
 }: WindowSearchViewProps) {
   return (
-    <div className="flex h-full flex-col">
+    <div data-tl-search-surface className="flex h-full flex-col">
       <p className="t-2xs mb-2 shrink-0 text-[var(--muted)]" aria-live="polite">
         {debouncing
           ? '搜索中…'

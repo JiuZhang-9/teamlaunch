@@ -310,6 +310,53 @@ export function MainWindowShell() {
     setSearchFocused(false);
   }, [tab, editing]);
 
+  /** 关闭搜索：清空查询 + 失焦，回到当前页的卡片视图。 */
+  const closeSearch = useCallback(() => {
+    setQuery('');
+    setSearchFocused(false);
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+  }, [setQuery]);
+
+  /* Ctrl+F 是开关：已打开就退出，否则聚焦（useGlobalHotkeys 只负责派发 tl:focus-search）。
+     2026-10-27 用户反馈：原来只能切界面或点侧栏才能退出搜索，不顺手。 */
+  useEffect(() => {
+    const onToggle = () => {
+      if (showSearch) closeSearch();
+      else window.dispatchEvent(new Event('tl:focus-search-open'));
+    };
+    window.addEventListener('tl:focus-search', onToggle);
+    return () => window.removeEventListener('tl:focus-search', onToggle);
+  }, [showSearch, closeSearch]);
+
+  /* 主窗口每次被显示（托盘 / 热键 / 任务栏还原）时默认聚焦搜索框：
+     用页面可见性变化判断"窗口被打开"，比 window.focus 精确——切回一个本来就可见的窗口不抢焦点。
+     首次挂载时页面已经是 visible（启动即显示），visibilitychange 不会再触发，补一次。 */
+  useEffect(() => {
+    const focusSearch = () => window.dispatchEvent(new Event('tl:focus-search-open'));
+    const timer = document.visibilityState === 'visible' ? window.setTimeout(focusSearch, 0) : null;
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') focusSearch();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
+  /* 点击搜索框 / 结果区以外的地方（顶栏、侧栏、工作栏按钮等）退出搜索。 */
+  useEffect(() => {
+    if (!showSearch) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-tl-search-surface]')) return;
+      closeSearch();
+    };
+    document.addEventListener('mousedown', onDown, true);
+    return () => document.removeEventListener('mousedown', onDown, true);
+  }, [showSearch, closeSearch]);
+
   /* 主页公告广播（2026-10-17 用户要求"让所有人知晓"；2026-10-19 改为**系统通知**）：
      挑出"没提示过的公告"，走 Windows 系统 toast——应用在后台/最小化/被托盘藏着时也能看到，
      这是应用内 Toast 做不到的。每篇只提示一次（本机记 id、最多留 100 条）；
@@ -846,6 +893,8 @@ export function MainWindowShell() {
               actions={contentActions}
               onSearchFocus={() => setSearchFocused(true)}
               onSearchBlur={() => setSearchFocused(false)}
+              onSearchEscape={closeSearch}
+              onSwitchTab={setTab}
             />
           )}
 

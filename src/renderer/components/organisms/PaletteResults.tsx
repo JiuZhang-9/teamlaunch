@@ -41,9 +41,12 @@ export interface PaletteResultsProps {
   /** 结果行图标尺寸：面板 16/24，主窗口 24/24。 */
   rowGlyphSize?: 16 | 24;
   rowIconSize?: 16 | 24;
-  /** 图标格列数与高度：面板 7 列 × 96px，主窗口 6 列 × 86px。 */
+  /** 图标格列数与高度：面板 7 列 × 104px，主窗口 6 列 × 86px。 */
   tileColumns?: 6 | 7;
   tileHeight?: number;
+  /** 图标格间距与图标尺寸：面板 8px / 36px，主窗口 6px / 32px。 */
+  tileGap?: number;
+  tileIconSize?: number;
   /** 主窗口用：从 runtime 取 opening/failed 态。 */
   phaseFor?(entryId: string): 'idle' | 'opening' | 'failed';
   className?: string;
@@ -69,6 +72,8 @@ export function PaletteResults({
   rowIconSize = 24,
   tileColumns = 6,
   tileHeight = 86,
+  tileGap = 6,
+  tileIconSize = 32,
   phaseFor,
   className = '',
 }: PaletteResultsProps) {
@@ -131,16 +136,23 @@ export function PaletteResults({
         className="group relative flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--radius-md)] border px-1 pt-2 transition-colors duration-[var(--motion-fast)]"
         style={{
           height: tileHeight,
+          gap: tileGap,
           borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)',
           background: selected ? 'var(--accent-tint)' : 'var(--card-bg)',
         }}
       >
         {iconUrl !== null ? (
-          <img src={iconUrl} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain" />
+          <img
+            src={iconUrl}
+            alt=""
+            aria-hidden
+            className="shrink-0 object-contain"
+            style={{ width: tileIconSize, height: tileIconSize }}
+          />
         ) : (
           <span
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] t-sm"
-            style={{ background: 'var(--accent-tint)', color: 'var(--accent-text)' }}
+            className="grid shrink-0 place-items-center rounded-[8px] t-sm"
+            style={{ width: tileIconSize, height: tileIconSize, background: 'var(--accent-tint)', color: 'var(--accent-text)' }}
             aria-hidden
           >
             {firstLetterOf(hit.entry.name)}
@@ -171,7 +183,10 @@ export function PaletteResults({
   };
 
   const tileGrid = (list: PaletteHit[], pinned: boolean) => (
-    <div className={['grid gap-1.5 px-2 pb-1.5 pt-1', tileColumns === 7 ? 'grid-cols-7' : 'grid-cols-6'].join(' ')}>
+    <div
+      className={['grid gap-1.5 px-2 pb-1.5 pt-1', tileColumns === 7 ? 'grid-cols-7' : 'grid-cols-6'].join(' ')}
+      style={{ gap: tileGap }}
+    >
       {list.map((hit) => renderTile(hit, pinned))}
     </div>
   );

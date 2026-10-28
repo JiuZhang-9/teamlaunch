@@ -420,11 +420,11 @@
         "type": "dimension"
       },
       "paletteW": {
-        "value": "720px",
+        "value": "800px",
         "type": "dimension"
       },
       "paletteH": {
-        "value": "520px",
+        "value": "560px",
         "type": "dimension"
       },
       "rowH": {

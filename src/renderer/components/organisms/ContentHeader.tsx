@@ -8,9 +8,9 @@
  *  - 宽度用 ResizeObserver + 隐藏测量行实测，不猜文字宽度。
  *
  * 侧栏化定稿（2026-10-02）：同步状态移入左下角工作区弹层；这一行只留"作用于当前页内容"的东西。
- * Ctrl+F 由外壳派发 `tl:focus-search`，这里负责聚焦并全选。
+ * Ctrl+F 由外壳派发 `tl:focus-search`（开关）；要打开时再派发 `tl:focus-search-open`，这里负责聚焦并全选。
  */
-import { EllipsisVertical, ListChecks, RefreshCw } from 'lucide-react';
+import { BuildingComplex, EllipsisVertical, House, ListChecks, RefreshCw, UserRound } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../atoms/Button.tsx';
 import { SearchInput } from '../atoms/SearchInput.tsx';
@@ -25,6 +25,13 @@ import type { EntryType } from '../../../shared/schema/entry.ts';
 import type { TabKey } from '../../store/workbenchStore.tsx';
 
 const GAP = 4;
+
+/** 搜索框后的页面切换菜单（1.5.1）。 */
+const PAGE_ITEMS = [
+  { key: 'home' as const, label: '主页', icon: House },
+  { key: 'team' as const, label: '团队入口', icon: BuildingComplex },
+  { key: 'personal' as const, label: '我的入口', icon: UserRound },
+];
 
 export interface ContentHeaderProps {
   tab: TabKey;
@@ -45,12 +52,16 @@ export interface ContentHeaderProps {
   /** 搜索框聚焦/失焦（1.4.0）：聚焦且未输入时，内容区显示固定 + 最近打开的快速打开面板。 */
   onSearchFocus?(): void;
   onSearchBlur?(): void;
+  /** Esc：有查询词时清空，空查询时退出搜索（1.5.1）。 */
+  onSearchEscape?(): void;
+  /** 搜索框后的页面切换按钮（1.5.1 用户要求：不按快捷键也能换主页/团队/我的）。 */
+  onSwitchTab?(tab: TabKey): void;
 }
 
 export function ContentHeader(props: ContentHeaderProps) {
   const {
     tab, mode, query, onQueryChange, snapshot, onRefresh, typeFilter, onToggleTypeFilter, onClearTypeFilter,
-    selecting, onToggleSelecting, actions = [], onSearchFocus, onSearchBlur,
+    selecting, onToggleSelecting, actions = [], onSearchFocus, onSearchBlur, onSearchEscape, onSwitchTab,
   } = props;
   const searchRef = useRef<HTMLInputElement | null>(null);
   const actionsRef = useRef<HTMLDivElement | null>(null);
@@ -65,8 +76,9 @@ export function ContentHeader(props: ContentHeaderProps) {
       searchRef.current?.focus();
       searchRef.current?.select();
     };
-    window.addEventListener('tl:focus-search', onFocusSearch);
-    return () => window.removeEventListener('tl:focus-search', onFocusSearch);
+    /* 1.5.1：外壳的 Ctrl+F 是开关，只在"要打开"时派发 -open；关闭由外壳处理。 */
+    window.addEventListener('tl:focus-search-open', onFocusSearch);
+    return () => window.removeEventListener('tl:focus-search-open', onFocusSearch);
   }, []);
 
   /* 可用宽度：动作容器是 flex-1 min-w-0，宽度由布局分配、与内容无关——量它最准。 */
@@ -125,23 +137,52 @@ export function ContentHeader(props: ContentHeaderProps) {
   );
 
   const canRefresh = snapshot ? syncPresentation(snapshot).refreshEnabled : true;
+  const currentPage = PAGE_ITEMS.find((p) => p.key === tab) ?? PAGE_ITEMS[1];
+  const pageItems = PAGE_ITEMS.map((p) => ({
+    id: p.key,
+    label: p.label,
+    disabledReason:
+      p.key === tab
+        ? '当前页面'
+        : p.key === 'personal' && mode === 'editing'
+          ? '编辑中：先退出编辑模式再切换页面'
+          : undefined,
+    onSelect: () => onSwitchTab?.(p.key),
+  }));
 
   return (
     <div
       className="relative flex h-[var(--content-header-h)] shrink-0 items-center gap-2 border-b border-[var(--border-subtle)] px-[var(--space-6)]"
       style={{ background: 'var(--bg-surface)' }}
     >
-      <SearchInput
-        ref={searchRef}
-        variant="toolbar"
-        /* 上限 420（原工具栏只有 280）：侧栏化后横向空间由内容区独占，搜索是最大的受益者。 */
-        className="min-w-[160px] max-w-[420px] flex-1"
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
-        onFocus={onSearchFocus}
-        onBlur={onSearchBlur}
-        aria-label="搜索入口"
-        placeholder={tab === 'team' ? '搜索团队入口' : '搜索我的入口'}
+      <div data-tl-search-surface className="min-w-[160px] max-w-[420px] flex-1">
+        <SearchInput
+          ref={searchRef}
+          variant="toolbar"
+          /* 上限 420（原工具栏只有 280）：侧栏化后横向空间由内容区独占，搜索是最大的受益者。 */
+          className="w-full"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onFocus={onSearchFocus}
+          onBlur={onSearchBlur}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            if (query.length > 0) onQueryChange('');
+            else onSearchEscape?.();
+          }}
+          aria-label="搜索入口"
+          placeholder={tab === 'team' ? '搜索团队入口' : '搜索我的入口'}
+        />
+      </div>
+
+      {/* 页面切换（1.5.1）：搜索框后的一个按钮，不按快捷键也能换主页 / 团队 / 我的。 */}
+      <MenuButton
+        ariaLabel="切换页面"
+        label={currentPage.label}
+        icon={currentPage.icon}
+        align="right"
+        items={pageItems}
       />
 
       {/* 工作栏动作：能放下的直接显示，其余进「更多」。

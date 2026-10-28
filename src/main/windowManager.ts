@@ -12,6 +12,7 @@ import { app } from 'electron';
 import { isQuitting } from './lifecycle.ts';
 import { logLine } from './appLog.ts';
 import { loadWindowState, trackWindowBounds } from './windowState.ts';
+import { loadPalettePosition, trackPalettePosition, type PalettePosition } from './paletteState.ts';
 import { defaultBounds, isRestorableBounds } from '../shared/window-bounds.ts';
 import { planSurface, type Surface, type SurfacePlan, type SurfaceSnapshot } from '../shared/surface-machine.ts';
 import { ensureProgramsFresh } from './programIndex.ts';
@@ -23,15 +24,19 @@ import { ensureProgramsFresh } from './programIndex.ts';
    与 design-tokens.css 的 --win-w-min 保持一致。 */
 const MIN_W = 880;
 const MIN_H = 480;
-const PALETTE_W = 720;
-/** 快捷窗口高度：与 design-tokens 的 --palette-h 同一个口径（1.5.0 从 560×420 调大）。 */
-const PALETTE_H = 520;
+const PALETTE_W = 800;
+/** 快捷窗口高度：与 design-tokens 的 --palette-h 同一个口径（1.5.1 再放大到 800×560）。 */
+const PALETTE_H = 560;
 /** 小屏夹紧的下限：再小就不像快捷面板了，宁可让系统把它挪进工作区。 */
 const PALETTE_MIN_W = 480;
 const PALETTE_MIN_H = 360;
 
 let mainWindow: BrowserWindow | null = null;
 let palette: BrowserWindow | null = null;
+/** 用户拖到过的位置（1.5.1）：加载一次，show 时优先用它；没拖过就用默认居中。 */
+let palettePosition: PalettePosition | null = null;
+/** 隐藏/关闭前补一次立即写（节流计时器会随隐藏丢失最后一次拖动）。 */
+let flushPalettePosition: (() => void) | null = null;
 
 /**
  * 窗口可见性状态机（2026-10-27，1.2.0）：两面互斥、Ctrl+Space 先照顾主窗口。
@@ -200,7 +205,8 @@ export function preheatPalette(): void {
       height: PALETTE_H,
       frame: false,
       resizable: false,
-      movable: false,
+      /* 1.5.1：允许用户手动拖动；位置由 paletteState.ts 记住（拖完下次还在这里）。 */
+      movable: true,
       skipTaskbar: true,
       alwaysOnTop: true,
       fullscreenable: false,
@@ -211,9 +217,23 @@ export function preheatPalette(): void {
   palette.on('focus', () => {
     activeSurface = 'palette';
   });
+  const userData = app.getPath('userData');
+  void loadPalettePosition(userData).then((p) => {
+    palettePosition = p;
+  });
+  /* 内存里的位置跟着窗口走：拖动后立刻隐藏/再显示时，positionPalette 用的是最新位置，
+     不会退回默认位置（磁盘写是节流的，内存必须即时）。 */
+  palette.on('move', () => {
+    if (!palette || palette.isDestroyed()) return;
+    const b = palette.getBounds();
+    palettePosition = { x: b.x, y: b.y };
+  });
+  flushPalettePosition = trackPalettePosition(userData, palette);
   void palette.loadURL(rendererUrl('#/palette'));
 
   palette.on('close', (e) => {
+    /* 退出/关窗前补一次立即写：拖动后 300ms 内就隐藏的话，节流计时器会丢。 */
+    flushPalettePosition?.();
     // 退出流程中的 close 必须放行，否则 app.quit() 永远完不成（托盘"退出"失灵的根因）。
     // 日常关闭仍按"隐藏而非销毁"处理，保住二次唤起不走冷启动。
     if (isQuitting()) return;
@@ -368,13 +388,18 @@ export function showMainWindow(): boolean {
   return focusMainWindow();
 }
 
-/** 面板定位：优先放在主窗口所在的显示器，主窗口不可用时退回光标所在屏。 */
+/** 面板定位：优先用用户拖到的位置；否则放在主窗口所在显示器、顶距 20%。 */
 function positionPalette(): void {
   if (!palette || palette.isDestroyed()) return;
   const main = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
   let area: Electron.Rectangle;
   let displayId: number;
-  if (main) {
+  if (palettePosition !== null) {
+    /* 用户拖过：按拖到的位置所在显示器来夹，不跟着主窗口跑。 */
+    const display = screen.getDisplayNearestPoint(palettePosition);
+    area = display.workArea;
+    displayId = display.id;
+  } else if (main) {
     const b = main.getNormalBounds();
     const display = screen.getDisplayNearestPoint({
       x: b.x + Math.round(b.width / 2),
@@ -387,16 +412,23 @@ function positionPalette(): void {
     area = display.workArea;
     displayId = display.id;
   }
-  /* 1.5.0：面板 720×520，但小屏/高缩放下要夹进工作区——
-     高度给上下留 160px（顶距 12% + 底部余量），宽度给左右留 80px。 */
+  /* 1.5.1：面板 800×560，但小屏/高缩放下要夹进工作区——
+     高度给上下留 160px（顶距 20% + 底部余量），宽度给左右留 80px。 */
   const width = Math.min(PALETTE_W, Math.max(PALETTE_MIN_W, area.width - 80));
   const height = Math.min(PALETTE_H, Math.max(PALETTE_MIN_H, area.height - 160));
-  const y = Math.round(area.y + area.height * 0.12);
-  const x = Math.round(area.x + (area.width - width) / 2);
+  let x: number;
+  let y: number;
+  if (palettePosition !== null) {
+    x = Math.min(Math.max(palettePosition.x, area.x), area.x + area.width - width);
+    y = Math.min(Math.max(palettePosition.y, area.y), area.y + area.height - height);
+  } else {
+    x = Math.round(area.x + (area.width - width) / 2);
+    y = Math.round(area.y + area.height * 0.20);
+  }
   /* setBounds 而不是 setPosition：顺带把尺寸钉回常量，窗口被系统/缩放改过之后也不会带着旧尺寸乱跑。
      位置与尺寸写进日志——用户报过"弹到左上侧"，下次直接看得到我们算的是哪个坐标、哪块屏。 */
   palette.setBounds({ x, y, width, height }, false);
-  logLine('TL-PAL', 'position', `${x},${y} ${width}x${height} display=${displayId}`);
+  logLine('TL-PAL', 'position', `${x},${y} ${width}x${height} display=${displayId}${palettePosition !== null ? ' saved' : ''}`);
 }
 
 /**
@@ -440,6 +472,8 @@ function showPaletteNow(scope: PaletteScope, hideMain: 'hide' | 'minimize' | 'no
 export function hidePalette(): boolean {
   if (!palette || palette.isDestroyed()) return false;
   if (!palette.isVisible()) return false;
+  /* 拖动后 300ms 内就收起：节流计时器会随隐藏一起消失，这里补一次立即写。 */
+  flushPalettePosition?.();
   /* activeSurface 刻意不动：刚收起面板，下一次 Ctrl+空格应该还能把它打开（1.1.3 的手感）。 */
   palette.webContents.send('tl:palette-hidden');
   palette.hide();

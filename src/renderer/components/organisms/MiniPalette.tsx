@@ -11,7 +11,7 @@
  * 1.4.0：结果区抽成 `PaletteResults`，与主窗口搜索共用同一套渲染规则。
  */
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
 import { SearchInput } from '../atoms/SearchInput.tsx';
 import { PaletteResults } from './PaletteResults.tsx';
 import type { PaletteHit } from '../../lib/palette-source.ts';
@@ -136,6 +136,17 @@ export function MiniPalette(props: MiniPaletteProps) {
               }
         }
       >
+        {/* 独立面板窗口没有标题栏：顶部留一条可拖动的抓手（1.5.1 用户要求可手动移动）。
+            只在 docked 形态出现；主窗口内的浮层不需要拖窗口。 */}
+        {docked && (
+          <div
+            aria-hidden
+            className="mb-1 flex h-3 shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
+            style={{ WebkitAppRegion: 'drag' } as CSSProperties}
+          >
+            <span className="h-1 w-10 rounded-[var(--radius-pill)]" style={{ background: 'var(--border-strong)' }} />
+          </div>
+        )}
         <SearchInput
           ref={inputRef}
           variant="palette"
@@ -162,7 +173,9 @@ export function MiniPalette(props: MiniPaletteProps) {
           programError={programError}
           teamUnavailable={teamUnavailable}
           tileColumns={7}
-          tileHeight={96}
+          tileHeight={104}
+          tileGap={8}
+          tileIconSize={36}
           className="py-1"
         />
 

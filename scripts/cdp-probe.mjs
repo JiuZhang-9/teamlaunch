@@ -19,6 +19,7 @@ const KEYS = {
   'Ctrl+Space': { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, modifiers: 2 },
   'Ctrl+Tab': { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 2 },
   'Ctrl+W': { key: 'w', code: 'KeyW', windowsVirtualKeyCode: 87, modifiers: 2 },
+  'Ctrl+F': { key: 'f', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 2 },
   Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, modifiers: 0 },
   Enter: { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 0 },
   'Ctrl+Enter': { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, modifiers: 2 },
