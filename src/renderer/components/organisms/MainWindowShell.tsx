@@ -30,6 +30,7 @@ import { entryLimitCopy, groupLimitCopy } from '../../../shared/capacity-copy.ts
 import { measure } from '../../../shared/capacity-usage.ts';
 import { CAPACITY } from '../../../shared/schema/common.ts';
 import { DEFAULT_APP_HOTKEYS, type HotkeyConflictInfo } from '../../../shared/app-hotkeys.ts';
+import { quickAddScope } from '../../../shared/quick-add.ts';
 import { useEntryIcons } from '../../hooks/useEntryIcons.ts';
 import {
   MAX_WINDOW_PROGRAM_ROWS,
@@ -749,17 +750,21 @@ export function MainWindowShell() {
   /** 当前被高亮的分组 section（dragover 每帧换目标时先摘旧的）。 */
   const dropGroupElRef = useRef<HTMLElement | null>(null);
 
-  /** 按指针位置找落点分组；只认个人页的分组（团队页的组是只读的，加不进去）。 */
+  /**
+   * 按指针位置找落点分组。个人页认个人分组；团队编辑态认草稿分组（AdminEditView 的
+   * GroupSections 同样带 data-tl-group-name）。只读团队页 / 主页不提供落点分组，
+   * 拖入仍按当前规则进「我的入口」——覆层文案会如实写清楚落到哪。
+   */
   const groupUnderPointer = useCallback(
     (x: number, y: number): { name: string; el: HTMLElement } | null => {
-      if (tab !== 'personal') return null;
+      if (!editing && tab !== 'personal') return null;
       const el = document.elementFromPoint(x, y);
       const section = el instanceof Element ? el.closest<HTMLElement>('[data-tl-group-name]') : null;
       const name = section?.getAttribute('data-tl-group-name');
       if (!section || !name) return null;
       return { name, el: section };
     },
-    [tab],
+    [editing, tab],
   );
 
   const markDropGroup = useCallback((next: HTMLElement | null) => {
@@ -848,6 +853,7 @@ export function MainWindowShell() {
       e.preventDefault();
       /* 落点必须在清 UI **之前**算：清掉高亮不影响 elementFromPoint，但 dropGroupName 会被清空。 */
       const targetGroup = groupUnderPointer(e.clientX, e.clientY)?.name ?? null;
+      const scope = quickAddScope({ editing });
       clearDropUi();
       if (dialog !== 'none' || entryEditor || gateBlocking) return;
 
@@ -882,21 +888,28 @@ export function MainWindowShell() {
           });
           return;
         }
-        const res = await addPersonalEntries(inputs);
+        /* 方案 A：编辑态落团队草稿（一次 mutate = 一步撤销），否则落「我的入口」。 */
+        const res = scope === 'team' ? edit.createEntries(inputs, targetGroup ?? undefined) : await addPersonalEntries(inputs);
         if (res.added > 0) {
           void api.usage.bump({ kind: 'feature', key: 'dragAdd' });
+          const where = targetGroup ?? (scope === 'team' ? '团队入口' : '我的入口');
+          const notes: string[] = [];
+          if (scope === 'team') notes.push('已写入团队草稿，发布给团队后生效');
+          if (rejected.length > 0) notes.push(`另有 ${rejected.length} 个认不出来，已跳过`);
+          if (res.reason) notes.push(res.reason);
           push({
-            title: `已添加 ${res.added} 个入口到「${targetGroup ?? '我的入口'}」`,
-            detail: rejected.length > 0 ? `另有 ${rejected.length} 个认不出来，已跳过` : res.reason,
-            tone: 'success',
+            title: `已添加 ${res.added} 个入口到「${where}」`,
+            detail: notes.length > 0 ? notes.join('；') : undefined,
+            tone: res.ok ? 'success' : 'warn',
           });
-          if (tab !== 'personal') setTab('personal');
+          if (scope === 'team') setTab('team');
+          else if (tab !== 'personal') setTab('personal');
           return;
         }
         push({ title: res.reason ?? '没能添加', tone: 'warn' });
       })();
     },
-    [addPersonalEntries, clearDropUi, dialog, entryEditor, gateBlocking, groupUnderPointer, push, setTab, tab],
+    [addPersonalEntries, clearDropUi, dialog, edit, editing, entryEditor, gateBlocking, groupUnderPointer, push, setTab, tab],
   );
   const contentBackground = editing ? 'var(--surface-editing)' : 'var(--bg-canvas)';
   /**
@@ -1195,8 +1208,10 @@ export function MainWindowShell() {
           style={{ background: 'var(--accent-tint)', opacity: 0.92 }}
         >
           <span className="t-base w-emph text-center text-[var(--accent-text)]">
-            松开鼠标，把拖进来的图标 / 文件夹加进「{dropGroupName ?? '我的入口'}」
-            {dropGroupName === null && <span className="t-2xs block font-normal opacity-80">（拖到某个分组上可以直接落进那一组）</span>}
+            松开鼠标，把拖进来的图标 / 文件夹加进「{dropGroupName ?? (editing ? '团队入口' : '我的入口')}」
+            {dropGroupName === null && (tab === 'personal' || (editing && tab === 'team')) && (
+              <span className="t-2xs block font-normal opacity-80">（拖到某个分组上可以直接落进那一组）</span>
+            )}
           </span>
         </div>
       )}

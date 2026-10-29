@@ -16,6 +16,7 @@ import {
 import { api } from '../bridge/index.ts';
 import type { OpenFailure } from '../bridge/types.ts';
 import type { Entry, EntryType } from '../../shared/schema/entry.ts';
+import { quickAddScope } from '../../shared/quick-add.ts';
 import { useToasts } from './toastStore.tsx';
 import { FAILURE_DETAIL, targetFull } from '../lib/entry.ts';
 import { readMemoryString, writeMemoryString } from '../lib/localMemory.ts';
@@ -110,7 +111,7 @@ interface WorkbenchCtx {
   closeEntryEditor(): void;
   /**
    * 一段文本（粘贴 / 快捷面板候选行）→ 识别 → 预填进与手动添加同一套编辑器。
-   * 落点永远是「我的入口」：个人场景为主、行为可预期（PRD §8.4 最近使用是独立快捷区）。
+   * 落点跟随编辑态（方案 A，2026-10-29）：编辑中进团队草稿，否则进「我的入口」。
    */
   quickAddFromText(text: string): Promise<void>;
   /** 类型筛选（空 = 全部）。 */
@@ -389,7 +390,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
    * 粘贴快捷添加（方案 A）与面板「加为入口」的唯一实现：识别 → 预填 → 打开编辑器。
    * 此前这段逻辑长在 MainWindowShell 里（只服务 Ctrl+V），快捷面板够不着，
    * 面板只好另写一套——"同一件事两个实现"迟早分叉，所以上收到 store。
-   * 识别失败只说清楚原因，绝不静默；落点仍是「我的入口」+ 新建编辑器（可改名字与分组）。
+   * 识别失败只说清楚原因，绝不静默；落点跟随编辑态：编辑中进团队草稿，
+   * 否则进「我的入口」（新建编辑器里仍可改名字与分组）。
    */
   const quickAddFromText = useCallback(
     async (text: string) => {
@@ -415,10 +417,12 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
                 id: '', name: identified.name, type: 'folder', target: identified.target,
                 sort: 0, description: null, icon: { kind: 'local' }, iconAssetHash: null, updatedAt: now,
               };
-      setTab('personal');
-      setEntryEditor({ mode: 'create', groupId: null, scope: 'personal', prefill });
+      const scope = quickAddScope({ editing: editingLock });
+      /* 编辑中只能停在主页 / 团队；落到团队草稿时把页面带回团队，确认后能立刻看到新卡片。 */
+      setTab(scope === 'team' ? 'team' : 'personal');
+      setEntryEditor({ mode: 'create', groupId: null, scope, prefill });
     },
-    [push, setTab],
+    [editingLock, push, setTab],
   );
 
   const value = useMemo<WorkbenchCtx>(

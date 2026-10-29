@@ -46,19 +46,27 @@ export function EntryEditDialogView() {
     closeEntryEditor();
   };
 
+  /* 团队编辑态新建也给出分组选择（方案 A 的团队快捷添加必须能选落点）：
+     草稿里已有多个分组时渲染下拉；只有一个/没有时 createEntry 自己回落到首组或「其他」。
+     团队**编辑**仍不提供改组——saveEntry 只做原位替换，不给一个改了不生效的控件。 */
+  const teamGroups = edit.draft?.groups ?? [];
   const groupOptions =
     scope === 'personal'
       ? (personal.config.groups.length > 0
           ? personal.config.groups.map((g) => ({ id: g.id, name: g.name }))
           : [{ id: '', name: '我的入口' }])
-      : undefined;
+      : mode === 'create'
+        ? teamGroups.map((g) => ({ id: g.id, name: g.name }))
+        : undefined;
 
   /** 新建：来自「在此组添加」的锁定目标；编辑：预选入口当前所在组（分组选择器仍可改）。 */
   const initialGroupId =
     mode === 'create' ? (entryEditor.groupId ?? null) : null;
   const currentGroupId =
     mode === 'edit' && initial
-      ? (personal.config.groups.find((g) => g.entries.some((e) => e.id === initial.id))?.id ?? null)
+      ? scope === 'personal'
+        ? (personal.config.groups.find((g) => g.entries.some((e) => e.id === initial.id))?.id ?? null)
+        : (teamGroups.find((g) => g.entries.some((e) => e.id === initial.id))?.id ?? null)
       : null;
 
   return (

@@ -1,6 +1,6 @@
 {
   "name": "teamlaunch",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "description": "TeamLaunch - Windows 桌面端团队统一入口启动器",
@@ -39,7 +39,8 @@
     "verify:programs": "node --experimental-transform-types scripts/verify-programs.mjs",
     "verify:surface": "node --experimental-transform-types scripts/verify-surface.mjs",
     "verify:toolbar": "node --experimental-transform-types scripts/verify-toolbar.mjs",
-    "verify:all": "npm run verify:p0 && npm run verify:tokens && npm run verify:icons && npm run verify:openapi && npm run verify:schema && npm run verify:deps && npm run verify:programs && npm run verify:surface && npm run verify:toolbar && npm run guard:server && npm run smoke:server && npm run verify:sync && npm run verify:wiring",
+    "verify:quick-add": "node --experimental-transform-types scripts/verify-quick-add.mjs",
+    "verify:all": "npm run verify:p0 && npm run verify:tokens && npm run verify:icons && npm run verify:openapi && npm run verify:schema && npm run verify:deps && npm run verify:programs && npm run verify:surface && npm run verify:toolbar && npm run verify:quick-add && npm run guard:server && npm run smoke:server && npm run verify:sync && npm run verify:wiring",
     "smoke:server": "node --experimental-transform-types scripts/smoke-server.mjs",
     "verify:wiring": "node --experimental-transform-types scripts/verify-main-wiring.mjs",
     "verify:sync": "node --experimental-transform-types scripts/verify-sync-client.mjs",

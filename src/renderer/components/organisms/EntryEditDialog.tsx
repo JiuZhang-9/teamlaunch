@@ -24,7 +24,7 @@ export interface EntryEditDialogProps {
   /** team = 团队草稿；personal = 我的入口（标题与落库语义不同，表单同构）。 */
   scope?: 'team' | 'personal';
   initial: Entry | null;
-  /** personal 新建时可选的目标分组列表；缺省不渲染分组选择。 */
+  /** 新建时可选的目标分组列表（个人页与团队编辑态共用）；缺省不渲染分组选择。 */
   groupOptions?: Array<{ id: string; name: string }>;
   /**
    * 已确定的目标分组（从「在此组添加」进入时非空）：
@@ -34,7 +34,7 @@ export interface EntryEditDialogProps {
   initialGroupId?: string | null;
   /** 编辑态的当前分组：只是预选值（可改组=编辑时顺带迁移），与 initialGroupId 的"锁死"不同。 */
   currentGroupId?: string | null;
-  /** groupId 仅在渲染过分组选择时携带（personal 新建/编辑）。 */
+  /** groupId 仅在渲染过分组选择时携带（个人页新建/编辑、团队编辑态新建）。 */
   onConfirm(entry: Entry, groupId: string | null): void;
   onCancel(): void;
 }
