@@ -10,8 +10,9 @@
  *
  * 1.4.0：结果区抽成 `PaletteResults`，与主窗口搜索共用同一套渲染规则。
  */
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Monitor } from 'lucide-react';
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import { Button } from '../atoms/Button.tsx';
 import { SearchInput } from '../atoms/SearchInput.tsx';
 import { PaletteResults } from './PaletteResults.tsx';
 import type { PaletteHit } from '../../lib/palette-source.ts';
@@ -159,14 +160,30 @@ export function MiniPalette(props: MiniPaletteProps) {
             <span className="h-1 w-10 rounded-[var(--radius-pill)]" style={{ background: 'var(--border-strong)' }} />
           </div>
         )}
-        <SearchInput
-          ref={inputRef}
-          variant="palette"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-          aria-label={scope === 'programs' ? '搜索本机程序（开始菜单）' : '搜索入口、程序或路径'}
-          placeholder={scope === 'programs' ? '搜索本机程序（开始菜单）' : '搜索入口、程序或路径'}
-        />
+        <div className="flex shrink-0 items-center gap-2">
+          <SearchInput
+            ref={inputRef}
+            variant="palette"
+            className="flex-1"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            aria-label={scope === 'programs' ? '搜索本机程序（开始菜单）' : '搜索入口、程序或路径'}
+            placeholder={scope === 'programs' ? '搜索本机程序（开始菜单）' : '搜索入口、程序或路径'}
+          />
+          {/* 1.5.3 用户要求：搜索框右侧一个可见的「打开主窗口」按钮，
+              和 Ctrl+Tab 同一个动作；只在独立快捷窗口里显示（主窗口内的浮层不需要）。 */}
+          {docked && (
+            <Button
+              tone="ghost"
+              size="md"
+              icon={Monitor}
+              iconSize={20}
+              aria-label="打开主窗口"
+              title="打开主窗口（Ctrl+Tab）"
+              onClick={onEnterMain}
+            />
+          )}
+        </div>
         <div className="mt-2 h-px w-full bg-[var(--border-subtle)]" />
 
         <PaletteResults

@@ -20,6 +20,8 @@ const KEYS = {
   'Ctrl+Tab': { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 2 },
   'Ctrl+W': { key: 'w', code: 'KeyW', windowsVirtualKeyCode: 87, modifiers: 2 },
   'Ctrl+F': { key: 'f', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 2 },
+  'Ctrl+Q': { key: 'q', code: 'KeyQ', windowsVirtualKeyCode: 81, modifiers: 2 },
+  'Ctrl+E': { key: 'e', code: 'KeyE', windowsVirtualKeyCode: 69, modifiers: 2 },
   ArrowRight: { key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39, modifiers: 0 },
   ArrowLeft: { key: 'ArrowLeft', code: 'ArrowLeft', windowsVirtualKeyCode: 37, modifiers: 0 },
   ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40, modifiers: 0 },

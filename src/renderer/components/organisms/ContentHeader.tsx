@@ -78,6 +78,10 @@ export function ContentHeader(props: ContentHeaderProps) {
     };
     /* 1.5.1：外壳的 Ctrl+F 是开关，只在"要打开"时派发 -open；关闭由外壳处理。 */
     window.addEventListener('tl:focus-search-open', onFocusSearch);
+    /* 首帧默认聚焦搜索框（用户要求主窗口打开即聚焦）：
+       挂载时输入框可能已被窗口默认焦点占住，focus() 不再触发 onFocus；
+       这里主动调一次，保证搜索态跟着置真、快速打开面板直接出现。 */
+    onFocusSearch();
     return () => window.removeEventListener('tl:focus-search-open', onFocusSearch);
   }, []);
 
@@ -137,24 +141,26 @@ export function ContentHeader(props: ContentHeaderProps) {
   );
 
   const canRefresh = snapshot ? syncPresentation(snapshot).refreshEnabled : true;
-  const currentPage = PAGE_ITEMS.find((p) => p.key === tab) ?? PAGE_ITEMS[1];
-  const pageItems = PAGE_ITEMS.map((p) => ({
-    id: p.key,
-    label: p.label,
-    disabledReason:
-      p.key === tab
-        ? '当前页面'
-        : p.key === 'personal' && mode === 'editing'
-          ? '编辑中：先退出编辑模式再切换页面'
-          : undefined,
-    onSelect: () => onSwitchTab?.(p.key),
-  }));
+  /** 搜索框后的一键切换：团队页显示「我的入口」，我的页显示「团队入口」。 */
+  const targetPage = tab === 'personal' ? PAGE_ITEMS[1] : PAGE_ITEMS[2];
+  const targetBlocked = targetPage.key === 'personal' && mode === 'editing';
+  const targetReason = targetBlocked ? '编辑中：先退出编辑模式再切换页面' : undefined;
 
   return (
     <div
       className="relative flex h-[var(--content-header-h)] shrink-0 items-center gap-2 border-b border-[var(--border-subtle)] px-[var(--space-6)]"
       style={{ background: 'var(--bg-surface)' }}
     >
+      {/* 搜索框前的「主页」小房子（1.5.3 用户要求：不用快捷键也能回主页）。 */}
+      <Button
+        tone="ghost"
+        icon={House}
+        iconSize={20}
+        aria-label="主页"
+        title="回到主页"
+        onClick={() => onSwitchTab?.('home')}
+      />
+
       <div data-tl-search-surface className="min-w-[160px] max-w-[420px] flex-1">
         <SearchInput
           ref={searchRef}
@@ -166,7 +172,12 @@ export function ContentHeader(props: ContentHeaderProps) {
           onFocus={onSearchFocus}
           /* 输入框可能已经带焦点（切页后 searchFocused 被重置）：再点一下也要把搜索态打开。 */
           onClick={onSearchFocus}
-          onBlur={onSearchBlur}
+          onBlur={(e) => {
+            /* 窗口失焦（relatedTarget=null）不退出搜索：切到别的应用再回来，
+               搜索框和结果应该还在。真正的"点外面退出"由外壳的 mousedown 负责。 */
+            if (e.relatedTarget === null) return;
+            onSearchBlur?.();
+          }}
           onKeyDown={(e) => {
             if (e.key !== 'Escape') return;
             /* 输入法组词中 Esc 是取消候选，不能拿来清空/退出搜索。 */
@@ -180,14 +191,21 @@ export function ContentHeader(props: ContentHeaderProps) {
         />
       </div>
 
-      {/* 页面切换（1.5.1）：搜索框后的一个按钮，不按快捷键也能换主页 / 团队 / 我的。 */}
-      <MenuButton
-        ariaLabel="切换页面"
-        label={currentPage.label}
-        icon={currentPage.icon}
-        align="right"
-        items={pageItems}
-      />
+      {/* 搜索框后的一键切换：显示目标页（团队 ↔ 我的），不再下拉。 */}
+      <Button
+        tone="ghost"
+        size="sm"
+        icon={targetPage.icon}
+        iconSize={16}
+        aria-label={`切换到${targetPage.label}`}
+        softDisabled={targetBlocked}
+        title={targetReason ?? `切换到${targetPage.label}`}
+        onDisabledClick={() => blockReason(targetReason)}
+        onClick={() => onSwitchTab?.(targetPage.key)}
+        className="shrink-0"
+      >
+        {targetPage.label}
+      </Button>
 
       {/* 工作栏动作：能放下的直接显示，其余进「更多」。
           只裁剪按钮行本身（overflow-hidden 兜住亚像素误差）；「更多」按钮放在裁剪区外，

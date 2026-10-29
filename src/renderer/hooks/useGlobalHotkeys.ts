@@ -4,7 +4,7 @@
  * 键位定义表在 shared/app-hotkeys.ts（默认值 + 标签 + 匹配器）；
  * settings.appHotkeys 的用户覆盖由调用方合并后传入本 hook。
  * 默认键位：
- *   Ctrl+Q / Ctrl+E   切换团队 / 我的入口（不占用数字位，便于将来新增页签）
+ *   Ctrl+Q / Ctrl+E   循环切换页面（Q 正序：主页 → 团队 → 我的；E 反序）
  *   Ctrl+N            新建入口（跟随当前页）
  *   Ctrl+F            搜索栏开关（已打开则退出；用自定义事件广播，避免把 ref 传进 hook）
  *   F5                立即拉取一次
@@ -24,8 +24,10 @@ import { useEffect } from 'react';
 import { acceleratorMatches } from '../../shared/app-hotkeys.ts';
 
 export interface GlobalHotkeyHandlers {
-  onTabTeam(): void;
-  onTabPersonal(): void;
+  /** Ctrl+Q：正序循环 主页 → 团队 → 我的。 */
+  onCycleNext(): void;
+  /** Ctrl+E：反序循环 我的 → 团队 → 主页。 */
+  onCyclePrev(): void;
   onRefresh(): void;
   onToggleMini(): void;
   /**
@@ -55,7 +57,7 @@ export interface GlobalHotkeyHandlers {
 
 export function useGlobalHotkeys(h: GlobalHotkeyHandlers): void {
   const {
-    onTabTeam, onTabPersonal, onRefresh, onToggleMini, onSwitchToPalette,
+    onCycleNext, onCyclePrev, onRefresh, onToggleMini, onSwitchToPalette,
     onOpenSettings, onToggleEdit, onPublish, onNewEntry, onToggleSidebar, onShowShortcuts, canPublish, appHotkeys,
     onSelectAll,
   } = h;
@@ -85,11 +87,11 @@ export function useGlobalHotkeys(h: GlobalHotkeyHandlers): void {
         switch (action) {
           case 'tabTeam':
             e.preventDefault();
-            onTabTeam();
+            onCycleNext();
             return;
           case 'tabPersonal':
             e.preventDefault();
-            onTabPersonal();
+            onCyclePrev();
             return;
           case 'newEntry':
             e.preventDefault();
@@ -142,5 +144,5 @@ export function useGlobalHotkeys(h: GlobalHotkeyHandlers): void {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [appHotkeys, onTabTeam, onTabPersonal, onRefresh, onToggleMini, onSwitchToPalette, onOpenSettings, onToggleEdit, onPublish, onNewEntry, onToggleSidebar, onShowShortcuts, canPublish]);
+  }, [appHotkeys, onCycleNext, onCyclePrev, onRefresh, onToggleMini, onSwitchToPalette, onOpenSettings, onToggleEdit, onPublish, onNewEntry, onToggleSidebar, onShowShortcuts, canPublish]);
 }

@@ -52,6 +52,7 @@ import { useSettings } from '../../store/settingsStore.tsx';
 import { useSync } from '../../store/syncStore.tsx';
 import { useToasts } from '../../store/toastStore.tsx';
 import { useWorkbench } from '../../store/workbenchStore.tsx';
+import type { TabKey } from '../../store/workbenchStore.tsx';
 import { WindowSearchView } from '../../pages/WindowSearchView.tsx';
 import { TeamEntriesView } from '../../pages/TeamEntriesView.tsx';
 import { PersonalEntriesView } from '../../pages/PersonalEntriesView.tsx';
@@ -115,6 +116,8 @@ export function MainWindowShell() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const lastRevision = useRef(snapshot.revision);
   const scrollTop = useRef<Record<string, number>>({ team: 0, personal: 0 });
+  /** 跳过 [tab, editing] effect 的首次挂载：启动时那次"关闭搜索"会覆盖默认聚焦。 */
+  const didMountTab = useRef(false);
 
   const p = syncPresentation(snapshot);
   const debouncedQuery = useDebouncedValue(query, 120);
@@ -261,7 +264,7 @@ export function MainWindowShell() {
   );
 
   /* 搜索态：输入框聚焦（空查询 = 快速打开）或已有查询词；编辑态不参与搜索。 */
-  const showSearch = !editing && (searching || searchFocused);
+  const showSearch = tab !== 'home' && !editing && (searching || searchFocused);
   const quickAccess = showSearch && !searching;
 
   /* 搜索结果的图标：当前 Tab 的卡片图标已有；固定/最近可能来自另一页，按命中补取。 */
@@ -305,10 +308,21 @@ export function MainWindowShell() {
     };
   }, [showSearch, gateBlocking]);
 
-  /* 切页 / 进出编辑时收起搜索态：输入框可能还留着焦点，但当前页已经换了。 */
+  /* 切页 / 进出编辑时收起搜索态：输入框可能还留着焦点，但当前页已经换了。
+     首次挂载跳过——启动时那次会把"默认聚焦搜索"刚置真的状态又关掉。 */
   useEffect(() => {
+    if (!didMountTab.current) {
+      didMountTab.current = true;
+      return;
+    }
     setSearchFocused(false);
   }, [tab, editing]);
+
+  /* 启动即显示：默认把搜索态置真（输入框由 ContentHeader 挂载时聚焦）。
+     不依赖 visibilitychange——窗口可能在 effect 挂载前就已经显示，事件错过了。 */
+  useEffect(() => {
+    setSearchFocused(true);
+  }, []);
 
   /** 关闭搜索：清空查询 + 失焦，回到当前页的卡片视图。 */
   const closeSearch = useCallback(() => {
@@ -510,6 +524,15 @@ export function MainWindowShell() {
         setSearchIndex((i) => (i - 1 + hits.length) % hits.length);
         return;
       }
+      if (e.key === 'Tab') {
+        /* 纯 Tab / Shift+Tab 在搜索态里循环选中项（和快捷窗口一致）；
+           Ctrl+Tab 留给"切到快捷窗口"的全局热键，Alt+Tab 留给系统。 */
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        const dir = e.shiftKey ? -1 : 1;
+        setSearchIndex((i) => (i + dir + hits.length) % hits.length);
+        return;
+      }
       if (e.key === 'Enter') {
         e.preventDefault();
         if ((e.ctrlKey || e.metaKey) && (current.kind === 'system' || current.kind === 'clip-new')) handleSearchAdd(current);
@@ -591,9 +614,20 @@ export function MainWindowShell() {
      走与 Ctrl+V 粘贴添加完全同一条流程（识别与预填在 workbenchStore）。 */
   useEffect(() => api.events.onQuickAdd((text) => void quickAddFromText(text)), [quickAddFromText]);
   /* ---------------- 全局键位（键位表见 useGlobalHotkeys） ---------------- */
+  /** Ctrl+Q / Ctrl+E：按 主页 → 团队 → 我的 正/反循环；编辑态跳过「我的入口」。 */
+  const cycleTab = useCallback(
+    (delta: 1 | -1) => {
+      const order: TabKey[] = ['home', 'team', 'personal'];
+      const allowed = editing ? order.filter((t) => t !== 'personal') : order;
+      const i = allowed.indexOf(tab);
+      const next = allowed[(i + delta + allowed.length) % allowed.length];
+      setTab(next);
+    },
+    [tab, editing, setTab],
+  );
   useGlobalHotkeys({
-    onTabTeam: () => setTab('team'),
-    onTabPersonal: () => setTab('personal'),
+    onCycleNext: () => cycleTab(1),
+    onCyclePrev: () => cycleTab(-1),
     onRefresh: () => void refresh(),
     onToggleMini: () => setMiniOpen((v) => !v),
     /* Ctrl+Tab：主窗口 → 快捷面板（2026-10-21）。托盘开启时主进程会把本窗口藏到托盘，
