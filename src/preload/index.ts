@@ -304,6 +304,8 @@ const api: TeamLaunchApi = {
         cb({ scope: p?.scope ?? 'entries' }),
       ),
     onPaletteHidden: (cb) => subscribe<void>('tl:palette-hidden', () => cb()),
+    /** 主窗口被重新唤起（热键 / 托盘 / 通知）：渲染层据此聚焦搜索并重读剪贴板。 */
+    onMainShown: (cb) => subscribe<void>('tl:main-shown', () => cb()),
     onSettingsChanged: (cb) => subscribe<Settings>('tl:settings', cb),
     /** 任意窗口改了「我的入口」都广播到这里：快捷面板不重启也能搜到新加的入口。 */
     onPersonalChanged: (cb) => subscribe<PersonalConfig>('tl:personal', cb),

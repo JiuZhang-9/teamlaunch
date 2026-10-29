@@ -4,7 +4,7 @@
  * "退出"走 app.quit()——退出标记（lifecycle.markQuitting）会让 palette 放行 close，
  * 退出因此真正完成，而不是像过去那样被面板窗口无声取消。
  */
-import { Menu, Tray, app, nativeImage } from 'electron';
+import { dialog, Menu, Tray, app, nativeImage } from 'electron';
 import path from 'node:path';
 import { showMainWindow, showPalette } from './windowManager.ts';
 
@@ -33,6 +33,27 @@ export function createTray(actions: { refresh(): void }): Tray | null {
     { label: '唤起搜索', click: () => showPalette() },
     { label: '刷新团队入口', click: () => actions.refresh() },
     { type: 'separator' },
+    {
+      /* 2026-10-29 用户要求：故障时快速重启刷新状态。
+         重启走正常退出流程（before-quit 会 markQuitting + 停服务），再由 Electron 拉起同参数新实例。
+         未发布的团队草稿只在内存里，必须确认一次，不能假装它能保留。 */
+      label: '重启',
+      click: () => {
+        const choice = dialog.showMessageBoxSync({
+          type: 'warning',
+          buttons: ['重启', '取消'],
+          /* 默认落在「取消」：误按回车不该把未发布的草稿弄丢。 */
+          defaultId: 1,
+          cancelId: 1,
+          title: '重启 TeamLaunch',
+          message: '确定重启 TeamLaunch 吗？',
+          detail: '未发布的团队改动只保存在内存里，重启后会丢失。',
+        });
+        if (choice !== 0) return;
+        app.relaunch();
+        app.quit();
+      },
+    },
     { label: '退出', click: () => app.quit() },
   ]);
 

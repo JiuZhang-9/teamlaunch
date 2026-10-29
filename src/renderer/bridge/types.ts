@@ -593,6 +593,8 @@ export interface TeamLaunchApi {
     /** 面板显示：payload.scope 决定本次是入口搜索还是本机程序搜索。 */
     onPaletteShown(cb: (info: { scope: 'entries' | 'programs' }) => void): () => void;
     onPaletteHidden(cb: () => void): () => void;
+    /** 主窗口被重新唤起（热键 / 托盘 / 通知）：搜索框聚焦并重读剪贴板。 */
+    onMainShown(cb: () => void): () => void;
     /** 任意窗口改了设置都广播到这里：跨窗口主题/热键/缩放同步的唯一通道。 */
     onSettingsChanged(cb: (settings: Settings) => void): () => void;
     /**

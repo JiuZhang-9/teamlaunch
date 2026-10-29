@@ -39,9 +39,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 `docs/design-system/`｜分发与现场排障 `docs/DELIVERY.md`｜开发细节 `docs/DEVELOPMENT.md`｜
 决策与待办登记 `docs/decisions/OPEN-DECISIONS.md` + `docs/decisions/ADR-001..008`
 
-## 当前状态（2026-10-27）
+## 当前状态（2026-10-29）
 
-- v1.0.13 起逐版发布到 **v1.5.3**（latest = v1.5.3；自 1.1.0 起小修改按最后一位递增，
+- v1.0.13 起逐版发布到 **v1.5.4**（latest = v1.5.4；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
 - 用户反馈多批：v1.0.33（隐私门披露 / 书签两步 / 更新进度环）、v1.0.34（窗口尺寸记忆 / 卡片框选 /
   分组多选删 / 组名点击改名）、v1.0.35（连锁收藏 / 面板透明度 / Ctrl+空格 / Ctrl+Tab / 图标重画）、
@@ -61,7 +61,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   主窗口打开默认聚焦搜索 / Ctrl+F 开关 + 点外部退出 / 搜索框后页面切换按钮）、
   v1.5.2（两个窗口空格进入 / 主窗口搜索补方向键+回车+空格+Ctrl+回车 / 输入法组词中不拦截）、
   v1.5.3（主窗口搜索 Tab 循环 / 搜索前小房子回主页 + 搜索后目标页一键切换 /
-  快捷窗口打开主窗口按钮 / Ctrl+Q·E 正反循环切页 / 启动搜索态修复）
+  快捷窗口打开主窗口按钮 / Ctrl+Q·E 正反循环切页 / 启动搜索态修复）、
+  v1.5.4（托盘重启 + 未发布草稿确认 / 拖拽覆层看门狗 / Ctrl+Space 唤起后空格直接打开剪贴板候选；
+  新增 `tl:main-shown` 推送通道）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、
@@ -75,3 +77,4 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   根治要把项目目录 + `%LOCALAPPDATA%\electron-builder\Cache` 加信任区
 - 每批固定流程：门禁五项全绿（`verify:qa-http` 单独补跑）→ **完整 `npm run build`** → electron-builder 到 `%TEMP%` →
   改名 `.bin` 拷回 → sha512 对 `latest.yml` + SHA256SUMS → 打包产物自验（隔离档案 + CDP）→ 发 Release
+

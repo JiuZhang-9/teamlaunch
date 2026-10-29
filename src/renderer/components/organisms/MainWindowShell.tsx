@@ -89,6 +89,8 @@ export function MainWindowShell() {
   const [searchFocused, setSearchFocused] = useState(false);
   /** 搜索框聚焦时读一次的剪贴板候选（不持续监听）。 */
   const [clip, setClip] = useState<ClipboardCandidate | null>(null);
+  /** 搜索面每次被重新唤起（窗口显示 / Ctrl+F 打开）自增：用于重读剪贴板并回到第一条。 */
+  const [searchEpoch, setSearchEpoch] = useState(0);
   const [confirmExit, setConfirmExit] = useState(false);
   const [importOutcome, setImportOutcome] = useState<ImportOutcome>(null);
   const [updateBanner, setUpdateBanner] = useState<string | null>(null);
@@ -279,6 +281,15 @@ export function MainWindowShell() {
     if (searchIndex > hits.length - 1) setSearchIndex(0);
   }, [hits.length, searchIndex]);
 
+  /* 搜索重新打开 / 查询清空时回到第一条（2026-10-29 用户反馈）：
+     空查询的第一条是剪贴板候选，Ctrl+Space 唤起主窗口后直接空格就能打开它，
+     不用再按一次 Tab 绕回来。输入查询词时如果剪贴板候选置顶，
+     第一条搜索结果在它后面（和快捷窗口的选中规则一致）。 */
+  useEffect(() => {
+    if (!showSearch) return;
+    setSearchIndex(searching && clip ? 1 : 0);
+  }, [showSearch, searching, clip, searchEpoch]);
+
   /* 软更新到达：只提示一次，不打断焦点（AC-08） */
   useEffect(() => {
     const prev = lastRevision.current;
@@ -306,7 +317,7 @@ export function MainWindowShell() {
     return () => {
       cancelled = true;
     };
-  }, [showSearch, gateBlocking]);
+  }, [showSearch, gateBlocking, searchEpoch]);
 
   /* 切页 / 进出编辑时收起搜索态：输入框可能还留着焦点，但当前页已经换了。
      首次挂载跳过——启动时那次会把"默认聚焦搜索"刚置真的状态又关掉。 */
@@ -355,6 +366,9 @@ export function MainWindowShell() {
     const focusSearch = () => {
       /* 同理：窗口显示时输入框可能已带焦点，focus() 不触发 onFocus，状态要自己置真。 */
       setSearchFocused(true);
+      /* 窗口被重新唤起：剪贴板可能已经换了内容，选中项也回到第一条
+         （Ctrl+Space → 空格 直接打开剪贴板候选，2026-10-29 用户反馈）。 */
+      setSearchEpoch((n) => n + 1);
       window.dispatchEvent(new Event('tl:focus-search-open'));
     };
     const timer = document.visibilityState === 'visible' ? window.setTimeout(focusSearch, 0) : null;
@@ -366,6 +380,17 @@ export function MainWindowShell() {
       if (timer !== null) window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
+  }, []);
+
+  /* 主进程明确通知"主窗口被唤起"（2026-10-29）：窗口只是被别的应用挡住时
+     visibilitychange 不会触发，Ctrl+Space 只做 show + focus。没有这条通道，
+     搜索框虽然拿到了焦点，但剪贴板候选可能还是旧的、选中项也停在上次的位置。 */
+  useEffect(() => {
+    return api.events.onMainShown(() => {
+      setSearchFocused(true);
+      setSearchEpoch((n) => n + 1);
+      window.dispatchEvent(new Event('tl:focus-search-open'));
+    });
   }, []);
 
   /* 点击搜索框 / 结果区以外的地方（顶栏、侧栏、工作栏按钮等）退出搜索。 */
@@ -714,7 +739,13 @@ export function MainWindowShell() {
       3. 结果如实汇报：加了几条、哪几条认不出来（原因来自 identify，不猜）。 */
   const [dropActive, setDropActive] = useState(false);
   const [dropGroupName, setDropGroupName] = useState<string | null>(null);
-  const dragDepth = useRef(0);
+  /**
+   * 拖拽看门狗（2026-10-29 用户反馈：移开软件后覆层不消失）。
+   * 不再靠 enter/leave 计数——dragleave 阶段的 dataTransfer.types 不可靠，
+   * 拖出窗口/在外部落下时 dragleave 也可能根本不来。改为每次 dragover 续命，
+   * 超过 600ms 没有新的 dragover 就认为拖拽已离开/结束，自己收掉覆层。
+   */
+  const dropWatchdog = useRef<number | null>(null);
   /** 当前被高亮的分组 section（dragover 每帧换目标时先摘旧的）。 */
   const dropGroupElRef = useRef<HTMLElement | null>(null);
 
@@ -739,37 +770,75 @@ export function MainWindowShell() {
   }, []);
 
   const clearDropUi = useCallback(() => {
-    dragDepth.current = 0;
+    if (dropWatchdog.current !== null) {
+      window.clearTimeout(dropWatchdog.current);
+      dropWatchdog.current = null;
+    }
     setDropActive(false);
     setDropGroupName(null);
     markDropGroup(null);
   }, [markDropGroup]);
 
+  /** 每次 dragover 续命；超时说明拖拽已经离开/结束，覆层必须自己收。 */
+  const armDropWatchdog = useCallback(() => {
+    if (dropWatchdog.current !== null) window.clearTimeout(dropWatchdog.current);
+    dropWatchdog.current = window.setTimeout(() => {
+      dropWatchdog.current = null;
+      clearDropUi();
+    }, 600);
+  }, [clearDropUi]);
+
+  /* 组件卸载时别留野定时器。 */
+  useEffect(() => () => {
+    if (dropWatchdog.current !== null) window.clearTimeout(dropWatchdog.current);
+  }, []);
+
+  /* 拖拽在窗口外结束 / 窗口失焦：window 级兜底清一次。 */
+  useEffect(() => {
+    const clear = () => clearDropUi();
+    window.addEventListener('dragend', clear);
+    window.addEventListener('drop', clear);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('dragend', clear);
+      window.removeEventListener('drop', clear);
+      window.removeEventListener('blur', clear);
+    };
+  }, [clearDropUi]);
+
   const onDragEnter = useCallback(
     (e: React.DragEvent) => {
       if (!Array.from(e.dataTransfer.types).includes('Files')) return;
       if (dialog !== 'none' || entryEditor || gateBlocking) return;
-      dragDepth.current += 1;
       setDropActive(true);
+      armDropWatchdog();
     },
-    [dialog, entryEditor, gateBlocking],
+    [dialog, entryEditor, gateBlocking, armDropWatchdog],
   );
-  const onDragLeave = useCallback((e: React.DragEvent) => {
-    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
-    dragDepth.current = Math.max(0, dragDepth.current - 1);
-    if (dragDepth.current === 0) clearDropUi();
-  }, [clearDropUi]);
+
+  const onDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      /* dragleave 阶段不能信 dataTransfer.types；只看指针是不是真的离开了外壳：
+         relatedTarget 为空或不在外壳内才清，仍在子元素之间移动就忽略。 */
+      const next = e.relatedTarget;
+      if (next instanceof Node && e.currentTarget.contains(next)) return;
+      clearDropUi();
+    },
+    [clearDropUi],
+  );
 
   const onDragOverShell = useCallback(
     (e: React.DragEvent) => {
       if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+      if (dialog !== 'none' || entryEditor || gateBlocking) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
+      armDropWatchdog();
       const hit = groupUnderPointer(e.clientX, e.clientY);
       setDropGroupName(hit?.name ?? null);
       markDropGroup(hit?.el ?? null);
     },
-    [groupUnderPointer, markDropGroup],
+    [dialog, entryEditor, gateBlocking, groupUnderPointer, markDropGroup, armDropWatchdog],
   );
 
   const onDropFiles = useCallback(

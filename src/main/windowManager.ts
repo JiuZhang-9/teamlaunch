@@ -290,6 +290,10 @@ function focusMainWindow(): boolean {
   mainWindow.show();
   mainWindow.focus();
   activeSurface = 'main';
+  /* 通知渲染层"主窗口被重新唤起"（2026-10-29）：可见性变化只在隐藏/最小化时触发，
+     被别的窗口挡住时 Ctrl+Space 只会 focus，不会触发 visibilitychange。
+     渲染层收到后把搜索框置真并重读剪贴板、选中项回到第一条。 */
+  mainWindow.webContents.send('tl:main-shown');
   return true;
 }
 
