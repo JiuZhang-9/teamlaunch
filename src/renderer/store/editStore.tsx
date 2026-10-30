@@ -103,6 +103,26 @@ export function EditProvider({ children }: { children: ReactNode }) {
   const pushRef = useRef(push);
   pushRef.current = push;
 
+  /**
+   * R23 的 editStore 分支（2026-10-30）：首帧同步读 preload 缓存时，预热可能还没完成，
+   * `api.settings.get().role` 还是默认 member，`unlocked` 会被初始化成 false；随后
+   * settings 预热成 admin，但这里不会自己补回来——表现就是"点编辑模式突然要口令"。
+   * 预热完成后按真实角色补一次，且只补一次：之后 idle lock 清掉的 unlocked
+   * 不能被这条 effect 又解回去。
+   */
+  const initialRoleApplied = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    void api.ready.then(() => {
+      if (cancelled || initialRoleApplied.current) return;
+      initialRoleApplied.current = true;
+      setUnlocked(api.settings.get().role === 'admin');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /** 关闭管理员模式 = 编辑会话立即回收：解锁态、编辑态、草稿全部清空。
       此前只停了本机服务，界面上的编辑能力原样保留——开关形同虚设。 */
   useEffect(() => {

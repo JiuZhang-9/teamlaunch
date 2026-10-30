@@ -126,22 +126,25 @@ try {
   await stopEmbeddedService();
   check('优雅关闭无异常', true);
 
-  /* R23（2026-10-17）：渲染层首帧同步读 preload 缓存，而预热是异步的——首帧抢先时读到
-     默认值（隐私门重弹、「我的入口」空白，重启即好）。修法是"预热完成后重取一次缓存"，
-     前提是 preload 把预热 promise 暴露成 api.ready，两个 store 都必须 await 它。
-     这是**源码级**断言（真实行为在 Electron 渲染层里，node 跑不到）：防的是有人改回去。 */
+  /* R23（2026-10-17，2026-10-30 补 editStore）：渲染层首帧同步读 preload 缓存，而预热是异步的——
+     首帧抢先时读到默认值（隐私门重弹、「我的入口」空白、管理员角色回 member 后点编辑要口令，
+     重启即好）。修法是"预热完成后重取一次缓存"，前提是 preload 把预热 promise 暴露成 api.ready，
+     三个 store 都必须 await 它。这是**源码级**断言（真实行为在 Electron 渲染层里，node 跑不到）：
+     防的是有人改回去。 */
   {
     const { readFileSync } = await import('node:fs');
     const preload = readFileSync('src/preload/index.ts', 'utf8');
     const settingsStore = readFileSync('src/renderer/store/settingsStore.tsx', 'utf8');
     const personalStore = readFileSync('src/renderer/store/personalStore.tsx', 'utf8');
+    const editStore = readFileSync('src/renderer/store/editStore.tsx', 'utf8');
     const exposed = preload.includes('const ready: Promise<void> = (async') && /\n\s+ready,/.test(preload);
     const settingsReRead = settingsStore.includes('api.ready.then') && settingsStore.includes('api.settings.get()');
     const personalReRead = personalStore.includes('api.ready.then') && personalStore.includes('api.personal.get()');
+    const editRoleReRead = editStore.includes('api.ready.then') && editStore.includes('api.settings.get().role');
     check(
-      'R23 缓存竞态：preload 暴露 ready，settings / personal 都在 ready 后重取',
-      exposed && settingsReRead && personalReRead,
-      `preload=${exposed ? 'ok' : '缺'}，settings=${settingsReRead ? 'ok' : '缺'}，personal=${personalReRead ? 'ok' : '缺'}`,
+      'R23 缓存竞态：preload 暴露 ready，settings / personal / edit 角色都在 ready 后重取',
+      exposed && settingsReRead && personalReRead && editRoleReRead,
+      `preload=${exposed ? 'ok' : '缺'}，settings=${settingsReRead ? 'ok' : '缺'}，personal=${personalReRead ? 'ok' : '缺'}，edit=${editRoleReRead ? 'ok' : '缺'}`,
     );
   }
 } finally {
