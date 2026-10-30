@@ -35,8 +35,9 @@ export interface HotkeyConflictInfo {
 }
 
 export const DEFAULT_APP_HOTKEYS: Record<AppHotkeyAction, string> = {
-  tabTeam: 'Ctrl+Q',
-  tabPersonal: 'Ctrl+E',
+  /* 2026-10-30 用户要求对调默认键：E 正序、Q 反序。 */
+  tabTeam: 'Ctrl+E',
+  tabPersonal: 'Ctrl+Q',
   newEntry: 'Ctrl+N',
   focusSearch: 'Ctrl+F',
   refresh: 'F5',

@@ -74,7 +74,7 @@ identity.json          匿名设备标识
 credential.json        仅管理员：口令派生参数（删除它即可重设口令）
 cache\team-current.json  团队配置缓存
 config\personal.json     个人入口（本机，不上网）
-config\favorites.json    主页收藏（本机）
+config\favorites.json    收藏（主页 + 快捷窗口共用一份；本机）
 config\chains.json       连锁收藏（2026-10-19 起：名称 + 入口 id 顺序 + 间隔，只在本机）
 config\window-layouts.json 连锁记住的窗口位置（2026-10-19 起；记一次后启动时摆位）
 config\update-pending.json 已下载待安装的更新（2026-10-20 起；删掉它＝下次重新下载）

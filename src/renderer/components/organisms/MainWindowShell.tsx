@@ -43,7 +43,7 @@ import {
   type PaletteHit,
 } from '../../lib/palette-source.ts';
 import { usePrograms } from '../../lib/programs.ts';
-import { usePinnedEntryIds } from '../../lib/pinnedEntries.ts';
+import { useFavorites } from '../../store/favoriteStore.tsx';
 import { useRecentOpenIds } from '../../lib/recentOpens.ts';
 import { syncPresentation } from '../../services/syncCopy.ts';
 import { useEdit } from '../../store/editStore.tsx';
@@ -86,7 +86,7 @@ export function MainWindowShell() {
 
   const [miniOpen, setMiniOpen] = useState(false);
   const [searchIndex, setSearchIndex] = useState(0);
-  /** 搜索框是否聚焦（1.4.0）：聚焦且未输入时显示固定 + 最近打开的快速打开面板。 */
+  /** 搜索框是否聚焦（1.4.0）：聚焦且未输入时显示收藏 + 最近打开的快速打开面板。 */
   const [searchFocused, setSearchFocused] = useState(false);
   /** 搜索框聚焦时读一次的剪贴板候选（不持续监听）。 */
   const [clip, setClip] = useState<ClipboardCandidate | null>(null);
@@ -235,14 +235,14 @@ export function MainWindowShell() {
 
   /* ---------- 主窗口搜索（1.4.0）：与快捷窗口共用候选/打分/去重 ---------- */
   const programs = usePrograms();
-  const pinnedIds = usePinnedEntryIds();
+  const { favoriteIds } = useFavorites();
   const recentIds = useRecentOpenIds();
-  /** 全部候选（团队 + 本机）：固定/最近/剪贴板去重用。团队侧用已发布配置，不用编辑草稿。 */
+  /** 全部候选（团队 + 本机）：收藏/最近/剪贴板去重用。团队侧用已发布配置，不用编辑草稿。 */
   const allCandidates = useMemo(
     () => buildCandidates(snapshot.config?.groups ?? [], personal.groups),
     [snapshot.config, personal.groups],
   );
-  /** 入口查询只搜当前 Tab（沿用 V-04 纪律）；固定/最近/程序仍是全局。 */
+  /** 入口查询只搜当前 Tab（沿用 V-04 纪律）；收藏/最近/程序仍是全局。 */
   const searchCandidates = useMemo(
     () => allCandidates.filter((c) => (tab === 'personal' ? c.source === '本机' : c.source === '团队')),
     [allCandidates, tab],
@@ -258,19 +258,19 @@ export function MainWindowShell() {
         searchCandidates,
         clip,
         query: debouncedQuery,
-        pinnedIds,
+        favoriteIds,
         recentIds,
         programHits,
         maxRows: MAX_WINDOW_ROWS,
       }),
-    [allCandidates, searchCandidates, clip, debouncedQuery, pinnedIds, recentIds, programHits],
+    [allCandidates, searchCandidates, clip, debouncedQuery, favoriteIds, recentIds, programHits],
   );
 
   /* 搜索态：输入框聚焦（空查询 = 快速打开）或已有查询词；编辑态不参与搜索。 */
   const showSearch = tab !== 'home' && !editing && (searching || searchFocused);
   const quickAccess = showSearch && !searching;
 
-  /* 搜索结果的图标：当前 Tab 的卡片图标已有；固定/最近可能来自另一页，按命中补取。 */
+  /* 搜索结果的图标：当前 Tab 的卡片图标已有；收藏/最近可能来自另一页，按命中补取。 */
   const searchHitEntries = useMemo(
     () => hits.filter((h) => h.kind !== 'clip-new').map((h) => h.entry),
     [hits],
@@ -640,7 +640,7 @@ export function MainWindowShell() {
      走与 Ctrl+V 粘贴添加完全同一条流程（识别与预填在 workbenchStore）。 */
   useEffect(() => api.events.onQuickAdd((text) => void quickAddFromText(text)), [quickAddFromText]);
   /* ---------------- 全局键位（键位表见 useGlobalHotkeys） ---------------- */
-  /** Ctrl+Q / Ctrl+E：按 主页 → 团队 → 我的 正/反循环；编辑态跳过「我的入口」。 */
+  /** Ctrl+E / Ctrl+Q：按 主页 → 团队 → 我的 正/反循环；编辑态跳过「我的入口」。 */
   const cycleTab = useCallback(
     (delta: 1 | -1) => {
       const order: TabKey[] = ['home', 'team', 'personal'];

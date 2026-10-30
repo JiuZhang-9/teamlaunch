@@ -12,8 +12,8 @@ import { GroupListSchema } from './group.ts';
 
 export const WindowHotkeysSchema = z.object({
   toggleSidebar: z.string().default('Ctrl+B'),
-  tabTeam: z.string().default('Ctrl+Q'),
-  tabPersonal: z.string().default('Ctrl+E'),
+  tabTeam: z.string().default('Ctrl+E'),
+  tabPersonal: z.string().default('Ctrl+Q'),
   focusSearch: z.string().default('Ctrl+F'),
   refresh: z.string().default('F5'),
   openSettings: z.string().default('Ctrl+,'),
@@ -25,8 +25,8 @@ export const WindowHotkeysSchema = z.object({
 /** 应用内快捷键默认值（全局唤起热键走 OS 注册，不在此列）。 */
 export const WINDOW_HOTKEY_DEFAULTS: WindowHotkeys = {
   toggleSidebar: 'Ctrl+B',
-  tabTeam: 'Ctrl+Q',
-  tabPersonal: 'Ctrl+E',
+  tabTeam: 'Ctrl+E',
+  tabPersonal: 'Ctrl+Q',
   focusSearch: 'Ctrl+F',
   refresh: 'F5',
   openSettings: 'Ctrl+,',

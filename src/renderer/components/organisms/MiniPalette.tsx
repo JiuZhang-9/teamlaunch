@@ -31,8 +31,10 @@ export interface MiniPaletteProps {
   /** Ctrl+回车（非剪贴板行）＝进入主窗口；面板窗口由调用方收起。 */
   onEnterMain(): void;
   onClose(): void;
-  /** 固定 / 取消固定（右键菜单与固定格右上角的叉）。 */
-  onTogglePin(entryId: string): void;
+  /** 收藏 / 取消收藏（右键菜单与收藏格右上角的叉）。 */
+  onToggleFavorite(entryId: string): void;
+  /** 该入口当前是否已收藏：右键菜单据此显示收藏 / 取消收藏。 */
+  isFavorite(entryId: string): boolean;
   /** 团队数据为空（从未成功同步）时追加一行说明 */
   teamUnavailable: boolean;
   /**
@@ -49,7 +51,7 @@ export interface MiniPaletteProps {
 
 export function MiniPalette(props: MiniPaletteProps) {
   const {
-    open, query, onQueryChange, hits, selectedIndex, onSelectIndex, iconFor, onOpen, onAddToPersonal, onEnterMain, onClose, onTogglePin,
+    open, query, onQueryChange, hits, selectedIndex, onSelectIndex, iconFor, onOpen, onAddToPersonal, onEnterMain, onClose, onToggleFavorite, isFavorite,
     teamUnavailable, docked = false, scope = 'entries', programScanning = false, programError = null,
   } = props;
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -93,7 +95,7 @@ export function MiniPalette(props: MiniPaletteProps) {
         else onOpen(hit);
       }
     } else if (e.key === ' ' || e.code === 'Space') {
-      /* 空格进入（2026-10-27 用户要求，uTools 手感）：空查询时打开固定/最近/剪贴板，
+      /* 空格进入（2026-10-27 用户要求，uTools 手感）：空查询时打开收藏/最近/剪贴板，
          有查询词时打开当前选中结果。搜索是子串匹配，输入 `Visual` 就能出 `Visual Studio`，
          所以不需要为"打空格"再留一个键位。
          带 Shift/Alt/Ctrl 时不拦截：Shift+空格仍可输入字面空格，Ctrl+空格是全局热键。 */
@@ -194,8 +196,9 @@ export function MiniPalette(props: MiniPaletteProps) {
           iconFor={iconFor}
           onOpen={onOpen}
           onAddToPersonal={onAddToPersonal}
-          onTogglePin={onTogglePin}
-          enablePinMenu
+          onToggleFavorite={onToggleFavorite}
+          isFavorite={isFavorite}
+          enableFavoriteMenu
           showAltHints
           scope={scope}
           programScanning={programScanning}
@@ -222,7 +225,7 @@ export function MiniPalette(props: MiniPaletteProps) {
           <span className="mx-1">·</span>
           <span>Ctrl+⏎ 加入口</span>
           <span>·</span>
-          <span>右键固定</span>
+          <span>右键收藏</span>
           <span>·</span>
           <span className="w-emph">Ctrl+Tab 主窗口</span>
           <span>·</span>

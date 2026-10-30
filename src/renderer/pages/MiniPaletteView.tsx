@@ -6,7 +6,7 @@
  *
  * 空查询时自上而下：
  *   ① 剪贴板候选行（唤起时读一次剪贴板；**只认整段就是一个网址/路径的单条内容**）
- *   ② 固定行（用户手动钉住）
+ *   ② 收藏行（用户主动收藏，主页与快捷窗口共用同一份）
  *   ③ 最近打开（真实记录，最多 6 条；没有记录时回退清单前几条）
  *   ④ 清单为空 → 不给列表，只给一句"去哪里添加"的提示（S12）
  *
@@ -29,7 +29,7 @@ import {
 } from '../lib/palette-source.ts';
 import { usePrograms } from '../lib/programs.ts';
 import { useRecentOpenIds } from '../lib/recentOpens.ts';
-import { togglePinnedEntry, usePinnedEntryIds } from '../lib/pinnedEntries.ts';
+import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
 import { useSync } from '../store/syncStore.tsx';
 import { useToasts } from '../store/toastStore.tsx';
@@ -59,8 +59,8 @@ export function MiniPaletteView({
       text 留着原样转给"加为入口"——重新识别一遍比在这里拼 target 更可靠（.lnk 会丢原始路径）。 */
   const [clip, setClip] = useState<ClipboardCandidate | null>(null);
   const debounced = useDebouncedValue(query, 120);
-  /** 固定与最近打开都是本机记忆：面板开着时被主窗口更新，也要立刻跟着变。 */
-  const pinnedIds = usePinnedEntryIds();
+  /** 收藏与最近打开都是本机数据：面板开着时被主窗口更新，也要立刻跟着变。 */
+  const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
   const recentIds = useRecentOpenIds();
 
   const presentation = syncPresentation(snapshot);
@@ -96,8 +96,8 @@ export function MiniPaletteView({
   );
 
   const hits = useMemo(
-    () => buildHits({ candidates, clip, query: debounced, pinnedIds, recentIds, programHits, scope, sectionMax: PALETTE_SECTION_MAX }),
-    [candidates, clip, debounced, pinnedIds, recentIds, programHits, scope],
+    () => buildHits({ candidates, clip, query: debounced, favoriteIds, recentIds, programHits, scope, sectionMax: PALETTE_SECTION_MAX }),
+    [candidates, clip, debounced, favoriteIds, recentIds, programHits, scope],
   );
 
   /* 图标只为**当前可见的命中**取（面板窗口常驻预热：关着时不取、也不为整份清单预取——
@@ -143,7 +143,8 @@ export function MiniPaletteView({
       onSelectIndex={setSelected}
       iconFor={(id) => icons[id] ?? null}
       teamUnavailable={!presentation.renderable && candidates.some((c) => c.source === '本机')}
-      onTogglePin={(entryId) => togglePinnedEntry(entryId)}
+      onToggleFavorite={(entryId) => void toggleFavorite(entryId)}
+      isFavorite={isFavorite}
       onClose={onClose}
       onOpen={(hit) => {
         // Enter 后立刻关闭面板，不等待打开结果

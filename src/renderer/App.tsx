@@ -59,7 +59,7 @@ export function App() {
           <PersonalProvider>
             <FeedbackProvider>
               <EditProvider>
-                <FavoriteProvider>
+                <FavoriteProvider migrateLegacyPinned>
                 <ChainProvider>
                 <WorkbenchProvider>
                   {/* 必须是 flex 容器：外壳靠 flex-1 撑满窗口。曾是普通 div，

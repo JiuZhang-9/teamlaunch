@@ -309,6 +309,8 @@ const api: TeamLaunchApi = {
     onSettingsChanged: (cb) => subscribe<Settings>('tl:settings', cb),
     /** 任意窗口改了「我的入口」都广播到这里：快捷面板不重启也能搜到新加的入口。 */
     onPersonalChanged: (cb) => subscribe<PersonalConfig>('tl:personal', cb),
+    /** 任意窗口改了收藏（主页 / 快捷窗口）都广播完整列表：两个窗口立即一致。 */
+    onFavoritesChanged: (cb) => subscribe<FavoriteItem[]>('tl:favorites', cb),
     onAppUpdate: (cb) => subscribe<AppUpdateEvent>('tl:app-update', cb),
     /** 主进程转发的"把这段文本走一遍粘贴添加"（面板的「加为入口」用）。 */
     onQuickAdd: (cb) => subscribe<string>('tl:quick-add', cb),
@@ -326,7 +328,9 @@ const api: TeamLaunchApi = {
   },
   favorites: {
     get: () => invoke<FavoriteItem[]>('tl:favorites-get'),
-    save: (list) => invoke<void>('tl:favorites-save', list),
+    toggle: (entryId) => invoke<FavoriteItem[]>('tl:favorites-toggle', entryId),
+    save: (list) => invoke<FavoriteItem[]>('tl:favorites-save', list),
+    setMany: (entryIds, on) => invoke<FavoriteItem[]>('tl:favorites-set-many', { entryIds, on }),
   },
   /* 连锁收藏（2026-10-19）：与收藏同款——本机文件，形状校验在 store 里做。 */
   chains: {

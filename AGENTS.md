@@ -41,7 +41,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 
 ## 当前状态（2026-10-29）
 
-- v1.0.13 起逐版发布到 **v1.6.1**（latest = v1.6.1；自 1.1.0 起小修改按最后一位递增，
+- v1.0.13 起逐版发布到 **v1.7.0**（latest = v1.7.0；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
 - 用户反馈多批：v1.0.33（隐私门披露 / 书签两步 / 更新进度环）、v1.0.34（窗口尺寸记忆 / 卡片框选 /
   分组多选删 / 组名点击改名）、v1.0.35（连锁收藏 / 面板透明度 / Ctrl+空格 / Ctrl+Tab / 图标重画）、
@@ -67,7 +67,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   v1.6.0（团队快捷添加方案 A：编辑态下粘贴 / 快捷窗口 / 剪贴板候选 / 拖拽写团队草稿；
   团队新建入口可选分组；判定抽 shared/quick-add.ts 并加 verify:quick-add）、
   v1.6.1（启动竞态修复：editStore 在 preload 预热后按真实 role 补一次 unlocked，
-  解决管理员点编辑模式突然要口令；verify:wiring 的 R23 断言扩到 editStore）
+  解决管理员点编辑模式突然要口令；verify:wiring 的 R23 断言扩到 editStore）、
+  v1.7.0（收藏与固定统一为一份收藏，主页 + 快捷窗口共用并跨窗口广播；旧固定项自动并入；
+  默认切页键对调 Ctrl+E 正序 / Ctrl+Q 反序；判定抽 shared/favorites.ts 并加 verify:favorites）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、

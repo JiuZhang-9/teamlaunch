@@ -7,8 +7,8 @@
  *  - Enter 打开后**不关闭搜索态**（用户经常要连开好几个入口）。
  *
  * 1.4.0（2026-10-27）：结果区改用与快捷窗口共用的 `PaletteResults`——
- * 剪贴板候选、固定、最近打开、本机程序与面板走同一套构造与去重逻辑。
- * 主窗口不做右键固定与 Alt+序号（用户明确 C4 不做）。
+ * 剪贴板候选、收藏、最近打开、本机程序与面板走同一套构造与去重逻辑。
+ * 主窗口不做右键收藏与 Alt+序号（用户明确 C4 不做）。
  */
 import { PaletteResults } from '../components/organisms/PaletteResults.tsx';
 import type { PaletteHit } from '../lib/palette-source.ts';
@@ -19,7 +19,7 @@ export interface WindowSearchViewProps {
   hits: PaletteHit[];
   /** 防抖未完成：计数行显示「搜索中…」，但旧结果保留 */
   debouncing: boolean;
-  /** 搜索框聚焦且还没输入：显示固定 / 最近打开的图标格。 */
+  /** 搜索框聚焦且还没输入：显示收藏 / 最近打开的图标格。 */
   quickAccess: boolean;
   tabLabel: string;
   icons: Record<string, string | null>;
@@ -56,7 +56,7 @@ export function WindowSearchView({
         iconFor={(id) => icons[id] ?? null}
         onOpen={onOpen}
         onAddToPersonal={onAddToPersonal}
-        enablePinMenu={false}
+        enableFavoriteMenu={false}
         showAltHints={false}
         scope="entries"
         programScanning={programScanning}

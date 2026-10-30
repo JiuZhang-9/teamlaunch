@@ -17,7 +17,7 @@ import type { ProgramIndexSnapshot } from '../../shared/schema/programs.ts';
 import type { IdentifyResult } from '../bridge/types.ts';
 
 /** 行的种类（默认 result）。 */
-export type PaletteHitKind = 'result' | 'system' | 'clip-new' | 'clip-existing' | 'pinned' | 'recent';
+export type PaletteHitKind = 'result' | 'system' | 'clip-new' | 'clip-existing' | 'favorite' | 'recent';
 
 export interface PaletteHit {
   entry: Entry;
@@ -45,7 +45,7 @@ type Identified = Exclude<IdentifyResult, { kind: 'none' }>;
 export const MAX_ROWS = 9;
 export const MAX_PROGRAM_ROWS = 8;
 export const MAX_PROGRAM_SCOPE_ROWS = 14;
-/** 「固定」与「最近打开」各占一行图标格：面板 720px 下 7 列，主窗口 6 列。 */
+/** 「收藏」与「最近打开」各占一行图标格：面板 720px 下 7 列，主窗口 6 列。 */
 export const SECTION_MAX = 6;
 export const PALETTE_SECTION_MAX = 7;
 /** 剪贴板文本长度上限：再长就不是"一个网址/一条路径"了。 */
@@ -131,29 +131,31 @@ export function buildProgramHits(programs: ProgramIndexSnapshot, query: string, 
 }
 
 export interface BuildHitsInput {
-  /** 全部候选（团队 + 本机）：固定/最近/剪贴板去重用。 */
+  /** 全部候选（团队 + 本机）：收藏/最近/剪贴板去重用。 */
   candidates: Candidate[];
   /** 查询结果用的候选；默认 = candidates。主窗口传当前 Tab，保证"搜索只作用于当前页"。 */
   searchCandidates?: Candidate[];
   clip: ClipboardCandidate | null;
   query: string;
-  pinnedIds: string[];
+  /** 收藏 id，最近收藏的在前。 */
+  favoriteIds: string[];
   recentIds: string[];
   programHits: PaletteHit[];
   /** entries=入口搜索（默认）；programs=Ctrl+Alt+F 的程序专用范围。 */
   scope?: 'entries' | 'programs';
   /** 入口结果最多显示几条。 */
   maxRows?: number;
-  /** 固定/最近打开各显示几个（面板 7、主窗口 6）。 */
+  /** 收藏/最近打开各显示几个（面板 7、主窗口 6）。 */
   sectionMax?: number;
 }
 
-export function isPinnedHit(hit: PaletteHit | undefined): boolean {
+/** 剪贴板置顶行（旧名 isPinnedHit 容易和收藏混淆，1.7.0 改名）。 */
+export function isClipboardHit(hit: PaletteHit | undefined): boolean {
   return hit?.kind === 'clip-new' || hit?.kind === 'clip-existing';
 }
 
 export function buildHits(input: BuildHitsInput): PaletteHit[] {
-  const { candidates, clip, query, pinnedIds, recentIds, programHits, scope = 'entries' } = input;
+  const { candidates, clip, query, favoriteIds, recentIds, programHits, scope = 'entries' } = input;
   const searchPool = input.searchCandidates ?? candidates;
   const maxRows = input.maxRows ?? MAX_ROWS;
   const sectionMax = input.sectionMax ?? SECTION_MAX;
@@ -166,11 +168,11 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
   const items = candidates.map((c) => c.entry);
 
   /** 剪贴板置顶行：新内容可直接打开/加为入口；已在清单里的则把那条真实入口置顶。 */
-  const pinned: PaletteHit[] = [];
+  const clipRows: PaletteHit[] = [];
   if (clip) {
     const idx = findEntryIndex(items, clip.probe);
     if (idx >= 0) {
-      pinned.push({
+      clipRows.push({
         entry: items[idx],
         subtitle: `剪贴板内容 · ${targetSummary(items[idx])}`,
         source: candidates[idx].source,
@@ -178,7 +180,7 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
         groupName: candidates[idx].groupName,
       });
     } else {
-      pinned.push({
+      clipRows.push({
         entry: clip.draft,
         subtitle: `剪贴板内容 · ${targetSummary(clip.draft)}`,
         source: '本机',
@@ -186,51 +188,51 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
       });
     }
   }
-  const pinnedId = pinned[0]?.entry.id ?? null;
+  const clipId = clipRows[0]?.entry.id ?? null;
 
   if (q.length === 0) {
     const byId = new Map(candidates.map((c) => [c.entry.id, c]));
 
-    /* 「固定」行：用户手动钉住的入口，一行放得下 6 个。
-       超过 6 个时显示**最近固定的 6 个**——刚固定完立刻能看到，而不是被旧固定挤出去。 */
-    const fixed: PaletteHit[] = [];
-    const fixedIds = new Set<string>();
-    for (const id of [...pinnedIds].reverse()) {
-      if (id === pinnedId || fixedIds.has(id)) continue;
+    /* 「收藏」行：用户主动收藏的入口，一行放得下 6/7 个。
+       favoriteIds 已经是最近收藏在前；超过一行时只显示最近的，刚收藏完立刻能看到。 */
+    const favoriteHits: PaletteHit[] = [];
+    const favoriteIdSet = new Set<string>();
+    for (const id of favoriteIds) {
+      if (id === clipId || favoriteIdSet.has(id)) continue;
       const c = byId.get(id);
       if (!c) continue;
-      fixedIds.add(id);
-      fixed.push({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, kind: 'pinned', groupName: c.groupName });
-      if (fixed.length >= sectionMax) break;
+      favoriteIdSet.add(id);
+      favoriteHits.push({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, kind: 'favorite', groupName: c.groupName });
+      if (favoriteHits.length >= sectionMax) break;
     }
 
-    /* 「最近打开」行：自动记录，已固定/剪贴板置顶的不重复出现。 */
+    /* 「最近打开」行：自动记录，已收藏/剪贴板置顶的不重复出现。 */
     const recent: PaletteHit[] = [];
     for (const id of recentIds) {
-      if (id === pinnedId || fixedIds.has(id)) continue;
+      if (id === clipId || favoriteIdSet.has(id)) continue;
       const c = byId.get(id);
       if (!c) continue;
       recent.push({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, kind: 'recent', groupName: c.groupName });
       if (recent.length >= sectionMax) break;
     }
-    if (recent.length > 0) return [...pinned, ...fixed, ...recent];
+    if (recent.length > 0) return [...clipRows, ...favoriteHits, ...recent];
 
-    /* 一条最近记录都没有：固定行之后回退展示当前范围前几条。
+    /* 一条最近记录都没有：收藏行之后回退展示当前范围前几条。
        kind 保持 result（不贴「最近打开」标签）——标签必须如实描述这批结果是什么。 */
     const fallback = searchPool
-      .filter((c) => c.entry.id !== pinnedId && !fixedIds.has(c.entry.id))
+      .filter((c) => c.entry.id !== clipId && !favoriteIdSet.has(c.entry.id))
       .slice(0, sectionMax)
       .map((c) => ({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, groupName: c.groupName }));
-    return [...pinned, ...fixed, ...fallback];
+    return [...clipRows, ...favoriteHits, ...fallback];
   }
 
   const scored = searchPool
-    .filter((c) => c.entry.id !== pinnedId)
+    .filter((c) => c.entry.id !== clipId)
     .map((c) => ({ c, score: matches(c.entry, c.groupName, q) }))
     .filter((x) => x.score > 0);
   scored.sort((a, b) => b.score - a.score || (a.c.source === '团队' ? -1 : 1));
   const rows = scored
-    .slice(0, Math.max(0, maxRows - pinned.length))
+    .slice(0, Math.max(0, maxRows - clipRows.length))
     .map((x) => ({
       entry: x.c.entry,
       subtitle: `${targetSummary(x.c.entry)} · ${x.c.groupName}`,
@@ -255,10 +257,10 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
     return !(e.sourcePath && matchedEntryPaths.has(normalizeProgramPath(e.sourcePath)));
   });
 
-  return [...pinned, ...rows, ...programsToShow];
+  return [...clipRows, ...rows, ...programsToShow];
 }
 
-/** 空查询的快速打开：固定 + 最近打开（没有最近记录时回退当前范围前几条）。 */
+/** 空查询的快速打开：收藏 + 最近打开（没有最近记录时回退当前范围前几条）。 */
 export function buildQuickAccess(
   input: Omit<BuildHitsInput, 'query' | 'programHits' | 'scope'>,
 ): PaletteHit[] {

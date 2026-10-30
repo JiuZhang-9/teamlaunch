@@ -252,7 +252,7 @@ export function HomePageView() {
         <div className="mb-2 flex items-center gap-2">
           <Star size={16} strokeWidth={2} aria-hidden className="text-[var(--accent-text)]" />
           <h2 className="t-base w-emph text-[var(--fg)]">收藏</h2>
-          <span className="t-2xs text-[var(--meta)]">卡片右键菜单里收藏；只保存在这台电脑上。</span>
+          <span className="t-2xs text-[var(--meta)]">卡片或快捷窗口里收藏；只保存在这台电脑上。</span>
         </div>
 
         {favRows.length === 0 ? (
@@ -261,7 +261,7 @@ export function HomePageView() {
               icon={Star}
               iconSize={20}
               title="还没有收藏"
-              detail="在下面两个页面的卡片右键菜单里选「收藏」，它们会集中显示在这里。"
+              detail="在卡片右键菜单或快捷窗口里选「收藏」，它们会集中显示在这里。"
             />
           </div>
         ) : (

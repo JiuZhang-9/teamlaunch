@@ -11,7 +11,9 @@ import type { FeedbackItem } from '../../shared/schema/feedback.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
 import type { ProgramIndexSnapshot } from '../../shared/schema/programs.ts';
 import type { GlobalHotkeyKind } from '../../shared/app-hotkeys.ts';
+import type { FavoriteItem } from '../../shared/favorites.ts';
 
+export type { FavoriteItem } from '../../shared/favorites.ts';
 export type { ProgramIndexSnapshot, ProgramItem } from '../../shared/schema/programs.ts';
 
 /* ------------------------------------------------------------------ *
@@ -125,11 +127,7 @@ export interface InstallUpdateResult {
   reason?: string;
 }
 
-/** 主页收藏（2026-10-05）：本机各存各的，只存入口 id。 */
-export interface FavoriteItem {
-  entryId: string;
-  addedAt: string;
-}
+/** 收藏（2026-10-30 统一）：数据模型与纯函数在 shared/favorites.ts。 */
 
 /**
  * 连锁收藏（2026-10-19 用户要求）：把"多选出来的一串入口 + 间隔"存成一条可复用的一键启动。
@@ -356,10 +354,15 @@ export interface TeamLaunchApi {
     relocate(entry: Entry): Promise<RelocateResult>;
   };
 
-  /** 主页收藏（本机持久化）。 */
+  /** 收藏（本机持久化；主页与快捷窗口共用同一份）。 */
   favorites: {
     get(): Promise<FavoriteItem[]>;
-    save(list: FavoriteItem[]): Promise<void>;
+    /** 单条收藏 / 取消收藏；返回主进程落盘后的完整列表（跨窗口一致）。 */
+    toggle(entryId: string): Promise<FavoriteItem[]>;
+    /** 完整替换（只用于首次迁移旧「固定」数据）。 */
+    save(list: FavoriteItem[]): Promise<FavoriteItem[]>;
+    /** 多选批量：一次设定成同一个状态；返回落盘后的完整列表。 */
+    setMany(entryIds: string[], on: boolean): Promise<FavoriteItem[]>;
   };
 
   /** 连锁收藏（本机持久化，2026-10-19）：保存/读取"一串入口 + 间隔"的一键启动。 */
@@ -603,6 +606,8 @@ export interface TeamLaunchApi {
      * 在面板里要重启才搜得到。preload 同时会刷新自己的同步缓存，回调里直接读新值即可。
      */
     onPersonalChanged(cb: (config: PersonalConfig) => void): () => void;
+    /** 任意窗口改了收藏（主页 / 快捷窗口）都广播完整列表：两个窗口立即一致。 */
+    onFavoritesChanged(cb: (list: FavoriteItem[]) => void): () => void;
     /** 自动更新进展：available=发现新版本开始后台下载；downloaded=已就绪可安装。 */
     onAppUpdate(cb: (event: AppUpdateEvent) => void): () => void;
     /** 主进程转发的"把这段文本走一遍粘贴添加"（快捷面板的「加为入口」用）。 */

@@ -49,7 +49,7 @@ export interface ContentHeaderProps {
   onToggleSelecting?(): void;
   /** 工作栏动作（2026-10-27，1.3.0）：与工作区弹窗共用同一份数据。 */
   actions?: ToolbarAction[];
-  /** 搜索框聚焦/失焦（1.4.0）：聚焦且未输入时，内容区显示固定 + 最近打开的快速打开面板。 */
+  /** 搜索框聚焦/失焦（1.4.0）：聚焦且未输入时，内容区显示收藏 + 最近打开的快速打开面板。 */
   onSearchFocus?(): void;
   onSearchBlur?(): void;
   /** Esc：有查询词时清空，空查询时退出搜索（1.5.1）。 */

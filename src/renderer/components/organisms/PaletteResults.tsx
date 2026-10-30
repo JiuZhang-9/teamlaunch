@@ -2,10 +2,10 @@
  * PaletteResults —— 快捷窗口与主窗口搜索共用的结果区（2026-10-27，1.4.0）。
  *
  * 渲染规则与快捷窗口完全一致：
- *   剪贴板置顶行 → 固定行（图标格）→ 最近打开行（图标格）→ 入口结果 → 本机程序。
- * 主窗口只是把它放进内容区，并关掉右键固定与 Alt 序号（C4 不做）。
+ *   剪贴板置顶行 → 收藏行（图标格）→ 最近打开行（图标格）→ 入口结果 → 本机程序。
+ * 主窗口只是把它放进内容区，并关掉右键收藏与 Alt 序号（C4 不做）。
  */
-import { AppWindow, LayoutGrid, Pin, Plus, RotateCcwClock, Search, X } from 'lucide-react';
+import { AppWindow, LayoutGrid, Plus, RotateCcwClock, Search, Star, X } from 'lucide-react';
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Button } from '../atoms/Button.tsx';
 import { SourceTag } from '../atoms/Tag.tsx';
@@ -13,7 +13,7 @@ import { EmptyBlock } from '../molecules/EmptyBlock.tsx';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { ResultRow } from '../molecules/ResultRow.tsx';
 import { firstLetterOf } from '../../lib/entry.ts';
-import { isPinnedHit, type PaletteHit } from '../../lib/palette-source.ts';
+import { isClipboardHit, type PaletteHit } from '../../lib/palette-source.ts';
 
 export interface PaletteResultsProps {
   hits: PaletteHit[];
@@ -24,10 +24,12 @@ export interface PaletteResultsProps {
   onOpen(hit: PaletteHit): void;
   /** 剪贴板新内容 / 本机程序行的「加为入口」。 */
   onAddToPersonal(hit: PaletteHit): void;
-  /** 固定 / 取消固定；主窗口也传（图标格右上角的叉）。 */
-  onTogglePin?(entryId: string): void;
-  /** 右键固定/取消固定：主窗口 C4 不做，传 false。 */
-  enablePinMenu?: boolean;
+  /** 收藏 / 取消收藏；主窗口不传（C4 不做右键，但快捷窗口图标格右上角有叉）。 */
+  onToggleFavorite?(entryId: string): void;
+  /** 该入口当前是否已收藏：右键菜单要据此显示「收藏」还是「取消收藏」。 */
+  isFavorite?(entryId: string): boolean;
+  /** 右键收藏/取消收藏：主窗口 C4 不做，传 false。 */
+  enableFavoriteMenu?: boolean;
   /** 行尾 Alt+序号：只有快捷窗口支持 Alt+1..9，主窗口不显示。 */
   showAltHints?: boolean;
   /** entries=入口搜索（默认）；programs=Ctrl+Alt+F 的程序专用范围。 */
@@ -60,8 +62,9 @@ export function PaletteResults({
   iconFor,
   onOpen,
   onAddToPersonal,
-  onTogglePin,
-  enablePinMenu = false,
+  onToggleFavorite,
+  isFavorite,
+  enableFavoriteMenu = false,
   showAltHints = false,
   scope = 'entries',
   programScanning = false,
@@ -93,32 +96,32 @@ export function PaletteResults({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [menu]);
 
-  const clipHits = hits.filter(isPinnedHit);
-  const fixedHits = hits.filter((h) => h.kind === 'pinned');
+  const clipHits = hits.filter(isClipboardHit);
+  const favoriteHits = hits.filter((h) => h.kind === 'favorite');
   const recentHits = hits.filter((h) => h.kind === 'recent');
   const systemHits = hits.filter((h) => h.kind === 'system');
-  const resultHits = hits.filter((h) => !isPinnedHit(h) && (h.kind === undefined || h.kind === 'result'));
+  const resultHits = hits.filter((h) => !isClipboardHit(h) && (h.kind === undefined || h.kind === 'result'));
   const hitIndex = (hit: PaletteHit): number => hits.indexOf(hit);
   const emptyQuery = query.length === 0;
   const programScope = scope === 'programs';
 
-  /** 右键菜单：固定 / 取消固定。剪贴板新内容与本机程序没有真实入口 id，不提供固定。 */
+  /** 右键菜单：收藏 / 取消收藏。剪贴板新内容与本机程序没有真实入口 id，不提供收藏。 */
   const openMenu = (e: MouseEvent, hit: PaletteHit): void => {
-    if (!enablePinMenu || !onTogglePin) return;
+    if (!enableFavoriteMenu || !onToggleFavorite) return;
     if (hit.kind === 'clip-new' || hit.kind === 'system') return;
     e.preventDefault();
     onSelectIndex(hitIndex(hit));
     setMenu({ x: e.clientX, y: e.clientY, hit });
   };
 
-  const sectionLabel = (label: string, Icon: typeof Pin) => (
+  const sectionLabel = (label: string, Icon: typeof Star) => (
     <div className="flex items-center gap-1.5 px-3 py-1 t-2xs text-[var(--muted)]">
       <Icon size={16} strokeWidth={2} aria-hidden />
       {label}
     </div>
   );
 
-  const renderTile = (hit: PaletteHit, pinned: boolean) => {
+  const renderTile = (hit: PaletteHit, favorited: boolean) => {
     const i = hitIndex(hit);
     const selected = i === selectedIndex;
     const iconUrl = iconFor(hit.entry.id);
@@ -129,7 +132,7 @@ export function PaletteResults({
         role="button"
         tabIndex={-1}
         aria-label={`${hit.entry.name}（${hit.source}）`}
-        title={`${hit.entry.name}\n${hit.subtitle}${enablePinMenu ? `\n右键：${pinned ? '取消固定' : '固定到快捷栏'}` : ''}`}
+        title={`${hit.entry.name}\n${hit.subtitle}${enableFavoriteMenu ? `\n右键：${favorited ? '取消收藏' : '收藏'}` : ''}`}
         onClick={() => onOpen(hit)}
         onMouseEnter={() => onSelectIndex(i)}
         onContextMenu={(e) => openMenu(e, hit)}
@@ -162,15 +165,15 @@ export function PaletteResults({
         <span className="t-2xs line-clamp-2 w-full text-center leading-tight text-[var(--fg-2)]">
           {hit.entry.name}
         </span>
-        {/* 固定项右上角的「取消固定」按钮：常驻可见，不必再右键一次才知道怎么取消。 */}
-        {pinned && onTogglePin && (
+        {/* 收藏项右上角的「取消收藏」按钮：常驻可见，不必再右键一次才知道怎么取消。 */}
+        {favorited && onToggleFavorite && (
           <button
             type="button"
-            aria-label={`取消固定 ${hit.entry.name}`}
-            title="取消固定"
+            aria-label={`取消收藏 ${hit.entry.name}`}
+            title="取消收藏"
             onClick={(e) => {
               e.stopPropagation();
-              onTogglePin(hit.entry.id);
+              onToggleFavorite(hit.entry.id);
             }}
             onContextMenu={(e) => e.stopPropagation()}
             className="absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-[var(--radius-sm)] text-[var(--meta)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--fg)]"
@@ -182,12 +185,12 @@ export function PaletteResults({
     );
   };
 
-  const tileGrid = (list: PaletteHit[], pinned: boolean) => (
+  const tileGrid = (list: PaletteHit[], favorited: boolean) => (
     <div
       className={['grid gap-1.5 px-2 pb-1.5 pt-1', tileColumns === 7 ? 'grid-cols-7' : 'grid-cols-6'].join(' ')}
       style={{ gap: tileGap }}
     >
-      {list.map((hit) => renderTile(hit, pinned))}
+      {list.map((hit) => renderTile(hit, favorited))}
     </div>
   );
 
@@ -324,10 +327,10 @@ export function PaletteResults({
               );
             })}
 
-            {emptyQuery && fixedHits.length > 0 && (
+            {emptyQuery && favoriteHits.length > 0 && (
               <>
-                {sectionLabel('固定', Pin)}
-                {tileGrid(fixedHits, true)}
+                {sectionLabel('收藏', Star)}
+                {tileGrid(favoriteHits, true)}
               </>
             )}
 
@@ -371,14 +374,14 @@ export function PaletteResults({
         )}
       </div>
 
-      {menu !== null && onTogglePin && (
+      {menu !== null && onToggleFavorite && (
         <ContextMenu
           x={menu.x}
           y={menu.y}
           items={
-            menu.hit.kind === 'pinned'
-              ? [{ id: 'unpin', label: '取消固定', onSelect: () => onTogglePin(menu.hit.entry.id) }]
-              : [{ id: 'pin', label: '固定到快捷栏', onSelect: () => onTogglePin(menu.hit.entry.id) }]
+            (isFavorite?.(menu.hit.entry.id) ?? menu.hit.kind === 'favorite')
+              ? [{ id: 'unfavorite', label: '取消收藏', onSelect: () => onToggleFavorite(menu.hit.entry.id) }]
+              : [{ id: 'favorite', label: '收藏', onSelect: () => onToggleFavorite(menu.hit.entry.id) }]
           }
           onClose={() => setMenu(null)}
         />

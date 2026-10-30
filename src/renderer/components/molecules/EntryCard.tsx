@@ -163,7 +163,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
           type="button"
           aria-label={favorite ? '取消收藏 ' + entry.name : '收藏 ' + entry.name}
           aria-pressed={favorite || undefined}
-          title={favorite ? '取消收藏' : '收藏到主页'}
+          title={favorite ? '取消收藏' : '收藏'}
           onClick={(e) => {
             e.stopPropagation();
             onToggleFavorite();

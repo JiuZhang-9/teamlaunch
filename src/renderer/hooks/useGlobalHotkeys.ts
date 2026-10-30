@@ -4,7 +4,7 @@
  * 键位定义表在 shared/app-hotkeys.ts（默认值 + 标签 + 匹配器）；
  * settings.appHotkeys 的用户覆盖由调用方合并后传入本 hook。
  * 默认键位：
- *   Ctrl+Q / Ctrl+E   循环切换页面（Q 正序：主页 → 团队 → 我的；E 反序）
+ *   Ctrl+E / Ctrl+Q   循环切换页面（E 正序：主页 → 团队 → 我的；Q 反序）
  *   Ctrl+N            新建入口（跟随当前页）
  *   Ctrl+F            搜索栏开关（已打开则退出；用自定义事件广播，避免把 ref 传进 hook）
  *   F5                立即拉取一次
@@ -24,9 +24,9 @@ import { useEffect } from 'react';
 import { acceleratorMatches } from '../../shared/app-hotkeys.ts';
 
 export interface GlobalHotkeyHandlers {
-  /** Ctrl+Q：正序循环 主页 → 团队 → 我的。 */
+  /** Ctrl+E：正序循环 主页 → 团队 → 我的。 */
   onCycleNext(): void;
-  /** Ctrl+E：反序循环 我的 → 团队 → 主页。 */
+  /** Ctrl+Q：反序循环 我的 → 团队 → 主页。 */
   onCyclePrev(): void;
   onRefresh(): void;
   onToggleMini(): void;

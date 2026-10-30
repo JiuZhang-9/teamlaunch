@@ -21,6 +21,12 @@ import { notifySystem } from './notify.ts';
 import { localStore } from './localStore.ts';
 import { EntrySchema } from '../shared/schema/entry.ts';
 import { SettingsSchema } from '../shared/schema/local.ts';
+import {
+  normalizeFavorites,
+  setFavoriteManyInList,
+  toggleFavoriteInList,
+  type FavoriteItem,
+} from '../shared/favorites.ts';
 import type { Entry } from '../shared/schema/entry.ts';
 import type { PersonalConfig, Settings } from '../shared/schema/local.ts';
 import type {
@@ -161,12 +167,58 @@ export function registerIpc(deps: IpcDeps): void {
     return openEntry(toOpenTarget(gate.data));
   });
 
-  // 主页收藏：本机各存各的（config/favorites.json），不随团队同步。
-  ipcMain.handle('tl:favorites-get', async () => localStore.favorites<unknown[]>([]));
-  ipcMain.handle('tl:favorites-save', async (_e, list: unknown) => {
-    await localStore.saveFavorites(list);
-    return true;
-  });
+  /* 收藏（2026-10-30 统一）：本机各存各的（config/favorites.json），不随团队同步。
+     主窗口与快捷窗口都能收藏，写入必须串行化——各自 read-modify-write 会互相覆盖。
+     每次落盘后把完整列表广播给所有窗口，两边立即一致。 */
+  let favoritesQueue: Promise<unknown> = Promise.resolve();
+  const serializeFavorites = <T,>(fn: () => Promise<T>): Promise<T> => {
+    const run = favoritesQueue.then(fn, fn);
+    favoritesQueue = run.then(() => undefined, () => undefined);
+    return run;
+  };
+  const broadcastFavorites = (list: FavoriteItem[]): void => {
+    for (const win of deps.getWindows()) {
+      if (!win.isDestroyed()) win.webContents.send('tl:favorites', list);
+    }
+  };
+  const readFavorites = async (): Promise<FavoriteItem[]> =>
+    normalizeFavorites(await localStore.favorites<unknown[]>([]));
+
+  ipcMain.handle('tl:favorites-get', readFavorites);
+  ipcMain.handle('tl:favorites-toggle', (_e, entryId: unknown) =>
+    serializeFavorites(async () => {
+      const current = await readFavorites();
+      const next = toggleFavoriteInList(
+        current,
+        typeof entryId === 'string' ? entryId : '',
+        new Date().toISOString(),
+      );
+      await localStore.saveFavorites(next);
+      broadcastFavorites(next);
+      return next;
+    }),
+  );
+  ipcMain.handle('tl:favorites-save', (_e, list: unknown) =>
+    serializeFavorites(async () => {
+      const next = normalizeFavorites(list);
+      await localStore.saveFavorites(next);
+      broadcastFavorites(next);
+      return next;
+    }),
+  );
+  ipcMain.handle('tl:favorites-set-many', (_e, payload: unknown) =>
+    serializeFavorites(async () => {
+      const p = (payload ?? {}) as { entryIds?: unknown; on?: unknown };
+      const ids = Array.isArray(p.entryIds)
+        ? p.entryIds.filter((id): id is string => typeof id === 'string')
+        : [];
+      const current = await readFavorites();
+      const next = setFavoriteManyInList(current, ids, p.on === true, new Date().toISOString());
+      await localStore.saveFavorites(next);
+      broadcastFavorites(next);
+      return next;
+    }),
+  );
 
   /* 系统通知（2026-10-19）：渲染层决定"要不要打扰"，主进程负责发系统级 toast。
      点击通知默认把主窗口拿到前台，并回推一条 `tl:notice-click` 让界面做"去主页"这类收尾。 */
