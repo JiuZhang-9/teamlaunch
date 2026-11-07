@@ -146,7 +146,7 @@ check(
  * 5. 启动面（2026-11-07）：自启静默后台、手动启动恢复上次的窗口
  * ------------------------------------------------------------------ */
 const startup = (over = {}) => ({ autostart: false, trayEnabled: true, lastSurface: null, ...over });
-check('手动启动 + 无记录（首装）→ 快捷搜索栏', planStartupSurface(startup()) === 'palette');
+check('手动启动 + 无记录（首装/升级后）→ 主窗口', planStartupSurface(startup()) === 'main');
 check(
   '手动启动 + 上次是主窗口 → 主窗口',
   planStartupSurface(startup({ lastSurface: 'main' })) === 'main',

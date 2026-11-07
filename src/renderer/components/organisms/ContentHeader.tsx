@@ -78,10 +78,8 @@ export function ContentHeader(props: ContentHeaderProps) {
     };
     /* 1.5.1：外壳的 Ctrl+F 是开关，只在"要打开"时派发 -open；关闭由外壳处理。 */
     window.addEventListener('tl:focus-search-open', onFocusSearch);
-    /* 首帧默认聚焦搜索框（用户要求主窗口打开即聚焦）：
-       挂载时输入框可能已被窗口默认焦点占住，focus() 不再触发 onFocus；
-       这里主动调一次，保证搜索态跟着置真、快速打开面板直接出现。 */
-    onFocusSearch();
+    /* 2026-11-07：挂载时不再主动聚焦搜索框（启动应显示正常页面）。
+       搜索只由显式动作打开：Ctrl+F、点搜索框、Ctrl+Space 唤起主窗口。 */
     return () => window.removeEventListener('tl:focus-search-open', onFocusSearch);
   }, []);
 

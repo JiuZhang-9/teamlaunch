@@ -8,7 +8,8 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { createMainWindow, getMainWindow, getPalette, preheatPalette, setInitialActiveSurface, setPaletteOpacity, setTrayEnabledGetter, showLastSurface, showPaletteWhenReady } from './windowManager.ts';
 import { applyAutoLaunch, launchedByAutostart } from './autoLaunch.ts';
-import { loadLastSurface } from './surfaceState.ts';
+import { loadLastSurface, saveLastSurface } from './surfaceState.ts';
+import { logLine } from './appLog.ts';
 import { planStartupSurface } from '../shared/startup-surface.ts';
 import { registerIpc } from './ipc.ts';
 import { bindSyncBroadcast, installSyncService, syncService } from './syncBridge.ts';
@@ -141,13 +142,20 @@ if (!acquireSingleInstanceLock((argv) => {
        - 开机自启 → 静默后台（托盘关着时退回主窗口，避免没有任何可见入口）；
        - 手动启动 → 恢复上次关闭时的那一面，首装默认快捷搜索栏。 */
     const dataDir = app.getPath('userData');
+    const autostart = launchedByAutostart();
     const lastSurface = loadLastSurface(dataDir);
-    setInitialActiveSurface(lastSurface ?? 'palette');
+    setInitialActiveSurface(lastSurface ?? 'main');
     const startupSurface = planStartupSurface({
-      autostart: launchedByAutostart(),
+      autostart,
       trayEnabled: currentSettings.trayEnabled,
       lastSurface,
     });
+    logLine('TL-SURFACE', 'startup', `autostart=${autostart} last=${lastSurface ?? 'none'} plan=${startupSurface}`);
+    if (startupSurface !== 'none') {
+      /* 首次启动就把结果写下来：否则只显示过快捷栏的用户永远没有"上次记录"，
+         每次都被当成首装（2026-11-07 用户反馈"启动先弹快捷窗口"）。 */
+      saveLastSurface(dataDir, startupSurface);
+    }
 
     // 读回上次的窗口位置与大小（2026-10-18）：异步读盘，所以这一步要 await。
     // closeToTray 传 getter 而不是值：托盘开关在设置里随时可改，关窗时按当时的值决定。

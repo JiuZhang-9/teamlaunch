@@ -63,6 +63,7 @@ export function setInitialActiveSurface(surface: Surface): void {
 function markActiveSurface(next: Surface): void {
   if (activeSurface === next) return;
   activeSurface = next;
+  logLine('TL-SURFACE', 'active', next);
   saveLastSurface(app.getPath('userData'), next);
 }
 
@@ -300,21 +301,24 @@ function dismissMainWindow(): boolean {
   return trayEnabledGetter() ? hideMainWindow() : minimizeMainWindow();
 }
 
-/** 把主窗口拿到前台：最小化先还原，隐藏/在后台的 show + focus 一步到位。 */
-function focusMainWindow(): boolean {
+/** 把主窗口拿到前台：最小化先还原，隐藏/在后台的 show + focus 一步到位。
+ *  focusSearch=true 只给 Ctrl+Space 用：主窗口被热键唤起时进入搜索态；
+ *  启动、托盘、再次启动、Ctrl+Tab 切回来都显示正常页面（2026-11-07 修正）。 */
+function focusMainWindow(focusSearch = false): boolean {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
   markActiveSurface('main');
-  /* 通知渲染层"主窗口被重新唤起"（2026-10-29）：可见性变化只在隐藏/最小化时触发，
-     被别的窗口挡住时 Ctrl+Space 只会 focus，不会触发 visibilitychange。
-     渲染层收到后把搜索框置真并重读剪贴板、选中项回到第一条。 */
-  mainWindow.webContents.send('tl:main-shown');
+  logLine('TL-SURFACE', 'show main', `focusSearch=${focusSearch}`);
+  if (focusSearch) {
+    /* 通知渲染层"主窗口被热键唤起"：把搜索框置真并重读剪贴板、选中项回到第一条。 */
+    mainWindow.webContents.send('tl:main-shown');
+  }
   return true;
 }
 
-function executePlan(plan: SurfacePlan): boolean {
+function executePlan(plan: SurfacePlan, focusSearch = false): boolean {
   switch (plan.kind) {
     case 'noop':
       return false;
@@ -324,7 +328,7 @@ function executePlan(plan: SurfacePlan): boolean {
       return plan.minimize ? minimizeMainWindow() : dismissMainWindow();
     case 'focusMain':
     case 'showMain':
-      return showMainWindow();
+      return showMainWindow(focusSearch);
     case 'showPalette':
       return showPaletteNow('entries', plan.hideMain);
   }
@@ -357,7 +361,7 @@ export function switchToPalette(): boolean {
  * 判定全在 shared/surface-machine.ts，这里只执行。
  */
 export function handleHotkeySurface(): void {
-  executePlan(planSurface('toggle', surfaceSnapshot()));
+  executePlan(planSurface('toggle', surfaceSnapshot()), true);
 }
 
 /**
@@ -402,11 +406,12 @@ export function setPaletteOpacity(percent: number): number {
   return Math.round(percent);
 }
 
-/** 把主窗口拿到前台（点系统通知的默认动作 / 托盘菜单都用它）。先收快捷窗口，保证互斥。 */
-export function showMainWindow(): boolean {
+/** 把主窗口拿到前台（点系统通知的默认动作 / 托盘菜单都用它）。先收快捷窗口，保证互斥。
+ *  focusSearch 只由 Ctrl+Space 的热键路径传 true；其余入口保持正常页面。 */
+export function showMainWindow(focusSearch = false): boolean {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
   hidePalette();
-  return focusMainWindow();
+  return focusMainWindow(focusSearch);
 }
 
 /** 面板定位：优先用用户拖到的位置；否则放在主窗口所在显示器、顶距 20%。 */
@@ -467,10 +472,14 @@ export function showPalette(scope: PaletteScope = 'entries'): boolean {
 
 /**
  * 手动启动 / 再次启动：打开上次显示过的那一面（2026-11-07 用户拍板）。
- * 面板还没预热或已销毁时回主窗口——绝不返回 false 让调用方无处可去。
+ * 面板还没预热时等它就绪，不要用主窗口兜底——否则"恢复上次窗口"会先闪一下主窗口。
  */
 export function showLastSurface(): boolean {
-  if (activeSurface === 'palette' && showPalette('entries')) return true;
+  if (activeSurface === 'palette') {
+    if (showPalette('entries')) return true;
+    showPaletteWhenReady('entries');
+    return true;
+  }
   return showMainWindow();
 }
 
@@ -500,6 +509,7 @@ function showPaletteNow(scope: PaletteScope, hideMain: 'hide' | 'minimize' | 'no
   palette.show();
   palette.focus();
   markActiveSurface('palette');
+  logLine('TL-SURFACE', 'show palette', `scope=${scope}`);
 
   // 每次打开顺手检查索引是否过期（24h）；过期只在后台重扫，不阻塞本次搜索。
   ensureProgramsFresh();
@@ -517,6 +527,7 @@ function showPaletteNow(scope: PaletteScope, hideMain: 'hide' | 'minimize' | 'no
 export function hidePalette(): boolean {
   if (!palette || palette.isDestroyed()) return false;
   if (!palette.isVisible()) return false;
+  logLine('TL-SURFACE', 'hide palette', `active=${activeSurface}`);
   /* 拖动后 300ms 内就收起：节流计时器会随隐藏一起消失，这里补一次立即写。 */
   flushPalettePosition?.();
   /* activeSurface 刻意不动：刚收起面板，下一次 Ctrl+空格应该还能把它打开（1.1.3 的手感）。 */

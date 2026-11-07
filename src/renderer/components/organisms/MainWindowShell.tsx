@@ -331,11 +331,10 @@ export function MainWindowShell() {
     setSearchFocused(false);
   }, [tab, editing]);
 
-  /* 启动即显示：默认把搜索态置真（输入框由 ContentHeader 挂载时聚焦）。
-     不依赖 visibilitychange——窗口可能在 effect 挂载前就已经显示，事件错过了。 */
-  useEffect(() => {
-    setSearchFocused(true);
-  }, []);
+  /* 2026-11-07：启动时不再自动把搜索态置真。
+     1.5.1 的「主窗口打开即聚焦搜索」在 1.7.1 上有副作用：主窗口一出现就是快捷打开面板，
+     看起来像先弹了一个快捷窗口，必须再点一下才回到正常页面。现在只有显式动作
+     （Ctrl+F / 点搜索框 / Ctrl+Space 唤起主窗口）才进入搜索态。 */
 
   /** 关闭搜索：清空查询 + 失焦，回到当前页的卡片视图。 */
   const closeSearch = useCallback(() => {
@@ -361,28 +360,17 @@ export function MainWindowShell() {
     return () => window.removeEventListener('tl:focus-search', onToggle);
   }, [showSearch, closeSearch]);
 
-  /* 主窗口每次被显示（托盘 / 热键 / 任务栏还原）时默认聚焦搜索框：
-     用页面可见性变化判断"窗口被打开"，比 window.focus 精确——切回一个本来就可见的窗口不抢焦点。
-     首次挂载时页面已经是 visible（启动即显示），visibilitychange 不会再触发，补一次。 */
+  /* 窗口重新可见时**不**自动打开搜索（2026-11-07 修正）：
+     启动/任务栏还原/从快捷窗口切回来都应该看到正常页面；搜索只由显式动作打开。
+     只有搜索本来就开着时（热键唤起后），才重读一次剪贴板并回到第一条。 */
   useEffect(() => {
-    const focusSearch = () => {
-      /* 同理：窗口显示时输入框可能已带焦点，focus() 不触发 onFocus，状态要自己置真。 */
-      setSearchFocused(true);
-      /* 窗口被重新唤起：剪贴板可能已经换了内容，选中项也回到第一条
-         （Ctrl+Space → 空格 直接打开剪贴板候选，2026-10-29 用户反馈）。 */
-      setSearchEpoch((n) => n + 1);
-      window.dispatchEvent(new Event('tl:focus-search-open'));
-    };
-    const timer = document.visibilityState === 'visible' ? window.setTimeout(focusSearch, 0) : null;
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') focusSearch();
+      if (document.visibilityState !== 'visible' || !showSearch) return;
+      setSearchEpoch((n) => n + 1);
     };
     document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      if (timer !== null) window.clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, []);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [showSearch]);
 
   /* 主进程明确通知"主窗口被唤起"（2026-10-29）：窗口只是被别的应用挡住时
      visibilitychange 不会触发，Ctrl+Space 只做 show + focus。没有这条通道，

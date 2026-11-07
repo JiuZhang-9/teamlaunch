@@ -2,7 +2,7 @@
 
 Windows 桌面团队统一入口启动器（Electron）：管理员维护一份入口清单并发布，
 员工端经局域网自动同步；管理员机内嵌同步服务，无独立服务器部署。
-当前 v1.7.1 已开源（GitHub JiuZhang-9/teamlaunch，MIT）并小范围试点。
+当前 v1.7.2 已开源（GitHub JiuZhang-9/teamlaunch，MIT）并小范围试点。
 
 ## 命令
 
@@ -41,7 +41,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 
 ## 当前状态（2026-11-07）
 
-- v1.0.13 起逐版发布到 **v1.7.1**（latest = v1.7.1；自 1.1.0 起小修改按最后一位递增，
+- v1.0.13 起逐版发布到 **v1.7.2**（latest = v1.7.2；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
 - 用户反馈多批：v1.0.33（隐私门披露 / 书签两步 / 更新进度环）、v1.0.34（窗口尺寸记忆 / 卡片框选 /
   分组多选删 / 组名点击改名）、v1.0.35（连锁收藏 / 面板透明度 / Ctrl+空格 / Ctrl+Tab / 图标重画）、
@@ -71,7 +71,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   v1.7.0（收藏与固定统一为一份收藏，主页 + 快捷窗口共用并跨窗口广播；旧固定项自动并入；
   默认切页键对调 Ctrl+E 正序 / Ctrl+Q 反序；判定抽 shared/favorites.ts 并加 verify:favorites）、
   v1.7.1（启动恢复上次窗口 / 自启静默后台 / 悬停与键盘选中分离 / 主页精简顶栏 /
-  「我的入口」改名「个人入口」含老数据迁移；启动面判定抽 shared/startup-surface.ts 并扩 verify:surface）
+  「我的入口」改名「个人入口」含老数据迁移；启动面判定抽 shared/startup-surface.ts 并扩 verify:surface）、
+  v1.7.2（启动先弹快捷窗口再切主窗口 / 主窗口启动即搜索态：无记录默认主窗口 + 启动面立即落盘；
+  Ctrl+Space 才进入搜索态，启动/托盘/切回都显示正常页面；新增 TL-SURFACE 日志）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、
