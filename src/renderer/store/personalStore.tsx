@@ -1,5 +1,5 @@
 /**
- * 我的入口（personal.json）—— 本机可编辑，永不跨设备同步。
+ * 个人入口（personal.json）—— 本机可编辑，永不跨设备同步。
  * 导入导出走的两条铁律在 actions 里落实：非法文件不改现有数据（AC-14）、冲突不静默覆盖（AC-15）。
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -28,7 +28,7 @@ export type ImportChoice = 'copy' | 'overwrite' | 'skip';
 export type { NewEntryInput } from '../../shared/new-entry.ts';
 
 /** 个人入口的默认分组名：全新安装时没有任何分组，必须能自动建出来。 */
-const DEFAULT_GROUP = '我的入口';
+const DEFAULT_GROUP = '个人入口';
 
 /**
  * 导入结果。三条分支必须分开：
@@ -79,7 +79,7 @@ interface PersonalCtx {
   /**
    * 整条新增（入口编辑器对话框的写入口）：与团队编辑器同一套类型/目标表单，
    * 支持 web（此前的 pickers 只能加 app/folder，个人入口添加网页没有入口）。
-   * groupId 为空时落到第一个分组，没有任何分组则自动建「我的入口」。
+   * groupId 为空时落到第一个分组，没有任何分组则自动建「个人入口」。
    */
   addEntryObject(entry: Entry, groupId: string | null): Promise<{ ok: boolean; reason?: string }>;
   /**
@@ -126,7 +126,7 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   /** 最近一次通过预览的待导入**原文**。提交前不落盘（AC-14 / AC-15）。 */
   const pendingText = useRef<string | null>(null);
 
-  /* R23（2026-10-17）：首帧读缓存可能早于 preload 预热完成——那时「我的入口」是空的
+  /* R23（2026-10-17）：首帧读缓存可能早于 preload 预热完成——那时「个人入口」是空的
      （重启即好）。预热完成后重取一次；缓存被每次保存实时更新，不会覆盖用户刚做的改动。 */
   useEffect(() => {
     let cancelled = false;

@@ -49,7 +49,7 @@ export type DialogKey =
   | 'batchAdd'
   | 'batchAddTeam'
   | 'scanPicker'
-  /** 从浏览器书签导入（2026-10-17）：只读本机书签文件，勾选后加进「我的入口」。 */
+  /** 从浏览器书签导入（2026-10-17）：只读本机书签文件，勾选后加进「个人入口」。 */
   | 'bookmarks'
   /** 设置·关于 →「查看更新日志」：渲染随包分发的 CHANGELOG.md。 */
   | 'changelog';
@@ -111,7 +111,7 @@ interface WorkbenchCtx {
   closeEntryEditor(): void;
   /**
    * 一段文本（粘贴 / 快捷面板候选行）→ 识别 → 预填进与手动添加同一套编辑器。
-   * 落点跟随编辑态（方案 A，2026-10-29）：编辑中进团队草稿，否则进「我的入口」。
+   * 落点跟随编辑态（方案 A，2026-10-29）：编辑中进团队草稿，否则进「个人入口」。
    */
   quickAddFromText(text: string): Promise<void>;
   /** 类型筛选（空 = 全部）。 */
@@ -391,7 +391,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
    * 此前这段逻辑长在 MainWindowShell 里（只服务 Ctrl+V），快捷面板够不着，
    * 面板只好另写一套——"同一件事两个实现"迟早分叉，所以上收到 store。
    * 识别失败只说清楚原因，绝不静默；落点跟随编辑态：编辑中进团队草稿，
-   * 否则进「我的入口」（新建编辑器里仍可改名字与分组）。
+   * 否则进「个人入口」（新建编辑器里仍可改名字与分组）。
    */
   const quickAddFromText = useCallback(
     async (text: string) => {

@@ -22,10 +22,13 @@ export function isQuitting(): boolean {
   return quitting;
 }
 
-/** 拿锁失败返回 false（调用方应立即 app.quit()）；成功则挂上 second-instance 处理。 */
-export function acquireSingleInstanceLock(onSecondInstance: () => void): boolean {
+/**
+ * 拿锁失败返回 false（调用方应立即 app.quit()）；成功则挂上 second-instance 处理。
+ * argv 透传给调用方：开机自启触发的第二实例（带 `--autostart`）不该抢前台。
+ */
+export function acquireSingleInstanceLock(onSecondInstance: (argv: string[]) => void): boolean {
   const got = app.requestSingleInstanceLock();
   if (!got) return false;
-  app.on('second-instance', onSecondInstance);
+  app.on('second-instance', (_event, argv) => onSecondInstance(argv));
   return true;
 }

@@ -16,7 +16,7 @@
 │ p 12              │ p-x 24 [SearchInput ≤420 h=32] <flex>            │
 │ ┌ nav 36 ───────┐ │        [SyncIndicator] [filter] [refresh 32]     │
 │ │团队入口       │ │                                                  │
-│ │我的入口       │ ├──────────────────────────────────────────────────┤
+│ │个人入口       │ ├──────────────────────────────────────────────────┤
 │ └───────────────┘ │ Banner（条件出现）                         h=40   │
 │ ───────────────── │                                                  │
 │ [编辑模式]（管理员）├─────────────────────────────────────────────────┤
@@ -61,7 +61,7 @@
 MainWindowShell
 ├─ TitleBar            [Icon 16, 产品名, Spacer, Button(ghost)×3]   ← 唯一 app-region: drag
 ├─ Sidebar (w 240)
-│  ├─ PageTabs(vertical)  [BuildingComplex 团队入口][UserRound 我的入口]  ← 选中第一项
+│  ├─ PageTabs(vertical)  [BuildingComplex 团队入口][UserRound 个人入口]  ← 选中第一项
 │  ├─ Button(ghost)       [Pencil 编辑模式]  ※仅管理员角色可见
 │  ├─ Spacer                ← 空白区也为 app-region: drag
 │  └─ Button(ghost)       [Settings 设置]
@@ -93,7 +93,7 @@ MainWindowShell
 |---|---|---|---|---|
 | S1 | Loading（首次） | 启动首次拉取 | 24 张 `Skeleton`（同 152×132，圆角 12，微光 1200ms） | — |
 | S2 | Populated | 有配置 | 分组 + 卡片网格 | AC-01 |
-| S3 | Empty（有配置但 0 项） | 管理员发布了空配置 | `EmptyBlock`：图标 `layout-grid` 24，标题「团队入口还没有内容」，描述「管理员还没有发布任何入口。你可以先使用我的入口。」，动作 Button(ghost)「去看看我的入口」 | AC-11（注意：这不是故障，不得显示离线/错误样式） |
+| S3 | Empty（有配置但 0 项） | 管理员发布了空配置 | `EmptyBlock`：图标 `layout-grid` 24，标题「团队入口还没有内容」，描述「管理员还没有发布任何入口。你可以先使用个人入口。」，动作 Button(ghost)「去看看个人入口」 | AC-11（注意：这不是故障，不得显示离线/错误样式） |
 | S4 | Offline Banner | `OFFLINE_CACHED` / `OFFLINE_EMPTY` / `SYNC_DATA_REJECTED` / `SYNC_FAILED_UNKNOWN` | 顶部 Banner h40，图标 16，两行文案见 §4 | AC-10 / AC-11 |
 | S5 | 更新已应用 Banner | 轮询软更新成功 | 「团队入口已更新至 v27（3 项变更）」，3s 后自动消失，不打断焦点 | AC-08 |
 | S6 | 容量预警 Banner | 接近 8 组 / 200 项 | warn 配色，文案见 §4 | — |
@@ -109,7 +109,7 @@ MainWindowShell
 
 ## 4. 真实中文文案
 
-**PageTabs**：`团队入口` / `我的入口`
+**PageTabs**：`团队入口` / `个人入口`
 
 **GroupHeader**：`日常办公` `设计与素材` `项目资料` `数据与后台` `团队门户` `财务与报销`；右侧计数 `6 项`
 
@@ -135,11 +135,11 @@ MainWindowShell
   - 第 2 行（按 `offlineReason` 取，四值映射见 `../components/sync-indicator.md` §3）：
     - `SERVICE_NOT_FOUND`（高频）：`管理员电脑未开机或未连接网络。稍后会自动重试，你也可以手动刷新。`
     - `NETWORK_UNREACHABLE`：`这台电脑连不上内网。检查网络后会自动重试，你也可以手动刷新。`
-    - `UNKNOWN`（兜底）：`暂时连不上管理员电脑，稍后会自动重试。你也可以先使用我的入口。`
+    - `UNKNOWN`（兜底）：`暂时连不上管理员电脑，稍后会自动重试。你也可以先使用个人入口。`
     - `CONNECTION_BLOCKED`（罕见）：`连接被安全软件或网络策略拦截。可手动刷新，仍不行请联系管理员或 IT。`
   - **四行视觉权重完全相同**（都是第二行 11px）。不得给罕见的 `CONNECTION_BLOCKED` 加事故级样式，也不得把高频的 `SERVICE_NOT_FOUND` 写得比兜底还轻
 
-**空状态**：`团队入口还没有内容` / `管理员还没有发布任何入口。你可以先使用我的入口。` / Button `去看看我的入口`
+**空状态**：`团队入口还没有内容` / `管理员还没有发布任何入口。你可以先使用个人入口。` / Button `去看看个人入口`
 
 **失效卡片副标签**：软件 `本机未找到该软件`；文件夹 `文件夹不存在或当前无权限`；网页 `链接格式无效`
 
@@ -154,7 +154,7 @@ MainWindowShell
 | 按键 | 行为 |
 |---|---|
 | `Ctrl+1` | 切到团队入口页（本页） |
-| `Ctrl+2` | 切到我的入口页 |
+| `Ctrl+2` | 切到个人入口页 |
 | `Ctrl+F` | 聚焦工具栏搜索框并全选 |
 | `F5` | 手动刷新（等价于点击 `RefreshCw`） |
 | `Tab` | TitleBar → PageTabs → SearchInput → 刷新 → 设置 → 第一张卡片 |
@@ -176,7 +176,7 @@ MainWindowShell
 | 用途 | 名称 | 尺寸 |
 |---|---|---|
 | 团队入口 Tab | `building-complex` | 16 |
-| 我的入口 Tab | `user-round` | 16 |
+| 个人入口 Tab | `user-round` | 16 |
 | 搜索 | `search` | 16 |
 | 刷新 | `refresh-cw` | 20 |
 | 设置 | `settings` | 20 |

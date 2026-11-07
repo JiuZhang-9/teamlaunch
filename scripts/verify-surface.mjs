@@ -9,6 +9,7 @@
  * 用法：node --experimental-transform-types scripts/verify-surface.mjs
  */
 import { isMainOnScreen, planSurface } from '../src/shared/surface-machine.ts';
+import { planStartupSurface } from '../src/shared/startup-surface.ts';
 
 let failed = 0;
 const check = (name, ok, detail = '') => {
@@ -141,5 +142,24 @@ check(
   showPalettePlans.every((p) => p.kind !== 'showPalette' || 'hideMain' in p),
 );
 
-console.log(failed === 0 ? '\nPASS: 窗口状态机门禁全绿' : `\nFAIL: ${failed} 项`);
+/* ------------------------------------------------------------------ *
+ * 5. 启动面（2026-11-07）：自启静默后台、手动启动恢复上次的窗口
+ * ------------------------------------------------------------------ */
+const startup = (over = {}) => ({ autostart: false, trayEnabled: true, lastSurface: null, ...over });
+check('手动启动 + 无记录（首装）→ 快捷搜索栏', planStartupSurface(startup()) === 'palette');
+check(
+  '手动启动 + 上次是主窗口 → 主窗口',
+  planStartupSurface(startup({ lastSurface: 'main' })) === 'main',
+);
+check(
+  '手动启动 + 上次是面板 → 面板',
+  planStartupSurface(startup({ lastSurface: 'palette' })) === 'palette',
+);
+check('开机自启 + 托盘开 → 静默后台（不弹窗）', planStartupSurface(startup({ autostart: true })) === 'none');
+check(
+  '开机自启 + 托盘关 → 主窗口（不把应用藏成孤儿）',
+  planStartupSurface(startup({ autostart: true, trayEnabled: false })) === 'main',
+);
+
+console.log(failed === 0 ? '\nPASS: 窗口状态机与启动面门禁全绿' : `\nFAIL: ${failed} 项`);
 process.exit(failed === 0 ? 0 : 1);

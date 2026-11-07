@@ -49,14 +49,14 @@ const clickInput = async (ariaLabel) => {
   await sleep(200);
 };
 
-// 0. 过隐私门（有确认按钮时）+ 切到「我的入口」
+// 0. 过隐私门（有确认按钮时）+ 切到「个人入口」
 await ev(`(() => {
   const ack = [...document.querySelectorAll('button')].find(b => b.textContent.includes('允许') || b.textContent.includes('确认'));
   if (ack) ack.click();
   return true;
 })()`);
 await sleep(300);
-await clickButton("b.textContent.trim() === '我的入口'");
+await clickButton("b.textContent.trim() === '个人入口'");
 // 1. 工具栏「添加入口」
 const probe = await ev(`JSON.stringify({ url: location.hash, btn: [...document.querySelectorAll('button')].filter(b => b.textContent.trim() === '添加入口').length, dpr: window.devicePixelRatio })`);
 console.log('probe:', probe);

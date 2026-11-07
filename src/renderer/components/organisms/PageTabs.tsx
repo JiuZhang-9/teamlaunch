@@ -14,7 +14,7 @@ import type { TabKey } from '../../store/workbenchStore.tsx';
 const TABS: Array<{ key: TabKey; label: string; icon: typeof BuildingComplex }> = [
   { key: 'home', label: '主页', icon: House },
   { key: 'team', label: '团队入口', icon: BuildingComplex },
-  { key: 'personal', label: '我的入口', icon: UserRound },
+  { key: 'personal', label: '个人入口', icon: UserRound },
 ];
 
 export interface PageTabsProps {
@@ -22,7 +22,7 @@ export interface PageTabsProps {
   onChange(next: TabKey): void;
   /** 竖向用于侧栏导航（选中态为左侧竖条），横向用于顶部标签（底部横条）。 */
   orientation?: 'horizontal' | 'vertical';
-  /** 禁用项（2026-10-17）：视觉置灰、点击无效、方向键/Home/End 都跳过。编辑态锁「我的入口」用。 */
+  /** 禁用项（2026-10-17）：视觉置灰、点击无效、方向键/Home/End 都跳过。编辑态锁「个人入口」用。 */
   disabledKeys?: TabKey[];
   /** 禁用项的统一提示（title 与 aria 说明为什么要先退出编辑）。 */
   disabledTitle?: string;

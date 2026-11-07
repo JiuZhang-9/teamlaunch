@@ -1,5 +1,5 @@
 /**
- * 扫描「入口点」的结果 —— 勾选要添加的程序，批量加入「我的入口」。
+ * 扫描「入口点」的结果 —— 勾选要添加的程序，批量加入「个人入口」。
  *
  * 扫描一次可能返回几百条（开始菜单 + 桌面 + 任务栏 + 已安装程序），所以：
  *  - **能筛**：搜索框按名称过滤；
@@ -20,9 +20,9 @@ import type { ScanCandidate } from '../../bridge/types.ts';
 
 export interface ScanPickerDialogProps {
   items: ScanCandidate[];
-  /** 已在「我的入口」里的目标路径（标出来并默认不勾）。 */
+  /** 已在「个人入口」里的目标路径（标出来并默认不勾）。 */
   existingTargets?: string[];
-  /** 现有分组名（目标可选）：空 = 默认「我的入口」。 */
+  /** 现有分组名（目标可选）：空 = 默认「个人入口」。 */
   groups?: string[];
   group?: string;
   onGroupChange?(name: string): void;
@@ -173,13 +173,13 @@ export function ScanPickerDialog({
       }
     >
       <p className="t-sm mb-1 text-[var(--fg-2)]">
-        找到 {items.length} 个候选程序（{sources}）。勾选要加入「{group.trim() || '我的入口'}」的；标着「已在清单中」的默认不勾。
+        找到 {items.length} 个候选程序（{sources}）。勾选要加入「{group.trim() || '个人入口'}」的；标着「已在清单中」的默认不勾。
       </p>
       {items.length >= 300 && (
         <p className="t-xs mb-2 text-[var(--warn-fg)]">已达扫描上限，可能还有没列出来的程序。</p>
       )}
 
-      {/* 目标分组（2026-10-21 用户要求）：不再一律新建/落到「我的入口」。
+      {/* 目标分组（2026-10-21 用户要求）：不再一律新建/落到「个人入口」。
           选已有分组，或留着默认（组不存在时会按这个名字建出来）。 */}
       {onGroupChange && (
         <div className="mb-2 flex items-center gap-2">
@@ -190,7 +190,7 @@ export function ScanPickerDialog({
             onChange={(e) => onGroupChange(e.target.value)}
             className="h-8 min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 t-sm text-[var(--fg)]"
           >
-            <option value="">我的入口（默认）</option>
+            <option value="">个人入口（默认）</option>
             {groups.map((g) => (
               <option key={g} value={g}>
                 {g}

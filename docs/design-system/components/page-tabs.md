@@ -1,6 +1,6 @@
 # 组件规格 · PageTabs
 
-> 唯一视觉契约 `docs/UIUX.md` §3.3 ｜ 两个 Tab：团队入口 / 我的入口
+> 唯一视觉契约 `docs/UIUX.md` §3.3 ｜ 两个 Tab：团队入口 / 个人入口
 > 语义：`role="tablist"` + `role="tab"` + `aria-selected` + `aria-controls`（**不是导航链接，不做路由跳转**）
 
 ---
@@ -9,7 +9,7 @@
 
 ```
         ┌──────────────────┬──────────────────┐
-        │ [b-c 16] 团队入口 │ [u-r 16] 我的入口 │  ← b-c=building-complex, u-r=user-round
+        │ [b-c 16] 团队入口 │ [u-r 16] 个人入口 │  ← b-c=building-complex, u-r=user-round
         └──────────────────┴──────────────────┘
            ↑ 选中项：bg --tab-bg-selected + 底部 2px --tab-indicator
   轨道：bg --tab-track-bg，圆角 8，h 32，p 2
@@ -40,7 +40,7 @@
 
 **Focus-visible**：`--ring-focus` 包裹整个单项（不是只包文字），键盘可达时整块高亮。
 
-**Disabled**：本项目不用——两个 Tab 永远可用。员工没有编辑权限也不影响切到"我的入口"。
+**Disabled**：本项目不用——两个 Tab 永远可用。员工没有编辑权限也不影响切到"个人入口"。
 
 ---
 
@@ -94,7 +94,7 @@
 | Tab | Lucide | 尺寸 | 导出名 |
 |---|---|---|---|
 | 团队入口 | `building-complex` | 16 | `BuildingComplex` |
-| 我的入口 | `user-round` | 16 | `UserRound` |
+| 个人入口 | `user-round` | 16 | `UserRound` |
 
 ---
 

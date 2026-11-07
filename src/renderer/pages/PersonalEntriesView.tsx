@@ -1,5 +1,5 @@
 /**
- * V-02 我的入口页 —— 本机可编辑，**永不跨设备同步**。
+ * V-02 个人入口页 —— 本机可编辑，**永不跨设备同步**。
  * 因此本页工具栏没有 SyncIndicator，也不得出现任何"同步中/已同步"字样。
  */
 import { EllipsisVertical, FolderPlus, Layers, Plus, ScanSearch } from 'lucide-react';
@@ -213,7 +213,7 @@ export function PersonalEntriesView() {
         <div className="flex h-full items-center">
           <EmptyBlock
             icon={FolderPlus}
-            title="我的入口还没有内容"
+            title="个人入口还没有内容"
             detail="把常用的软件、文件夹和网页加进来，只有你能看到。"
             actions={
               <>

@@ -141,7 +141,7 @@ export function BatchAddDialogView({ onClose, scope = 'personal' }: { onClose():
     >
       <p className="t-sm mb-2 text-[var(--fg-2)]">
         {scope === 'personal'
-          ? `一行一个：网址、程序路径（exe / lnk）或文件夹路径，最多 ${MAX_LINES} 行。识别成功的一次加入「我的入口」。`
+          ? `一行一个：网址、程序路径（exe / lnk）或文件夹路径，最多 ${MAX_LINES} 行。识别成功的一次加入「个人入口」。`
           : `一行一个：网址、程序路径（exe / lnk）或文件夹路径，最多 ${MAX_LINES} 行。识别成功的加入团队草稿，发布后员工才看得到。`}
       </p>
 
@@ -170,7 +170,7 @@ export function BatchAddDialogView({ onClose, scope = 'personal' }: { onClose():
                 onChange={(e) => setGroup(e.target.value)}
                 className="h-8 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 t-sm text-[var(--fg)]"
               >
-                <option value="">{scope === 'personal' ? '（默认：我的入口）' : '（默认：第一个分组）'}</option>
+                <option value="">{scope === 'personal' ? '（默认：个人入口）' : '（默认：第一个分组）'}</option>
                 {groups.map((g) => (
                   <option key={g} value={g}>
                     {g}

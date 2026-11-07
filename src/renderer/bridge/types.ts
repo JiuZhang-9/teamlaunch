@@ -303,7 +303,7 @@ export interface TeamLaunchApi {
    * 预热完成信号（R23，2026-10-17）。
    *
    * `settings.get()` / `personal.get()` / `sync.snapshot()` 是**同步**读缓存；
-   * 首帧早于 preload 预热完成时，读到的是默认值（隐私门重弹、「我的入口」空白）。
+   * 首帧早于 preload 预热完成时，读到的是默认值（隐私门重弹、「个人入口」空白）。
    * 渲染层挂载后 `await api.ready` 再重取一次缓存即可对齐真值——首帧仍不挂 loading。
    */
   readonly ready: Promise<void>;
@@ -601,7 +601,7 @@ export interface TeamLaunchApi {
     /** 任意窗口改了设置都广播到这里：跨窗口主题/热键/缩放同步的唯一通道。 */
     onSettingsChanged(cb: (settings: Settings) => void): () => void;
     /**
-     * 任意窗口改了「我的入口」都广播到这里（2026-10-21）。
+     * 任意窗口改了「个人入口」都广播到这里（2026-10-21）。
      * 快捷面板是独立窗口，各自持有一份 store；没有这条通道时，主窗口新加的入口
      * 在面板里要重启才搜得到。preload 同时会刷新自己的同步缓存，回调里直接读新值即可。
      */

@@ -15,6 +15,7 @@ import { ScrollArea } from '../atoms/ScrollArea.tsx';
 import { Banner } from '../molecules/Banner.tsx';
 import { TitleBar } from './TitleBar.tsx';
 import { ContentHeader } from './ContentHeader.tsx';
+import { HomeHeader } from './HomeHeader.tsx';
 import { Sidebar, type SidebarMode } from './Sidebar.tsx';
 import { GroupActionsDialog } from './GroupActionsDialog.tsx';
 import { ConfirmDialog, RenameDialog } from './SimpleDialog.tsx';
@@ -473,7 +474,7 @@ export function MainWindowShell() {
       }
       return;
     }
-    /* 编辑会话属于团队页：在「我的入口」上按快捷键进编辑时先把人带回团队页，
+    /* 编辑会话属于团队页：在「个人入口」上按快捷键进编辑时先把人带回团队页，
        否则会停在一个"正在编辑、页面却是个人页"的分裂状态（编辑态锁不允许切到个人页）。 */
     if (tab === 'personal') setTab('team');
     edit.beginEdit();
@@ -640,7 +641,7 @@ export function MainWindowShell() {
      走与 Ctrl+V 粘贴添加完全同一条流程（识别与预填在 workbenchStore）。 */
   useEffect(() => api.events.onQuickAdd((text) => void quickAddFromText(text)), [quickAddFromText]);
   /* ---------------- 全局键位（键位表见 useGlobalHotkeys） ---------------- */
-  /** Ctrl+E / Ctrl+Q：按 主页 → 团队 → 我的 正/反循环；编辑态跳过「我的入口」。 */
+  /** Ctrl+E / Ctrl+Q：按 主页 → 团队 → 个人 正/反循环；编辑态跳过「个人入口」。 */
   const cycleTab = useCallback(
     (delta: 1 | -1) => {
       const order: TabKey[] = ['home', 'team', 'personal'];
@@ -730,9 +731,9 @@ export function MainWindowShell() {
   }, [dialog, entryEditor, gateBlocking, quickAddFromText]);
 
   /* ---------------- 拖拽添加（2026-10-19 用户要求） ----------------
-     把桌面图标 / 文件夹 / 浏览器里的链接拖进窗口 → 识别 → 加进「我的入口」。
+     把桌面图标 / 文件夹 / 浏览器里的链接拖进窗口 → 识别 → 加进「个人入口」。
      2026-10-19 追加（用户："希望能直接拖到对应组"）：指针停在哪个分组区域上，就落进哪一组；
-     没停在任何分组上则落进默认的「我的入口」。
+     没停在任何分组上则落进默认的「个人入口」。
      三条纪律：
       1. 只在"拖的是文件/链接"时接管（拖卡片排序是应用内的 HTML5 拖拽，dataTransfer 里没有 Files，
          由 CardGrid 自己处理，互不干扰）；
@@ -753,7 +754,7 @@ export function MainWindowShell() {
   /**
    * 按指针位置找落点分组。个人页认个人分组；团队编辑态认草稿分组（AdminEditView 的
    * GroupSections 同样带 data-tl-group-name）。只读团队页 / 主页不提供落点分组，
-   * 拖入仍按当前规则进「我的入口」——覆层文案会如实写清楚落到哪。
+   * 拖入仍按当前规则进「个人入口」——覆层文案会如实写清楚落到哪。
    */
   const groupUnderPointer = useCallback(
     (x: number, y: number): { name: string; el: HTMLElement } | null => {
@@ -888,11 +889,11 @@ export function MainWindowShell() {
           });
           return;
         }
-        /* 方案 A：编辑态落团队草稿（一次 mutate = 一步撤销），否则落「我的入口」。 */
+        /* 方案 A：编辑态落团队草稿（一次 mutate = 一步撤销），否则落「个人入口」。 */
         const res = scope === 'team' ? edit.createEntries(inputs, targetGroup ?? undefined) : await addPersonalEntries(inputs);
         if (res.added > 0) {
           void api.usage.bump({ kind: 'feature', key: 'dragAdd' });
-          const where = targetGroup ?? (scope === 'team' ? '团队入口' : '我的入口');
+          const where = targetGroup ?? (scope === 'team' ? '团队入口' : '个人入口');
           const notes: string[] = [];
           if (scope === 'team') notes.push('已写入团队草稿，发布给团队后生效');
           if (rejected.length > 0) notes.push(`另有 ${rejected.length} 个认不出来，已跳过`);
@@ -998,7 +999,7 @@ export function MainWindowShell() {
         <Sidebar
           tab={tab}
           /* 模式跟随当前 Tab：编辑态的撤销/新建按钮只属于团队页。
-             此前 editing 优先于 tab，切到"我的入口"也显示团队编辑按钮、动作也落在团队草稿上。 */
+             此前 editing 优先于 tab，切到"个人入口"也显示团队编辑按钮、动作也落在团队草稿上。 */
           mode={mode}
           groups={groups}
           snapshot={tab === 'personal' ? null : snapshot}
@@ -1042,7 +1043,10 @@ export function MainWindowShell() {
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {tab !== 'home' && (
+          {tab === 'home' ? (
+            /* 主页精简顶栏（2026-11-07 方案 A）：侧栏收起时也能回团队 / 个人入口。 */
+            <HomeHeader onSwitchTab={setTab} />
+          ) : (
             <ContentHeader
               tab={tab}
               mode={mode === 'home' ? 'team' : mode}
@@ -1101,7 +1105,7 @@ export function MainWindowShell() {
                   hits={hits}
                   debouncing={query !== debouncedQuery}
                   quickAccess={quickAccess}
-                  tabLabel={tab === 'team' ? '团队入口' : '我的入口'}
+                  tabLabel={tab === 'team' ? '团队入口' : '个人入口'}
                   icons={iconsForSearch}
                   runtime={runtime}
                   selectedIndex={searchIndex}
@@ -1208,7 +1212,7 @@ export function MainWindowShell() {
           style={{ background: 'var(--accent-tint)', opacity: 0.92 }}
         >
           <span className="t-base w-emph text-center text-[var(--accent-text)]">
-            松开鼠标，把拖进来的图标 / 文件夹加进「{dropGroupName ?? (editing ? '团队入口' : '我的入口')}」
+            松开鼠标，把拖进来的图标 / 文件夹加进「{dropGroupName ?? (editing ? '团队入口' : '个人入口')}」
             {dropGroupName === null && (tab === 'personal' || (editing && tab === 'team')) && (
               <span className="t-2xs block font-normal opacity-80">（拖到某个分组上可以直接落进那一组）</span>
             )}

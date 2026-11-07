@@ -82,6 +82,18 @@ export function PaletteResults({
 }: PaletteResultsProps) {
   /** 右键菜单：位置 + 命中的那条结果。菜单开着时 Esc 只收菜单，不收起面板。 */
   const [menu, setMenu] = useState<{ x: number; y: number; hit: PaletteHit } | null>(null);
+  /**
+   * 悬停只做视觉反馈（2026-11-07 用户反馈）：此前图标格的 onMouseEnter 直接写
+   * selectedIndex，鼠标扫过角落的格子就会把键盘选中项抢走——剪贴板有内容时按空格
+   * 本想打开剪贴板，却打开了鼠标停住的那一项。现在悬停与选中是两个独立状态：
+   * 空格 / 回车只认 selectedIndex（方向键、Tab 改它），鼠标只改 hoverIndex。
+   */
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  /* 结果列表变了，旧悬停下标可能指向另一项：清掉，避免高亮错位。 */
+  useEffect(() => {
+    setHoverIndex(null);
+  }, [hits]);
 
   /* Esc 先收菜单、再收面板：用捕获阶段截住，面板的 onKeyDown 就不会跟着把整面关掉。
      （ContextMenu 自己也在 window 上监听 Esc；这里主动 setMenu(null) 后它会随卸载一起清理。） */
@@ -124,24 +136,36 @@ export function PaletteResults({
   const renderTile = (hit: PaletteHit, favorited: boolean) => {
     const i = hitIndex(hit);
     const selected = i === selectedIndex;
+    const hovered = i === hoverIndex;
     const iconUrl = iconFor(hit.entry.id);
     return (
       <div
         key={hit.entry.id}
         id={`tl-palette-tile-${i}`}
+        data-tl-tile={i}
         role="button"
         tabIndex={-1}
+        aria-current={selected ? 'true' : undefined}
         aria-label={`${hit.entry.name}（${hit.source}）`}
         title={`${hit.entry.name}\n${hit.subtitle}${enableFavoriteMenu ? `\n右键：${favorited ? '取消收藏' : '收藏'}` : ''}`}
         onClick={() => onOpen(hit)}
-        onMouseEnter={() => onSelectIndex(i)}
+        onMouseEnter={() => setHoverIndex(i)}
+        onMouseLeave={() => setHoverIndex((current) => (current === i ? null : current))}
         onContextMenu={(e) => openMenu(e, hit)}
         className="group relative flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--radius-md)] border px-1 pt-2 transition-colors duration-[var(--motion-fast)]"
         style={{
           height: tileHeight,
           gap: tileGap,
-          borderColor: selected ? 'var(--accent)' : 'var(--border-subtle)',
-          background: selected ? 'var(--accent-tint)' : 'var(--card-bg)',
+          borderColor: selected
+            ? 'var(--accent)'
+            : hovered
+              ? 'var(--border-strong)'
+              : 'var(--border-subtle)',
+          background: selected
+            ? 'var(--accent-tint)'
+            : hovered
+              ? 'var(--card-bg-hover)'
+              : 'var(--card-bg)',
         }}
       >
         {iconUrl !== null ? (
@@ -255,17 +279,17 @@ export function PaletteResults({
                 programError ??
                 (programScanning
                   ? '正在索引开始菜单里的程序…'
-                  : '只索引开始菜单里的快捷方式；没有快捷方式的软件不会出现在这里，也可以到「我的入口」里手动添加。')
+                  : '只索引开始菜单里的快捷方式；没有快捷方式的软件不会出现在这里，也可以到「个人入口」里手动添加。')
               }
             />
           ) : query.length === 0 ? (
-            /* 清单完全为空（团队 + 我的入口都没有内容）：这不是"没搜到"，
+            /* 清单完全为空（团队 + 个人入口都没有内容）：这不是"没搜到"，
                而是"还没有东西可开"，所以如实说清楚去哪里加。 */
             <EmptyBlock
               compact
               icon={LayoutGrid}
               title="还没有可打开的入口"
-              detail="在「我的入口」里添加软件、文件夹或网页；复制的网址或路径在这里也能直接打开。"
+              detail="在「个人入口」里添加软件、文件夹或网页；复制的网址或路径在这里也能直接打开。"
             />
           ) : (
             <EmptyBlock
@@ -369,7 +393,7 @@ export function PaletteResults({
         )}
         {teamUnavailable && (
           <p className="px-3 py-1 t-2xs text-[var(--meta)]">
-            团队入口还没有同步，当前只显示我的入口
+            团队入口还没有同步，当前只显示个人入口
           </p>
         )}
       </div>

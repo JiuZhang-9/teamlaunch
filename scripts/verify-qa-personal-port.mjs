@@ -78,7 +78,7 @@ const configOf = (n, groupId = 'g-1') => ({
   groups: [
     {
       id: groupId,
-      name: '我的入口',
+      name: '个人入口',
       sort: 0,
       entries: Array.from({ length: n }, (_, k) => entry(`e-${k}`, `入口${k}`)),
     },
@@ -169,7 +169,7 @@ try {
   // current 故意给一份"与磁盘完全不同"的：预览若采信它，冲突数就会算错。
   const stale = { schemaVersion: 1, groups: [{ id: 'g-x', name: 'x', sort: 0, entries: [] }] };
   const p2 = await previewPersonalImport({ text: importText, current: stale });
-  const p3 = await previewPersonalImport({ text: importText, current: { schemaVersion: 1, groups: [{ id: 'g-1', name: '我的入口', sort: 0, entries: [entry('e-0', '入口0'), entry('e-99', '入口99')] }] } });
+  const p3 = await previewPersonalImport({ text: importText, current: { schemaVersion: 1, groups: [{ id: 'g-1', name: '个人入口', sort: 0, entries: [entry('e-0', '入口0'), entry('e-99', '入口99')] }] } });
   check(
     '7｜预览无视调用方传入的 current，两次不同 current 得到同一份冲突判定（真值只有磁盘）',
     p2.ok === true && p3.ok === true && p2.preview.conflicts.length === p3.preview.conflicts.length,
@@ -182,7 +182,7 @@ try {
      现在的口径：读路径经 PersonalService（schema 校验）→ 回落空配置；损坏事实由
      `corruption()` 如实报给界面（不许把失败画成"你本来就没有入口"），且**原文件一个字节都不动**。 */
   const goodBackup = await readFile(PERSONAL_FILE, 'utf8');
-  await writeFile(PERSONAL_FILE, JSON.stringify({ schemaVersion: 1, groups: [{ id: 'g-1', name: '我的入口', sort: 0, entries: [{ id: 'e-0', name: '坏条目', sort: 0, type: 'web', target: 'https://example.com/' }] }] }), 'utf8');
+  await writeFile(PERSONAL_FILE, JSON.stringify({ schemaVersion: 1, groups: [{ id: 'g-1', name: '个人入口', sort: 0, entries: [{ id: 'e-0', name: '坏条目', sort: 0, type: 'web', target: 'https://example.com/' }] }] }), 'utf8');
   const corruptText = await readFile(PERSONAL_FILE, 'utf8');
   const corruptDiag = await personalService().corruption();
   check('8｜手改坏的配置被判定为损坏并给出原因', corruptDiag.corrupt === true && typeof corruptDiag.reason === 'string', `corrupt=${corruptDiag.corrupt} reason=${corruptDiag.reason}`);
@@ -197,6 +197,27 @@ try {
   await writeFile(PERSONAL_FILE, goodBackup, 'utf8');
   const recovered = await personalService().corruption();
   check('8｜文件修好后损坏标记消失（不是粘住的）', recovered.corrupt === false, `corrupt=${recovered.corrupt}`);
+
+  /* ========== 9. 默认分组改名迁移（2026-11-07） ==========
+     老版本把默认分组叫「我的入口」，现在统一叫「个人入口」。只改第一个旧名分组，
+     且仅当不存在新名分组时才动——不能把用户自己起的同名分组连带改掉，也不能改出两个重名组。 */
+  const legacy = { schemaVersion: 1, groups: [{ id: 'g-1', name: '我的入口', sort: 0, entries: [] }] };
+  await writeFile(PERSONAL_FILE, JSON.stringify(legacy), 'utf8');
+  const migrated = await personalService().load();
+  check('9｜旧默认分组读到时改名为「个人入口」', migrated.groups[0]?.name === '个人入口', `name=${migrated.groups[0]?.name}`);
+  const persisted = JSON.parse(await readFile(PERSONAL_FILE, 'utf8'));
+  check('9｜改名已落盘（下次启动不用再迁）', persisted.groups[0]?.name === '个人入口', `name=${persisted.groups[0]?.name}`);
+
+  const conflict = {
+    schemaVersion: 1,
+    groups: [
+      { id: 'g-1', name: '我的入口', sort: 0, entries: [] },
+      { id: 'g-2', name: '个人入口', sort: 1, entries: [] },
+    ],
+  };
+  await writeFile(PERSONAL_FILE, JSON.stringify(conflict), 'utf8');
+  const untouched = await personalService().load();
+  check('9｜已存在「个人入口」时不动旧组（不制造重名）', untouched.groups[0]?.name === '我的入口', `name=${untouched.groups[0]?.name}`);
 } finally {
   await rm(root, { recursive: true, force: true });
   await rm(stubDir, { recursive: true, force: true });

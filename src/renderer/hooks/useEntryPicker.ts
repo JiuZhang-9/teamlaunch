@@ -14,9 +14,9 @@ import { useToasts } from '../store/toastStore.tsx';
 import type { PickResult, ScanCandidate, ScanResult } from '../bridge/types.ts';
 
 export interface EntryPicker {
-  /** 打开选择框挑一个程序（exe / lnk），解析后加入「我的入口」。 */
+  /** 打开选择框挑一个程序（exe / lnk），解析后加入「个人入口」。 */
   addApp(): Promise<void>;
-  /** 打开选择框挑一个文件夹，加入「我的入口」。 */
+  /** 打开选择框挑一个文件夹，加入「个人入口」。 */
   addFolder(): Promise<void>;
   /** 扫描本机入口点，返回候选列表；调用方负责渲染选择对话框。 */
   scan(): Promise<ScanCandidate[] | null>;
@@ -70,7 +70,7 @@ export function useEntryPicker(): EntryPicker {
   }, [push]);
 
   /** 供选择对话框确认时调用：批量落盘并如实反馈实际添加数量。
-      groupName = 用户在对话框里选的目标分组（空 = 默认「我的入口」）。 */
+      groupName = 用户在对话框里选的目标分组（空 = 默认「个人入口」）。 */
   const commitScan = useCallback(
     async (picked: ScanCandidate[], groupName?: string) => {
       const res = await addEntries(

@@ -39,7 +39,7 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
   const [pickedSource, setPickedSource] = useState(0);
   const [keyword, setKeyword] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  /** 目标分组（2026-10-21 用户要求）：空 = 默认「我的入口」。 */
+  /** 目标分组（2026-10-21 用户要求）：空 = 默认「个人入口」。 */
   const [group, setGroup] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -162,7 +162,7 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
           <span className="ml-auto t-xs text-[var(--muted)]">只读本机文件</span>
         </div>
 
-        {/* 目标分组（2026-10-21 用户要求）：不再一律落到「我的入口」。 */}
+        {/* 目标分组（2026-10-21 用户要求）：不再一律落到「个人入口」。 */}
         <div className="mb-2 flex items-center gap-2">
           <span className="t-xs shrink-0 text-[var(--muted)]">加入分组</span>
           <select
@@ -171,7 +171,7 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
             onChange={(e) => setGroup(e.target.value)}
             className={SELECT_CLASS}
           >
-            <option value="">我的入口（默认）</option>
+            <option value="">个人入口（默认）</option>
             {config.groups.map((g) => (
               <option key={g.id} value={g.name}>
                 {g.name}
@@ -291,7 +291,7 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
       }
     >
       <p className="t-sm mb-2 text-[var(--fg-2)]">
-        只读本机书签文件（不改、不动原文件），勾选后加进你的本机入口（默认「{group.trim() || '我的入口'}」，本机保存，不参与团队同步）。
+        只读本机书签文件（不改、不动原文件），勾选后加进你的本机入口（默认「{group.trim() || '个人入口'}」，本机保存，不参与团队同步）。
       </p>
       {body()}
     </Dialog>

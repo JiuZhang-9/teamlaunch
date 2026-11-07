@@ -64,10 +64,10 @@ const cardState = async () =>
     ),
   );
 
-// 0. 过隐私门 + 切到「我的入口」（页签用注入 click：Input 点击 tab 偶发不生效）
+// 0. 过隐私门 + 切到「个人入口」（页签用注入 click：Input 点击 tab 偶发不生效）
 await ev(`(() => { const ack = [...document.querySelectorAll('button')].find(b => b.textContent.includes('允许') || b.textContent.includes('确认')); if (ack) ack.click(); return true; })()`);
 await sleep(300);
-await ev(`(() => { const t = [...document.querySelectorAll('[role=tab]')].find(x => x.textContent.trim() === '我的入口'); if (t) t.click(); return !!t; })()`);
+await ev(`(() => { const t = [...document.querySelectorAll('[role=tab]')].find(x => x.textContent.trim() === '个人入口'); if (t) t.click(); return !!t; })()`);
 await sleep(400);
 
 // 1. 工具栏「添加入口」→ EntryEditDialog（personal create）

@@ -2,7 +2,7 @@
 /**
  * 快捷添加落点门禁（2026-10-29，1.6.0，用户拍板方案 A）。
  *
- * 判定本体在 src/shared/quick-add.ts：编辑中 → 团队草稿，否则 → 我的入口。
+ * 判定本体在 src/shared/quick-add.ts：编辑中 → 团队草稿，否则 → 个人入口。
  * 这里覆盖两个分支，并做三条源码级接线断言：
  *   - 粘贴 / 快捷窗口 / 剪贴板候选共用的 workbenchStore 走 quickAddScope；
  *   - 拖拽 onDropFiles 走 quickAddScope，编辑态调用 edit.createEntries；
@@ -19,7 +19,7 @@ const check = (name, ok, detail = '') => {
   if (!ok) failed += 1;
 };
 
-check('未编辑：落「我的入口」', quickAddScope({ editing: false }) === 'personal', quickAddScope({ editing: false }));
+check('未编辑：落「个人入口」', quickAddScope({ editing: false }) === 'personal', quickAddScope({ editing: false }));
 check('编辑中：落团队草稿', quickAddScope({ editing: true }) === 'team', quickAddScope({ editing: true }));
 
 const read = (rel) => readFile(new URL(`../${rel}`, import.meta.url), 'utf8');

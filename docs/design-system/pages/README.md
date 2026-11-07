@@ -9,7 +9,7 @@
 | # | 文件 | 视图 | 触发方式 | 对应 Spec §7 |
 |---|---|---|---|---|
 | 01 | `01-team-entries.md` | 团队入口页 | 主窗口默认页（AC-01） | 团队入口页 |
-| 02 | `02-personal-entries.md` | 我的入口页 | PageTabs 第二项 | 我的入口页 |
+| 02 | `02-personal-entries.md` | 个人入口页 | PageTabs 第二项 | 个人入口页 |
 | 03 | `03-mini-palette.md` | 迷你唤起面板 | 全局热键 `Ctrl+Space` | 迷你唤起面板 |
 | 04 | `04-window-search.md` | 窗口内搜索结果 | 工具栏搜索框输入 | 窗口内搜索 |
 | 05 | `05-admin-edit.md` | 管理员编辑态 | 设置里解锁管理员模式 | 管理员编辑态 |

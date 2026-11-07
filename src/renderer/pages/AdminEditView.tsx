@@ -112,7 +112,7 @@ export function AdminEditView() {
         isFavoriteOf={isFavorite}
         onToggleFavorite={(entry) => void toggleFavorite(entry.id)}
         onDropEntry={(id, toGroupId, toIndex) => {
-          /* 多选整块拖拽（与我的入口页同款）：整块一次 mutate ＝ 一步撤销。 */
+          /* 多选整块拖拽（与个人入口页同款）：整块一次 mutate ＝ 一步撤销。 */
           const ids = selected.some((e) => e.id === id) && selected.length > 1
             ? selected.map((e) => e.id)
             : [id];

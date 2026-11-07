@@ -41,7 +41,7 @@ const cards = await ev(`(() => {
 console.log('published cards:', cards);
 
 // 个人页回归:Obsidian 建个人入口(不选表情)→ 图标应立即出现
-await inject(`(() => { const t=[...document.querySelectorAll('[role=tab]')].find(x=>x.textContent.trim()==='我的入口'); if(!t) return 'NO'; t.click(); return 'OK'; })()`);
+await inject(`(() => { const t=[...document.querySelectorAll('[role=tab]')].find(x=>x.textContent.trim()==='个人入口'); if(!t) return 'NO'; t.click(); return 'OK'; })()`);
 await sleep(600);
 await inject(`(() => { const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='添加入口'); if(!b) return 'NO'; b.click(); return 'OK'; })()`);
 await inject(`(() => { const el=document.querySelector('input[aria-label="入口名称"]'); if(!el) return 'NO'; el.focus(); return 'OK'; })()`, 100);

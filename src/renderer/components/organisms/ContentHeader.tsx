@@ -30,7 +30,7 @@ const GAP = 4;
 const PAGE_ITEMS = [
   { key: 'home' as const, label: '主页', icon: House },
   { key: 'team' as const, label: '团队入口', icon: BuildingComplex },
-  { key: 'personal' as const, label: '我的入口', icon: UserRound },
+  { key: 'personal' as const, label: '个人入口', icon: UserRound },
 ];
 
 export interface ContentHeaderProps {
@@ -54,7 +54,7 @@ export interface ContentHeaderProps {
   onSearchBlur?(): void;
   /** Esc：有查询词时清空，空查询时退出搜索（1.5.1）。 */
   onSearchEscape?(): void;
-  /** 搜索框后的页面切换按钮（1.5.1 用户要求：不按快捷键也能换主页/团队/我的）。 */
+  /** 搜索框后的页面切换按钮（1.5.1 用户要求：不按快捷键也能换主页/团队/个人）。 */
   onSwitchTab?(tab: TabKey): void;
 }
 
@@ -141,7 +141,7 @@ export function ContentHeader(props: ContentHeaderProps) {
   );
 
   const canRefresh = snapshot ? syncPresentation(snapshot).refreshEnabled : true;
-  /** 搜索框后的一键切换：团队页显示「我的入口」，我的页显示「团队入口」。 */
+  /** 搜索框后的一键切换：团队页显示「个人入口」，个人页显示「团队入口」。 */
   const targetPage = tab === 'personal' ? PAGE_ITEMS[1] : PAGE_ITEMS[2];
   const targetBlocked = targetPage.key === 'personal' && mode === 'editing';
   const targetReason = targetBlocked ? '编辑中：先退出编辑模式再切换页面' : undefined;
@@ -187,11 +187,11 @@ export function ContentHeader(props: ContentHeaderProps) {
             else onSearchEscape?.();
           }}
           aria-label="搜索入口"
-          placeholder={tab === 'team' ? '搜索团队入口' : '搜索我的入口'}
+          placeholder={tab === 'team' ? '搜索团队入口' : '搜索个人入口'}
         />
       </div>
 
-      {/* 搜索框后的一键切换：显示目标页（团队 ↔ 我的），不再下拉。 */}
+      {/* 搜索框后的一键切换：显示目标页（团队 ↔ 个人），不再下拉。 */}
       <Button
         tone="ghost"
         size="sm"

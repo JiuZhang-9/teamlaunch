@@ -880,7 +880,7 @@ async function main() {
     try {
       const service = new PersonalService(new PersonalRepository(resolvePaths(coldRoot)));
       const full = Array.from({ length: 200 }, (_, i) => entry(`e-${i}`, `入口 ${i}`));
-      await service.save({ schemaVersion: 1, groups: [{ id: 'g1', name: '我的入口', sort: 0, entries: full }] });
+      await service.save({ schemaVersion: 1, groups: [{ id: 'g1', name: '个人入口', sort: 0, entries: full }] });
       assert((await service.load()).groups[0].entries.length === 200, '200 条应可正常保存');
 
       await assertThrows(async () => service.upsertEntry('g1', entry('overflow', '第 201 条')),
@@ -905,7 +905,7 @@ async function main() {
     try {
       const service = new PersonalService(new PersonalRepository(resolvePaths(coldRoot)));
       const existing = Array.from({ length: 150 }, (_, i) => entry(`e-${i}`, `入口 ${i}`));
-      await service.save({ schemaVersion: 1, groups: [{ id: 'g1', name: '我的入口', sort: 0, entries: existing }] });
+      await service.save({ schemaVersion: 1, groups: [{ id: 'g1', name: '个人入口', sort: 0, entries: existing }] });
       const incomingEntries = Array.from({ length: 100 }, (_, i) => ({
         ...entry(`in-${i}`, `导入 ${i}`),
         target: `C:\\\\Tools\\\\tool-${i}.exe`,
@@ -942,7 +942,7 @@ async function main() {
       const service = new PersonalService(repository);
       const tooMany = Array.from({ length: 201 }, (_, i) => entry(`e-${i}`, `入口 ${i}`));
       await assertThrows(
-        () => service.save({ schemaVersion: 1, groups: [{ id: 'g1', name: '我的入口', sort: 0, entries: tooMany }] }),
+        () => service.save({ schemaVersion: 1, groups: [{ id: 'g1', name: '个人入口', sort: 0, entries: tooMany }] }),
         (err) => err.code === 'ERR_PAYLOAD_TOO_LARGE' && err.message.includes('最多 200 个入口'),
         'save 必须与导入走同一道容量闸',
       );
@@ -961,7 +961,7 @@ async function main() {
     const tooMany = Array.from({ length: 201 }, (_, i) => entry(`e-${i}`, `入口 ${i}`));
     const overCapacity = {
       schemaVersion: 1,
-      groups: [{ id: 'g1', name: '我的入口', sort: 0, entries: tooMany }],
+      groups: [{ id: 'g1', name: '个人入口', sort: 0, entries: tooMany }],
     };
 
     const cap = checkPersonalSave(overCapacity);
@@ -974,7 +974,7 @@ async function main() {
       schemaVersion: 1,
       groups: [{
         id: 'g1',
-        name: '我的入口',
+        name: '个人入口',
         sort: 0,
         entries: [...tooMany.slice(0, 200), { ...entry('bad', '坏条目'), type: 'bogus' }],
       }],
@@ -986,7 +986,7 @@ async function main() {
     // 纯结构错误（不超限）仍走结构文案，不能被容量闸吞掉。
     const badShape = {
       schemaVersion: 1,
-      groups: [{ id: 'g1', name: '我的入口', sort: 0, entries: [{ ...entry('e1', '坏条目'), type: 'bogus' }] }],
+      groups: [{ id: 'g1', name: '个人入口', sort: 0, entries: [{ ...entry('e1', '坏条目'), type: 'bogus' }] }],
     };
     const shape = checkPersonalSave(badShape);
     assert(shape.ok === false && shape.reason.includes('保存的内容校验未通过'),

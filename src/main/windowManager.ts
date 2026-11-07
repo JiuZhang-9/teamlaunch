@@ -13,6 +13,7 @@ import { isQuitting } from './lifecycle.ts';
 import { logLine } from './appLog.ts';
 import { loadWindowState, trackWindowBounds } from './windowState.ts';
 import { loadPalettePosition, trackPalettePosition, type PalettePosition } from './paletteState.ts';
+import { saveLastSurface } from './surfaceState.ts';
 import { defaultBounds, isRestorableBounds } from '../shared/window-bounds.ts';
 import { planSurface, type Surface, type SurfacePlan, type SurfaceSnapshot } from '../shared/surface-machine.ts';
 import { ensureProgramsFresh } from './programIndex.ts';
@@ -44,10 +45,26 @@ let flushPalettePosition: (() => void) | null = null;
  * 判定本体在 shared/surface-machine.ts（不启动 Electron 也能测），这里只负责执行。
  * `activeSurface` 记「最后一次**显示**的是哪一面」，**不是**最后收起的那一面：
  * 从主窗口切到快捷窗口时主窗口只是让位，不该把「下次 Ctrl+Space 的目标」抢走。
- * 只活在主进程内存里——这是本次会话的交互状态，不写 settings、不跨机同步、不持久化。
+ * 2026-11-07 起写 `config/surface-state.json`：手动启动按它恢复上次关闭的窗口
+ * （用户拍板）；它仍是机器状态，不进 settings、不跨机同步。
  * 首次启动默认 `palette`：第一下仍然是唤起搜索面板（保持原手感）。
  */
 let activeSurface: Surface = 'palette';
+
+/** 启动时按磁盘记录校准，不反过来写盘（避免启动即覆盖用户记录）。 */
+export function setInitialActiveSurface(surface: Surface): void {
+  activeSurface = surface;
+}
+
+/**
+ * 切换「当前这一面」并落盘。只在值真的变化时写——focus 事件可能很频繁，
+ * 但切换只有 Ctrl+Space / Ctrl+Tab / 托盘唤起这几次。
+ */
+function markActiveSurface(next: Surface): void {
+  if (activeSurface === next) return;
+  activeSurface = next;
+  saveLastSurface(app.getPath('userData'), next);
+}
 
 /**
  * 托盘开关的实时值（托盘关着时「收起主窗口」只能最小化，否则藏了没有任何可见入口）。
@@ -164,7 +181,7 @@ export async function createMainWindow(closeToTray: () => boolean): Promise<Brow
      否则 activeSurface 会停在快捷窗口上，下一次 Ctrl+空格的目标就错了。
      顺手收掉快捷窗口：互斥不能只靠调用方自觉（2026-10-27，1.2.0）。 */
   mainWindow.on('focus', () => {
-    activeSurface = 'main';
+    markActiveSurface('main');
     hidePalette();
   });
   const flushBounds = trackWindowBounds(userData, mainWindow);
@@ -215,7 +232,7 @@ export function preheatPalette(): void {
   watchPreloadError(palette);
   /* 面板拿到焦点 = 用户正在用这一面；activeSurface 必须跟着它走。 */
   palette.on('focus', () => {
-    activeSurface = 'palette';
+    markActiveSurface('palette');
   });
   const userData = app.getPath('userData');
   void loadPalettePosition(userData).then((p) => {
@@ -289,7 +306,7 @@ function focusMainWindow(): boolean {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
-  activeSurface = 'main';
+  markActiveSurface('main');
   /* 通知渲染层"主窗口被重新唤起"（2026-10-29）：可见性变化只在隐藏/最小化时触发，
      被别的窗口挡住时 Ctrl+Space 只会 focus，不会触发 visibilitychange。
      渲染层收到后把搜索框置真并重读剪贴板、选中项回到第一条。 */
@@ -448,6 +465,30 @@ export function showPalette(scope: PaletteScope = 'entries'): boolean {
   return showPaletteNow(scope, plan.hideMain);
 }
 
+/**
+ * 手动启动 / 再次启动：打开上次显示过的那一面（2026-11-07 用户拍板）。
+ * 面板还没预热或已销毁时回主窗口——绝不返回 false 让调用方无处可去。
+ */
+export function showLastSurface(): boolean {
+  if (activeSurface === 'palette' && showPalette('entries')) return true;
+  return showMainWindow();
+}
+
+/**
+ * 启动时打开快捷搜索栏：面板窗口可能还在加载（file:// 通常很快，但不能假设）。
+ * 等 did-finish-load 再 show，避免第一帧是空白；已加载则立即显示。
+ */
+export function showPaletteWhenReady(scope: PaletteScope = 'entries'): void {
+  preheatPalette();
+  const maybeShow = (): void => {
+    if (palette && !palette.isDestroyed() && showPalette(scope)) return;
+    /* 面板建不出来（极端环境）不能什么都不显示：退回主窗口，至少让用户有界面。 */
+    showMainWindow();
+  };
+  if (palette && palette.webContents.isLoading()) palette.webContents.once('did-finish-load', maybeShow);
+  else maybeShow();
+}
+
 /** 按状态机给出的让位方式打开面板；showPalette / executePlan 共用，避免两套判定。 */
 function showPaletteNow(scope: PaletteScope, hideMain: 'hide' | 'minimize' | 'none'): boolean {
   if (!palette || palette.isDestroyed()) return false;
@@ -458,7 +499,7 @@ function showPaletteNow(scope: PaletteScope, hideMain: 'hide' | 'minimize' | 'no
   positionPalette();
   palette.show();
   palette.focus();
-  activeSurface = 'palette';
+  markActiveSurface('palette');
 
   // 每次打开顺手检查索引是否过期（24h）；过期只在后台重扫，不阻塞本次搜索。
   ensureProgramsFresh();

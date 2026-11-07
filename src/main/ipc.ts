@@ -17,6 +17,7 @@ import { checkForUpdatesNow, getUpdateStatus, installDownloadedUpdate } from './
 import { syncService } from './syncBridge.ts';
 import { serverPort } from './serverPort.ts';
 import { hidePalette, showMainWindow, switchToMain, switchToPalette } from './windowManager.ts';
+import { applyAutoLaunch } from './autoLaunch.ts';
 import { notifySystem } from './notify.ts';
 import { localStore } from './localStore.ts';
 import { EntrySchema } from '../shared/schema/entry.ts';
@@ -419,10 +420,10 @@ export function registerIpc(deps: IpcDeps): void {
     const base = storedGate.success ? storedGate.data : SettingsSchema.parse({});
     const next = SettingsSchema.parse({ ...base, ...patch });
     await localStore.saveSettings(next);
-    // 开机自启真实现：注册当前可执行文件。开发态（未打包）不写系统启动项，
-    // 否则每次开发都会把 electron.exe 挂进登录项——开关仍落盘，打包后即生效。
-    if ('autoLaunch' in patch && app.isPackaged) {
-      app.setLoginItemSettings({ openAtLogin: next.autoLaunch });
+    // 开机自启真实现：注册当前可执行文件，并带上 `--autostart` 让下次启动知道
+    // "这是登录拉起"（自启静默后台，不弹主窗口）。开发态由 applyAutoLaunch 内部跳过。
+    if ('autoLaunch' in patch) {
+      applyAutoLaunch(next.autoLaunch);
     }
     // 界面缩放走浏览器式 zoomFactor：窗口尺寸不变，字体与内部 UI 等比缩放重排。
     // 只作用于发起调用的窗口（迷你面板窗口保持 100%）。
@@ -460,7 +461,7 @@ export function registerIpc(deps: IpcDeps): void {
   });
 
   ipcMain.handle('tl:personal-export', async () => {
-    /* 损坏时拒绝导出：导出"空配置"会被读成"我的入口本来就是空的"，
+    /* 损坏时拒绝导出：导出"空配置"会被读成"个人入口本来就是空的"，
         比直接说清楚更糟（文件在磁盘上原样没动，用户可以自己修/找回来）。 */
     const corruption = await personalService().corruption();
     if (corruption.corrupt) {
@@ -469,8 +470,8 @@ export function registerIpc(deps: IpcDeps): void {
     const config = await readPersonalSafe();
     const count = config.groups.reduce((n, g) => n + g.entries.length, 0);
     const res = await dialog.showSaveDialog({
-      title: '导出我的入口',
-      defaultPath: `我的入口-${new Date().toISOString().slice(0, 10)}.json`,
+      title: '导出个人入口',
+      defaultPath: `个人入口-${new Date().toISOString().slice(0, 10)}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }],
     });
     if (res.canceled || !res.filePath) return { ok: false as const, reason: '已取消' };

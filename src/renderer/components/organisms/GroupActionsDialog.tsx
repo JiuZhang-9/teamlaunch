@@ -22,7 +22,7 @@ export interface GroupActionsDialogProps {
   canMoveDown: boolean;
   /** 组内入口数量：删除前必须让用户知道会连带删掉多少。 */
   entryCount: number;
-  /** 页面归属：删除提示的文案跟着变（团队页 / 我的入口），共用组件不能写死一边。 */
+  /** 页面归属：删除提示的文案跟着变（团队页 / 个人入口），共用组件不能写死一边。 */
   scope: 'team' | 'personal';
   /** false = 当前页面不能管理分组（只读团队页）：四个动作全部禁用并说明原因。 */
   canManage?: boolean;
@@ -34,7 +34,7 @@ export interface GroupActionsDialogProps {
   onCancel(): void;
 }
 
-const PAGE_LABEL = { team: '团队页', personal: '我的入口' } as const;
+const PAGE_LABEL = { team: '团队页', personal: '个人入口' } as const;
 
 export function GroupActionsDialog({
   groupName, canMoveUp, canMoveDown, entryCount, scope, canManage = true, onRename, onMove, onRemove, onSortEntriesByName, onCancel,

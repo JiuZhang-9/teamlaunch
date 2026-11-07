@@ -121,7 +121,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       onContextMenu={onContextMenu}
       onKeyDown={onKeyDown}
       title={targetFull(entry)}
-      aria-label={`${entry.name}，${meta.label}，${source === 'team' ? '团队入口' : '我的入口'}`}
+      aria-label={`${entry.name}，${meta.label}，${source === 'team' ? '团队入口' : '个人入口'}`}
       className={[
         'group relative flex flex-col items-start text-left',
         'rounded-lg p-3 w-full',

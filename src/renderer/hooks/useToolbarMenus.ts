@@ -22,7 +22,7 @@ export function useToolbarMenus(): ToolbarMenus {
     void exportJson().then((result) => {
       if (result.ok) {
         push({
-          title: `我的入口已导出到 ${result.path}（共 ${result.count} 项）`,
+          title: `个人入口已导出到 ${result.path}（共 ${result.count} 项）`,
           tone: 'success',
           duration: 6000,
           actions: [{ label: '复制路径', onSelect: () => void api.clipboard.write(result.path) }],

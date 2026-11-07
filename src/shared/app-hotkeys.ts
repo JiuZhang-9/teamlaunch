@@ -50,8 +50,8 @@ export const DEFAULT_APP_HOTKEYS: Record<AppHotkeyAction, string> = {
 };
 
 export const APP_HOTKEY_LABELS: Record<AppHotkeyAction, string> = {
-  tabTeam: '循环到下一页（主页 → 团队 → 我的）',
-  tabPersonal: '循环到上一页（我的 → 团队 → 主页）',
+  tabTeam: '循环到下一页（主页 → 团队 → 个人）',
+  tabPersonal: '循环到上一页（个人 → 团队 → 主页）',
   newEntry: '新建入口（跟随当前页）',
   focusSearch: '搜索栏开关',
   refresh: '刷新团队入口',

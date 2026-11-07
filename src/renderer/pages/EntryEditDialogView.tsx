@@ -54,7 +54,7 @@ export function EntryEditDialogView() {
     scope === 'personal'
       ? (personal.config.groups.length > 0
           ? personal.config.groups.map((g) => ({ id: g.id, name: g.name }))
-          : [{ id: '', name: '我的入口' }])
+          : [{ id: '', name: '个人入口' }])
       : mode === 'create'
         ? teamGroups.map((g) => ({ id: g.id, name: g.name }))
         : undefined;

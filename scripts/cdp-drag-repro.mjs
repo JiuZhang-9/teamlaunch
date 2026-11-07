@@ -45,10 +45,10 @@ const typeInto = async (ariaLabel, text) => {
   await sleep(200);
 };
 
-// 0. 隐私门（如有）+ 切到「我的入口」
+// 0. 隐私门（如有）+ 切到「个人入口」
 await ev(`(() => { const ack = [...document.querySelectorAll('button')].find(b => b.textContent.includes('允许') || b.textContent.includes('确认')); if (ack) ack.click(); return true; })()`);
 await sleep(300);
-await clickButton("b.textContent.trim() === '我的入口'");
+await clickButton("b.textContent.trim() === '个人入口'");
 
 // 1. UI 添加第二张卡（网页）
 await clickButton("b.textContent.trim() === '添加入口'");

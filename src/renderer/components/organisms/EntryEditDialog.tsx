@@ -21,7 +21,7 @@ export type EditorEntryType = 'app' | 'folder' | 'web';
 
 export interface EntryEditDialogProps {
   mode: 'create' | 'edit';
-  /** team = 团队草稿；personal = 我的入口（标题与落库语义不同，表单同构）。 */
+  /** team = 团队草稿；personal = 个人入口（标题与落库语义不同，表单同构）。 */
   scope?: 'team' | 'personal';
   initial: Entry | null;
   /** 新建时可选的目标分组列表（个人页与团队编辑态共用）；缺省不渲染分组选择。 */

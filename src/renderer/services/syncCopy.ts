@@ -43,7 +43,7 @@ const TONE_VAR: Record<ToneKey, { fg: string; dot: string }> = {
 export const REASON_LINE: Record<OfflineReason, string> = {
   SERVICE_NOT_FOUND: '管理员电脑未开机或未连接网络。稍后会自动重试，你也可以手动刷新。',
   NETWORK_UNREACHABLE: '这台电脑连不上内网。检查网络后会自动重试，你也可以手动刷新。',
-  UNKNOWN: '暂时连不上管理员电脑，稍后会自动重试。你也可以先使用我的入口。',
+  UNKNOWN: '暂时连不上管理员电脑，稍后会自动重试。你也可以先使用个人入口。',
   CONNECTION_BLOCKED: '连接被安全软件或网络策略拦截。可手动刷新，仍不行请联系管理员或 IT。',
 };
 

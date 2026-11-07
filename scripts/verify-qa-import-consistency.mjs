@@ -59,7 +59,7 @@ const entry = (id, name, target) => ({
 });
 const cfg = (ids) => ({
   schemaVersion: 1,
-  groups: [{ id: 'g-1', name: '我的入口', sort: 0, entries: ids.map((id) => entry(id, `N-${id}`)) }],
+  groups: [{ id: 'g-1', name: '个人入口', sort: 0, entries: ids.map((id) => entry(id, `N-${id}`)) }],
 });
 
 console.log('QA 独立验证 ⑤：导入「预览 vs 提交」一致性');
@@ -115,7 +115,7 @@ try {
   /* ---------- 边界：导入文件内部有重复 id ---------- */
   const dupIncoming = {
     schemaVersion: 1,
-    groups: [{ id: 'g-1', name: '我的入口', sort: 0, entries: [entry('d-1', 'A'), entry('d-1', 'A 重复'), entry('d-2', 'B')] }],
+    groups: [{ id: 'g-1', name: '个人入口', sort: 0, entries: [entry('d-1', 'A'), entry('d-1', 'A 重复'), entry('d-2', 'B')] }],
   };
   const dupPreview = measureImport(dupIncoming, cfg([]));
   check(

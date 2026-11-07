@@ -174,7 +174,7 @@
 ```
 ┌──────────────────────────── 渲染进程 (Chromium 152, sandbox=true) ────────────────────────────┐
 │  React 19 页面                                                                                │
-│   团队卡片墙 / 我的入口 / 管理员编辑模式 / 发布预览 / 发布历史 / 反馈列表 / 设置 / 诊断        │
+│   团队卡片墙 / 个人入口 / 管理员编辑模式 / 发布预览 / 发布历史 / 反馈列表 / 设置 / 诊断        │
 │   搜索面板（Ctrl+Space 唤起）                                                                 │
 │  规则：禁止 import 'electron'（除 preload 暴露的 window.api）；禁止直接 fs / child_process     │
 └───────────────────────────────────────────┬──────────────────────────────────────────────────┘
@@ -486,7 +486,7 @@ PRD 明确要求："轮询未命中新版本期间，界面不得把'已发布�
 | `ONLINE_LATEST` | **本轮成功与服务端核对**且 revision 相同 | 在线且已最新 | "已是最新"或不显示 |
 | `ONLINE_UPDATE_PENDING` | 本轮成功拿到更高 revision，尚未完成软应用 | 在线有待应用更新 | 软更新 + 轻提示 |
 | `OFFLINE_CACHED` | 本轮失败且本机有可用缓存 | 离线有缓存 | "离线 · 数据时间 XX" |
-| `OFFLINE_EMPTY` | 本轮失败且无缓存（含首次） | 离线无缓存 | 空状态 + 手动刷新 + 我的入口 |
+| `OFFLINE_EMPTY` | 本轮失败且无缓存（含首次） | 离线无缓存 | 空状态 + 手动刷新 + 个人入口 |
 | `SYNC_FAILED_UNKNOWN` | 本轮失败且无法归类 | 同步失败 / 未知 | "同步状态未知"，不谎报最近是否有更新 |
 | `SYNC_DATA_REJECTED` | **拿到响应**但三重校验失败，已保留旧缓存 | 在线但数据被拒 | "更新未完成，仍使用上一版本"（PRD §13 数据损坏） |
 
@@ -520,7 +520,7 @@ PRD 明确要求："轮询未命中新版本期间，界面不得把'已发布�
 | **服务可达，尚未发布任何版本** | **404** | **`OFFLINE_EMPTY` 同族的空状态**（"管理员还没发布入口"），`offlineReason = null` | **不得**归入 `OFFLINE_CACHED`、不得标"离线"、不得标"同步失败" |
 | 服务不可达 | 超时/连接错 | `OFFLINE_CACHED` / `OFFLINE_EMPTY` + 对应 `offlineReason` | 不得谎报"已最新" |
 
-关键区分：**404 是服务应答了**，链路是通的。`offlineReason` 描述的是"为什么连不上"，此时没有"连不上"这回事，所以必须为 `null`，文案按空状态走而不是按离线走。员工在此时仍可正常使用「我的入口」。
+关键区分：**404 是服务应答了**，链路是通的。`offlineReason` 描述的是"为什么连不上"，此时没有"连不上"这回事，所以必须为 `null`，文案按空状态走而不是按离线走。员工在此时仍可正常使用「个人入口」。
 
 轮询照常继续（管理员一发布就能拿到），但不弹错误 Toast、不记同步失败。
 
@@ -766,6 +766,8 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 ├── config\
 │   ├── personal.json        个人入口（本机，永不进网）
 │   ├── window-state.json    主窗口的位置/大小/是否最大化（2026-10-18；机器状态，不是用户意图）
+│   ├── surface-state.json   上次显示的是哪一面（2026-11-07；手动启动按它恢复上次关闭的窗口）
+│   ├── palette-state.json   快捷窗口拖到的位置（2026-10-27；机器状态）
 │   ├── app-overrides.json   应用入口的本机重新定位缓存
 │   ├── favorites.json       收藏（2026-10-30 统一：主页 + 快捷窗口共用一份；只存入口 id）
 │   ├── chains.json          连锁收藏（2026-10-19：名称 + 入口 id 顺序 + 间隔，只在本机）
@@ -821,7 +823,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 **两处改名/删字段，开发按新表实现**：
 1. `telemetryUpload` → **`telemetryEnabled`**。原名字会被读成"只控制上传"，而 AC-18 要求关闭时**停止记录并清空缓冲**；名字必须不暗示错误语义。
 2. **删除 `knownEndpoints`**。端点记忆是机器维护的高频状态，唯一所有者是 `discovery.json`（ADR-005）。一个事实不允许两个写入点。
-3. **本机记忆类状态不进 settings（2026-10-11 补）**：上次所在页（`lastTab`）、最近打开这类"这台机器记得的事"存**渲染层 localStorage**（`src/renderer/lib/localMemory.ts`、`recentOpens.ts`）——不进 settings.json、不参与 `tl:settings-patch` 广播、不跨机同步（否则两台机器各记各的页面，会互相顶掉）。`sidebarCollapsed` 是历史遗留（视作用户意图，留在 settings），新状态一律走本机记忆。
+3. **本机记忆类状态不进 settings（2026-10-11 补）**：上次所在页（`lastTab`）、最近打开这类"这台机器记得的事"存**渲染层 localStorage**（`src/renderer/lib/localMemory.ts`、`recentOpens.ts`）——不进 settings.json、不参与 `tl:settings-patch` 广播、不跨机同步（否则两台机器各记各的页面，会互相顶掉）。主进程维护的窗口机器状态同理：`config/window-state.json`、`config/surface-state.json`（上次显示的是哪一面，2026-11-07）、`config/palette-state.json`（快捷窗口位置）。`sidebarCollapsed` 是历史遗留（视作用户意图，留在 settings），新状态一律走本机记忆。
 
 ### 5.3 团队配置文档（同时也是同步报文体）
 
@@ -882,7 +884,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 2. 预览新增/覆盖/冲突数量；
 3. ID 或 target 冲突按 `deletedConflictPolicy` 处理，默认 `ask`，**绝不静默覆盖**。
 
-**读路径也必须过校验（R25，2026-10-17 实测补）**：`tl:personal-get` 走 `PersonalService.load()`（schema 校验 + 损坏诊断），**不得**用 `localStore.personal` 裸读。实测后果：手改坏的 personal.json（少字段/字段名写错）被裸读原样交给渲染层，渲染入口时 `.replace` 抛错 → **主窗口整体白屏**，无错误页、无提示。现在的口径是三层：① 读回落成空配置（不抛错，不白屏）；② `tl:personal-corruption` 把"文件读不出来 + 原因"如实交给界面，个人页顶部常驻一条 Banner（**禁止把失败画成"你本来就没有入口"**）；③ 导出遇到损坏文件直接拒绝并说明原因——导出"空配置"会被读成"我的入口本来就是空的"，比说清楚更糟。原文件全程零改动，用户可自行修回。
+**读路径也必须过校验（R25，2026-10-17 实测补）**：`tl:personal-get` 走 `PersonalService.load()`（schema 校验 + 损坏诊断），**不得**用 `localStore.personal` 裸读。实测后果：手改坏的 personal.json（少字段/字段名写错）被裸读原样交给渲染层，渲染入口时 `.replace` 抛错 → **主窗口整体白屏**，无错误页、无提示。现在的口径是三层：① 读回落成空配置（不抛错，不白屏）；② `tl:personal-corruption` 把"文件读不出来 + 原因"如实交给界面，个人页顶部常驻一条 Banner（**禁止把失败画成"你本来就没有入口"**）；③ 导出遇到损坏文件直接拒绝并说明原因——导出"空配置"会被读成"个人入口本来就是空的"，比说清楚更糟。原文件全程零改动，用户可自行修回。
 
 ### 5.6 索引策略（JSON 存储的等效做法与边界）
 
@@ -991,7 +993,7 @@ SyncService 总预算 3 s 未获可用响应
   │           顶部状态条：「离线 · 数据时间 <服务端 publishedAt>」
   │           卡片照常可点；本地软件/文件夹不受影响
   │           反馈写入 outbox/feedback.jsonl（≤200 条 / 30 天）
-  ├─ 无缓存 → 空状态：「暂时无法获取团队入口。你仍可使用我的入口，并可稍后刷新。」
+  ├─ 无缓存 → 空状态：「暂时无法获取团队入口。你仍可使用个人入口，并可稍后刷新。」
   │           禁止展示示例卡片，禁止空白页
   └─ 恢复触发：手动刷新 / 30 s 轮询 / powerMonitor resume / 网络变更
                → 自动 flush 反馈队列 → 恢复在线状态
@@ -1060,7 +1062,7 @@ SyncService 总预算 3 s 未获可用响应
 | R20 | 埋点模块意外产生外网出口 | **中** | 运行时 RFC1918 目标校验 + CI 禁止写死外网 URL + 依赖白名单，三层防线（§11.1） |
 | R21 | `sampleJudgable` 长期为 false（遥测在当前管理员在线模式下不可用） | **中** | **既定产品处置路径：回到 P1「管理员内容健康中心 + 逐项人工确认」，而不是改用云端方案**（见下方 R21 专项说明） |
 | R22 | 用残缺样本硬判定入口健康，导致管理员删改本属正常的入口 | **中高** | 已通过 PM 的"条件判定"机制根除：`sampleJudgable=false` 时入口健康不设硬门槛，只做参考（ADR-008 §样本残缺与可判定性） |
-| R23 | 启动缓存竞态：preload 异步预热慢于渲染层首帧，Provider 以默认值固化（隐私门重弹＋「我的入口」空白），重启即好 | **低** | **已修（2026-10-17，v1.0.32；2026-10-30 补 editStore）**：preload 把预热 promise 暴露为 `api.ready`，`settingsStore` / `personalStore` 挂载后 await 它再重取一次缓存（读的仍是同一缓存，被 patch/广播实时更新，不会覆盖用户刚改的值）；`editStore` 的 `unlocked` 初始化也依赖 role，预热完成后按真实角色补一次（只补一次，避免把 idle lock 又解开）。首帧仍不挂 loading。`verify:wiring` 有源码级断言防回退。伴生事实仍在：localStorage 落盘有延迟，硬杀进程会丢最近写入 |
+| R23 | 启动缓存竞态：preload 异步预热慢于渲染层首帧，Provider 以默认值固化（隐私门重弹＋「个人入口」空白），重启即好 | **低** | **已修（2026-10-17，v1.0.32；2026-10-30 补 editStore）**：preload 把预热 promise 暴露为 `api.ready`，`settingsStore` / `personalStore` 挂载后 await 它再重取一次缓存（读的仍是同一缓存，被 patch/广播实时更新，不会覆盖用户刚改的值）；`editStore` 的 `unlocked` 初始化也依赖 role，预热完成后按真实角色补一次（只补一次，避免把 idle lock 又解开）。首帧仍不挂 loading。`verify:wiring` 有源码级断言防回退。伴生事实仍在：localStorage 落盘有延迟，硬杀进程会丢最近写入 |
 | R24 | 安装包内置的 `resources/app-update.yml` 声明 `provider: github`（由 `package.json` 的 repository 字段自动生成） | **低** | **已按 ADR-009 收编**：GitHub 现在就是正式源，内置文件与设计一致，不再是隐患。守则保留——**任何新增的更新检查路径都必须先 `setFeedURL`**（局域网镜像仍靠它切换；内置文件里真正被读取的只有 `updaterCacheDirName`） |
 | R25 | 手改坏/损坏的 `config/personal.json` 让**主窗口整体白屏**（渲染入口时 `.replace` 拿到 undefined 抛错，无错误页、无提示）——`tl:personal-get` 走的是 `localStore` 裸读，仓库层早就有的 `{ corrupt, reason }` 与 `PersonalService.corruption()` 从未接线 | **中**（单机数据损坏即整窗不可用，属"点了没反应"类） | **已修（2026-10-17，v1.0.32）**：读路径改经 `PersonalService.load()`（回落空配置不抛错）+ 新通道 `tl:personal-corruption` 把原因如实交给界面（个人页顶部 Banner 常驻 + 可关）+ 导出遇损坏直接拒绝并说明。`verify:qa-personal` 第 8 组四项断言（判损坏 / 回落 / 原文件零改动 / 修好后标记消失）钉住这条路径。教训与 K-13 同族：**写好的能力必须接线，且要有装配级断言** |
 
@@ -1306,5 +1308,5 @@ SERVICE_NOT_LISTENING  >  PUBLIC_NETWORK_PROFILE  >  FIREWALL_RULE_MISSING
 | **K-14**（2026-10-23 补） | **跨重启的"续作"不能依赖库的进程内句柄**：electron-updater 的 `downloadedUpdateHelper` 只活在执行下载的那个进程里；用户下载完先重启、再点「立即更新并重启」时，`quitAndInstall()` 直接抛 `No update filepath provided, can't quit and install`，又被它自己的 `error` 事件吞成一行日志 —— 现象就是"点了没反应"（v1.1.3 及更早） | 规则：① 跨进程复用的安装包必须**自己拿记录 + 文件存在性**作为凭据，按库的同一套 NSIS 参数（`--updated /S --force-run`）直接拉起安装器，不依赖内部状态；② 用户显式动作失败必须**回给界面**（IPC 返回 `{ ok, reason }` + toast），只写日志等于假装成功 | `src/main/updater.ts`（`installDownloadedUpdate` / `runDownloadedInstaller`）、`src/main/ipc.ts`、`MainWindowShell.tsx` |
 | **K-15**（2026-10-24 补） | **本机程序索引不是入口，生命周期必须独立**：塞进 personal 配置会占 200 条容量、被同步、被编辑态污染；每个窗口各扫一份又会让面板与主窗口结果不一致 | 规则：① 索引由主进程**单点构建**（`config/programs-index.json` 缓存 + 启动/TTL/`fs.watch`/手动刷新，单飞）；② 跨窗口只广播**同一份快照**，渲染层不自行扫描；③ 只读开始菜单 `.lnk`，不遍历磁盘（用户 2026-10-24 拍板）；④ 搜索结果合成临时 Entry 只用于打开/取图标，`Ctrl+回车` 才走既有「粘贴快捷添加」落库 | `src/main/programIndex.ts` + `programScan.ts`、`src/shared/schema/programs.ts`、`src/shared/program-match.ts`、`scripts/verify-programs.mjs` |
 | **K-16**（2026-10-29 补） | **"窗口被唤起"不等于 `visibilitychange`**：窗口只是被别的应用挡住时，Ctrl+Space 走 `show()` + `focus()`，页面始终 visible，`visibilitychange` 不触发；只靠它刷新剪贴板/选中项，用户按 Ctrl+Space → 空格 打开的仍是上次的状态（1.5.4 用户反馈） | 规则：主进程在 `focusMainWindow()` 里显式 `webContents.send('tl:main-shown')`，渲染层收到后再置真搜索态、重读剪贴板、把选中项回到第一条；新增推送通道必须过 `verify:qa-channels`（preload 订阅与主进程 send 两侧枚举比对） | `src/main/windowManager.ts`、`src/preload/index.ts`、`src/renderer/components/organisms/MainWindowShell.tsx`、`scripts/verify-qa-ipc-channels.mjs` |
-| **K-17**（2026-10-29 补） | **快捷添加的落点必须与编辑态同源**：粘贴 / 快捷窗口 / 剪贴板候选 / 拖拽四条入口各写各的落点，历史实现全部硬编码「我的入口」；团队编辑态下用户想加团队入口，只能先退出快捷路径、手动新建，而且 `setTab('personal')` 会被编辑锁拦下，形成"还在编辑团队、却在开个人编辑器"的分裂状态（1.6.0 用户反馈） | 规则：① 四条入口统一调用 `shared/quick-add.ts` 的 `quickAddScope`（编辑中 → team，否则 → personal），不许各写三元表达式；② 编辑态拖拽用 `edit.createEntries` 一次 mutate 写入草稿并保留一步撤销；③ 扫描 / 批量 / 导入书签有明确个人语义，**不**接入该判定（用户拍板先不动）；④ `verify:quick-add` 覆盖两个分支与三条接线断言 | `src/shared/quick-add.ts`、`src/renderer/store/workbenchStore.tsx`、`src/renderer/components/organisms/MainWindowShell.tsx`、`scripts/verify-quick-add.mjs` |
+| **K-17**（2026-10-29 补） | **快捷添加的落点必须与编辑态同源**：粘贴 / 快捷窗口 / 剪贴板候选 / 拖拽四条入口各写各的落点，历史实现全部硬编码「个人入口」；团队编辑态下用户想加团队入口，只能先退出快捷路径、手动新建，而且 `setTab('personal')` 会被编辑锁拦下，形成"还在编辑团队、却在开个人编辑器"的分裂状态（1.6.0 用户反馈） | 规则：① 四条入口统一调用 `shared/quick-add.ts` 的 `quickAddScope`（编辑中 → team，否则 → personal），不许各写三元表达式；② 编辑态拖拽用 `edit.createEntries` 一次 mutate 写入草稿并保留一步撤销；③ 扫描 / 批量 / 导入书签有明确个人语义，**不**接入该判定（用户拍板先不动）；④ `verify:quick-add` 覆盖两个分支与三条接线断言 | `src/shared/quick-add.ts`、`src/renderer/store/workbenchStore.tsx`、`src/renderer/components/organisms/MainWindowShell.tsx`、`scripts/verify-quick-add.mjs` |
 | **K-18**（2026-10-30 补） | **同一份本机数据被两个窗口读写时，不能各自 read-modify-write**：收藏从「主页专属」变成主页 + 快捷窗口共用后，两个窗口都可能 toggle；各自读文件再整份覆盖会丢对方的操作，而且界面不会知道 | 规则：① 收藏写入收口到主进程（`tl:favorites-toggle` / `tl:favorites-set-many`），用 promise 队列串行化；② 每次落盘后向所有窗口广播完整列表（`tl:favorites`），两个 store 只消费结果；③ 旧「固定」localStorage 只在主窗口迁移一次，迁移后清空旧 key；④ `verify:favorites` 覆盖合并/去重/顺序与接线 | `src/shared/favorites.ts`、`src/main/ipc.ts`、`src/preload/index.ts`、`src/renderer/store/favoriteStore.tsx`、`scripts/verify-favorites.mjs` |

@@ -86,7 +86,7 @@ const cache: {
  * 预热完成信号（R23，2026-10-17）。
  *
  * 预热是异步的，而渲染层首帧**同步**读缓存——首帧早于预热完成时读到的是默认值
- * （表现为隐私门重弹、「我的入口」空白，重启即好）。渲染层挂载后 await 这个 promise
+ * （表现为隐私门重弹、「个人入口」空白，重启即好）。渲染层挂载后 await 这个 promise
  * 再重取一次缓存，就能在不给首帧挂 loading 的前提下保证最终显示的是真值。
  */
 const ready: Promise<void> = (async () => {
@@ -307,7 +307,7 @@ const api: TeamLaunchApi = {
     /** 主窗口被重新唤起（热键 / 托盘 / 通知）：渲染层据此聚焦搜索并重读剪贴板。 */
     onMainShown: (cb) => subscribe<void>('tl:main-shown', () => cb()),
     onSettingsChanged: (cb) => subscribe<Settings>('tl:settings', cb),
-    /** 任意窗口改了「我的入口」都广播到这里：快捷面板不重启也能搜到新加的入口。 */
+    /** 任意窗口改了「个人入口」都广播到这里：快捷面板不重启也能搜到新加的入口。 */
     onPersonalChanged: (cb) => subscribe<PersonalConfig>('tl:personal', cb),
     /** 任意窗口改了收藏（主页 / 快捷窗口）都广播完整列表：两个窗口立即一致。 */
     onFavoritesChanged: (cb) => subscribe<FavoriteItem[]>('tl:favorites', cb),

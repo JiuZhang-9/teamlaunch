@@ -611,7 +611,7 @@
   <div class="grp"><b>模式</b>
     <button class="opt on" data-mode="team">团队只读</button>
     <button class="opt" data-mode="editing">团队编辑</button>
-    <button class="opt" data-mode="personal">我的入口</button>
+    <button class="opt" data-mode="personal">个人入口</button>
   </div>
   <div class="grp"><b>窗口宽</b>
     <button class="opt" data-w="880">880（最小）</button>
@@ -672,7 +672,7 @@ const PERSONAL = [
 
 const state = { tab: 'team', mode: 'team', w: 1040, collapsed: false, banner: false, query: '' };
 const $ = (s) => document.querySelector(s);
-const icon = (t) => ({ '团队入口':'◈','我的入口':'◉','编辑模式':'✎','撤销':'↺','新建分组':'＋','新建入口':'＋','导入':'↑','导出':'↓','更多编辑操作':'⋯','更多操作':'⋯','设置':'⚙' }[t] || '·');
+const icon = (t) => ({ '团队入口':'◈','个人入口':'◉','编辑模式':'✎','撤销':'↺','新建分组':'＋','新建入口':'＋','导入':'↑','导出':'↓','更多编辑操作':'⋯','更多操作':'⋯','设置':'⚙' }[t] || '·');
 
 function toast(msg) {
   const el = $('#toast');
@@ -691,10 +691,10 @@ function flashDrag(zone) {
 function renderSidebar() {
   const sb = $('#sidebar');
   const mini = state.collapsed;
-  const nav = ['团队入口','我的入口'].map((t) => {
+  const nav = ['团队入口','个人入口'].map((t) => {
     const key = t === '团队入口' ? 'team' : 'personal';
     const on = state.tab === key && state.mode !== 'personal' ? key === 'team' : state.tab === key;
-    const selected = (state.tab === 'team' ? '团队入口' : '我的入口') === t;
+    const selected = (state.tab === 'team' ? '团队入口' : '个人入口') === t;
     return '<div class="navitem' + (selected ? ' on' : '') + '" data-nav="' + key + '" title="' + t + '">'
       + (selected ? '<span class="ind"></span>' : '')
       + '<span>' + icon(t) + '</span><span class="lbl">' + t + '</span></div>';

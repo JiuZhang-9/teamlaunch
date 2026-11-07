@@ -6,7 +6,7 @@
  *
  * 两个最容易误报的点：
  *  - 有缓存但配置里 0 个入口 → 正常空状态，不是故障；
- *  - 没有缓存（OFFLINE_EMPTY / NEVER_SYNCED）→ 「暂时无法获取团队入口」+ 手动刷新 + 我的入口。
+ *  - 没有缓存（OFFLINE_EMPTY / NEVER_SYNCED）→ 「暂时无法获取团队入口」+ 手动刷新 + 个人入口。
  */
 import { CloudOff, LayoutGrid } from 'lucide-react';
 import { api } from '../bridge/index.ts';
@@ -127,7 +127,7 @@ export function TeamEntriesView() {
           detail={
             neverSynced
               ? '还没有成功获取过团队入口。稍后会自动重试，你也可以手动刷新。'
-              : '可以先用我的入口，或稍后手动刷新。（顶部已说明连不上的原因）'
+              : '可以先用个人入口，或稍后手动刷新。（顶部已说明连不上的原因）'
           }
           actions={
             <>
@@ -135,7 +135,7 @@ export function TeamEntriesView() {
                 手动刷新
               </Button>
               <Button tone="ghost" onClick={() => setTab('personal')}>
-                去看看我的入口
+                去看看个人入口
               </Button>
             </>
           }
@@ -150,7 +150,7 @@ export function TeamEntriesView() {
         <EmptyBlock
           icon={LayoutGrid}
           title="团队入口还没有内容"
-          detail="管理员还没有发布任何入口。你可以先使用我的入口。"
+          detail="管理员还没有发布任何入口。你可以先使用个人入口。"
           actions={
             isAdmin ? (
               <>
@@ -158,12 +158,12 @@ export function TeamEntriesView() {
                   添加第一个入口
                 </Button>
                 <Button tone="ghost" onClick={() => setTab('personal')}>
-                  去看看我的入口
+                  去看看个人入口
                 </Button>
               </>
             ) : (
               <Button tone="ghost" onClick={() => setTab('personal')}>
-                去看看我的入口
+                去看看个人入口
               </Button>
             )
           }

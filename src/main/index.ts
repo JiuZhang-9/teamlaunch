@@ -6,7 +6,10 @@
  */
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
-import { createMainWindow, getMainWindow, getPalette, preheatPalette, setPaletteOpacity, setTrayEnabledGetter, showMainWindow } from './windowManager.ts';
+import { createMainWindow, getMainWindow, getPalette, preheatPalette, setInitialActiveSurface, setPaletteOpacity, setTrayEnabledGetter, showLastSurface, showPaletteWhenReady } from './windowManager.ts';
+import { applyAutoLaunch, launchedByAutostart } from './autoLaunch.ts';
+import { loadLastSurface } from './surfaceState.ts';
+import { planStartupSurface } from '../shared/startup-surface.ts';
 import { registerIpc } from './ipc.ts';
 import { bindSyncBroadcast, installSyncService, syncService } from './syncBridge.ts';
 import { setAutoCheckEnabled, startAutoUpdater } from './updater.ts';
@@ -118,10 +121,11 @@ function syncTray(): void {
   else destroyTray();
 }
 
-if (!acquireSingleInstanceLock(() => {
-  /* 第二次启动 = 用户想把已有实例叫到前面。统一走 showMainWindow：
-     它会先收快捷窗口（两面互斥），再还原/显示/聚焦主窗口。 */
-  showMainWindow();
+if (!acquireSingleInstanceLock((argv) => {
+  /* 登录自启触发的第二实例不抢前台（用户要求：自启只在后台）。
+     手动再次启动 = 恢复上次关闭时的那一面（2026-11-07 用户拍板）。 */
+  if (launchedByAutostart(argv)) return;
+  showLastSurface();
 })) {
   // 同一档案已有实例在跑：把焦点交给它，自己退出。
   app.quit();
@@ -129,16 +133,26 @@ if (!acquireSingleInstanceLock(() => {
   app.whenReady().then(async () => {
     await wireBackend();
 
-    // 开机自启动的启动时同步（打包版）：登记只在勾选瞬间发生的话，"设置里已开启 → 重装/换机后
-    // 不生效"，用户必须再勾一次才恢复。这里按已存设置双向对齐：true 登记成登录项，false 清掉
-    // 残留条目。开发态仍跳过（否则把 electron.exe 挂进登录项，见 ipc.ts 同一守卫）。
-    if (app.isPackaged) {
-      app.setLoginItemSettings({ openAtLogin: currentSettings.autoLaunch });
-    }
+    // 开机自启登记（打包版）：每次启动按设置双向对齐——true 写登录项，false 清残留。
+    // 登录项同时带上 `--autostart`，启动时才能区分"登录拉起"和"用户双击"。
+    applyAutoLaunch(currentSettings.autoLaunch);
+
+    /* 启动面（2026-11-07 用户拍板）：
+       - 开机自启 → 静默后台（托盘关着时退回主窗口，避免没有任何可见入口）；
+       - 手动启动 → 恢复上次关闭时的那一面，首装默认快捷搜索栏。 */
+    const dataDir = app.getPath('userData');
+    const lastSurface = loadLastSurface(dataDir);
+    setInitialActiveSurface(lastSurface ?? 'palette');
+    const startupSurface = planStartupSurface({
+      autostart: launchedByAutostart(),
+      trayEnabled: currentSettings.trayEnabled,
+      lastSurface,
+    });
 
     // 读回上次的窗口位置与大小（2026-10-18）：异步读盘，所以这一步要 await。
     // closeToTray 传 getter 而不是值：托盘开关在设置里随时可改，关窗时按当时的值决定。
     const main = await createMainWindow(() => currentSettings.trayEnabled);
+    if (startupSurface === 'main') main.once('ready-to-show', () => main.show());
     /* 热键注册发生在窗口 load 期间，早于渲染层订阅：启动时的注册结果必须先缓存，
        等窗口加载完再补发一次——否则"Ctrl+Alt+F 被占用"这类提示会永远看不到。 */
     let lastHotkeyReports: HotkeyReport[] = [];
@@ -211,7 +225,9 @@ if (!acquireSingleInstanceLock(() => {
     // 恢复持久化的界面缩放（浏览器式 zoom，只影响主窗口）。
     main.webContents.setZoomFactor(currentSettings.uiZoom / 100);
 
-    main.on('ready-to-show', () => main.show());
+    /* 快捷搜索栏启动（手动启动且上次是面板 / 首装）：等面板加载完再显示。
+       放在 IPC / 托盘注册之后，避免首帧渲染时通道还没就绪。 */
+    if (startupSurface === 'palette') showPaletteWhenReady('entries');
 
     // 清扫定时器：服务内不起定时器，由主进程驱动（挑战/令牌/nonce/限流窗口）
     const sweeper = setInterval(() => sweepService(), 60_000);

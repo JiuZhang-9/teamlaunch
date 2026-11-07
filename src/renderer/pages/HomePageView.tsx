@@ -303,7 +303,7 @@ export function HomePageView() {
 
         {chains.length === 0 ? (
           <p className="t-xs rounded-[var(--radius-lg)] border border-dashed border-[var(--border-default)] px-3 py-2 text-[var(--meta)]">
-            还没有保存的连锁。在「团队入口」或「我的入口」里进入多选、勾好顺序，点「保存为连锁」即可。
+            还没有保存的连锁。在「团队入口」或「个人入口」里进入多选、勾好顺序，点「保存为连锁」即可。
           </p>
         ) : (
           /* 图标格：一格一条连锁（图标取第一步），点格即启动；右上角悬浮「⋯」管重命名/记住布局/删除。 */

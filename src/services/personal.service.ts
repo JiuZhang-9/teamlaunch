@@ -90,10 +90,10 @@ export class PersonalService {
 
   /**
    * 新增或更新一条入口。分组不存在时**连带建组**：
-   * "我的入口"一开始没有任何分组，若要求调用方先建组才能加条目，
+   * "个人入口"一开始没有任何分组，若要求调用方先建组才能加条目，
    * 界面上就会出现"添加成功但什么都没有"的空转。
    */
-  async upsertEntry(groupId: string, entry: Entry, groupName = '我的入口'): Promise<PersonalConfig> {
+  async upsertEntry(groupId: string, entry: Entry, groupName = '个人入口'): Promise<PersonalConfig> {
     const config = await this.load();
     const groups = config.groups.some((group) => group.id === groupId)
       ? config.groups.map((group) => {

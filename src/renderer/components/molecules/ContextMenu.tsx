@@ -1,5 +1,5 @@
 /**
- * 卡片右键菜单。团队只读态 4 项 / 我的入口 6 项 / 编辑态 7 项，由调用方注入 items。
+ * 卡片右键菜单。团队只读态 4 项 / 个人入口 6 项 / 编辑态 7 项，由调用方注入 items。
  * 菜单本身只负责定位、分层与关闭时机（outside click / Esc / 选中后）。
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';

@@ -22,6 +22,26 @@ export interface LoadedPersonalConfig {
   reason?: string;
 }
 
+/**
+ * 一次性改名（2026-11-07 用户要求：「我的入口」→「个人入口」）。
+ *
+ * 只改**第一个**旧名分组，且仅当还不存在新名分组时才动：
+ * 老用户升级后侧栏不会突然出现两个「个人入口」，用户自己起的同名分组也不会被连带改掉。
+ * 纯改名，不动 id / 入口 / 顺序；写盘失败就按原文返回（下次启动再试），绝不覆盖用户数据。
+ */
+const LEGACY_GROUP_NAME = '我的入口';
+const DEFAULT_GROUP_NAME = '个人入口';
+
+function migrateGroupName(config: PersonalConfig): PersonalConfig {
+  if (config.groups.some((group) => group.name === DEFAULT_GROUP_NAME)) return config;
+  const index = config.groups.findIndex((group) => group.name === LEGACY_GROUP_NAME);
+  if (index < 0) return config;
+  return {
+    ...config,
+    groups: config.groups.map((group, i) => (i === index ? { ...group, name: DEFAULT_GROUP_NAME } : group)),
+  };
+}
+
 export class PersonalRepository {
   constructor(private readonly paths: StoragePaths) {}
 
@@ -38,7 +58,16 @@ export class PersonalRepository {
     if (!parsed.success) {
       return { config: null, corrupt: true, reason: 'schema 校验未通过' };
     }
-    return { config: parsed.data, corrupt: false };
+    const migrated = migrateGroupName(parsed.data);
+    if (migrated === parsed.data) return { config: parsed.data, corrupt: false };
+    try {
+      await this.save(migrated);
+    } catch (error) {
+      /* 改名只是文案迁移：写盘失败时按原文返回，让用户继续用；下次读取会再试一次。 */
+      console.error('[personal] 默认分组改名落盘失败', error);
+      return { config: parsed.data, corrupt: false };
+    }
+    return { config: migrated, corrupt: false };
   }
 
   /** 原子替换。任何中断都不留半截 JSON（ADR-005）。 */

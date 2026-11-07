@@ -22,7 +22,7 @@ export function ScanPickerDialogView({ onClose }: { onClose(): void }) {
   const [items, setItems] = useState<ScanCandidate[] | null>(null);
   /** 勾选完待确认的那一批：确认前不落盘。 */
   const [pending, setPending] = useState<ScanCandidate[] | null>(null);
-  /** 目标分组（2026-10-21 用户要求）：空 = 默认「我的入口」，不再只能默认落那一组。 */
+  /** 目标分组（2026-10-21 用户要求）：空 = 默认「个人入口」，不再只能默认落那一组。 */
   const [group, setGroup] = useState('');
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export function ScanPickerDialogView({ onClose }: { onClose(): void }) {
       {pending && (
         <ConfirmDialog
           title="添加这些程序？"
-          detail={`将添加 ${pending.length} 个入口到「${group.trim() || '我的入口'}」分组。`}
+          detail={`将添加 ${pending.length} 个入口到「${group.trim() || '个人入口'}」分组。`}
           confirmLabel={`添加 ${pending.length} 个`}
           onCancel={() => setPending(null)}
           onConfirm={() => {
