@@ -25,7 +25,7 @@
  *  - **自动检查可关**（设置项 `autoCheckUpdates`，默认开）：关掉后不排任何定时检查、零外网请求；
  *    「检查更新」按钮不受它限制——那是用户的显式动作，不叫"自动检查"。
  */
-import { app } from 'electron';
+import { app, net, powerMonitor } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
@@ -37,8 +37,14 @@ import { getUpdateFeedBase } from './updateFeed.ts';
 import { UPDATE_FEED } from '../shared/constants.ts';
 import { isVersionNewer } from '../shared/version.ts';
 
-const CHECK_DELAY_MS = 30_000;
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** 启动后首查延迟：给窗口 / IPC 留出初始化时间，又不必让用户干等 30 秒。 */
+const CHECK_DELAY_MS = 8_000;
+/** 运行期间的兜底检查间隔（2026-11-07 用户拍板：6h → 15min）。 */
+const CHECK_INTERVAL_MS = 15 * 60 * 1000;
+/** 唤醒 / 网络恢复等事件检查的全局节流：抖动不应变成连续请求。 */
+const EVENT_CHECK_THROTTLE_MS = 10 * 60 * 1000;
+/** 网络恢复检测轮询：只读 Chromium 的在线状态，不发任何外网请求。 */
+const NETWORK_POLL_MS = 10_000;
 
 export type AppUpdateEvent =
   | { type: 'available'; version: string }
@@ -104,6 +110,8 @@ const debug = process.env.TL_UPD_DEBUG === '1';
 let autoCheckEnabled = true;
 /** 首次自动检查是否已跑过：决定下一次的间隔用"启动延迟"还是"周期"。 */
 let autoCheckedOnce = false;
+/** 最近一轮检查的开始时刻（ms）：唤醒 / 网络恢复补查的 10 分钟节流依据。 */
+let lastCheckStartedMs = 0;
 /** 上次推送下载进度的时刻（节流用；见 download-progress 处理器）。 */
 let lastProgressAt = 0;
 let autoTimer: NodeJS.Timeout | null = null;
@@ -345,6 +353,7 @@ async function runCheck(): Promise<void> {
 function check(): Promise<void> {
   if (!started) return Promise.resolve();
   if (inFlight !== null) return inFlight;
+  lastCheckStartedMs = Date.now();
   inFlight = runCheck().finally(() => {
     inFlight = null;
   });
@@ -371,6 +380,24 @@ function scheduleAutoCheck(): void {
       scheduleAutoCheck();
     });
   }, delay);
+}
+
+/**
+ * 睡眠唤醒 / 网络恢复补查（2026-11-07 用户拍板）。
+ * 与周期检查共用 check()（同一时刻只跑一轮）；10 分钟全局节流，
+ * 避免唤醒和网络恢复前后脚触发两轮。自动检查关掉时同样不触发。
+ */
+function triggerEventCheck(reason: 'resume' | 'network-online'): void {
+  if (!started || !autoCheckEnabled) return;
+  if (Date.now() - lastCheckStartedMs < EVENT_CHECK_THROTTLE_MS) {
+    log('event check skipped (throttled)', reason);
+    return;
+  }
+  log('event check', reason);
+  void check().finally(() => {
+    autoCheckedOnce = true;
+    scheduleAutoCheck();
+  });
 }
 
 /** 设置项 autoCheckUpdates 的落点：启动时按已存设置调用一次，用户改开关时再调用。 */
@@ -453,6 +480,17 @@ export function startAutoUpdater(emit: (event: AppUpdateEvent) => void): void {
     log('error:', err);
   });
 
+  /* 事件触发（2026-11-07 用户拍板）：睡眠唤醒、网络从离线恢复时补查一次。
+     网络状态只读 Chromium 的 net.online（本地状态），不发任何外网请求；
+     真正的可达性由 check() 里的 latest.yml 探测决定。 */
+  powerMonitor.on('resume', () => triggerEventCheck('resume'));
+  let lastOnline = net.online;
+  setInterval(() => {
+    const online = net.online;
+    if (online && !lastOnline) triggerEventCheck('network-online');
+    lastOnline = online;
+  }, NETWORK_POLL_MS);
+
   scheduleAutoCheck();
 }
 
@@ -461,6 +499,9 @@ export async function checkForUpdatesNow(): Promise<AppUpdateStatus> {
   /* 手动检查**不受** autoCheckUpdates 限制：那是用户的显式动作，不叫"自动检查"。
      关掉开关只停掉后台的定时检查，也让"公司网里完全不发请求"成为可能。 */
   await check();
+  /* 手点也算一次检查：重置自动排程，避免刚点完 15 分钟周期又马上查一轮。 */
+  autoCheckedOnce = true;
+  scheduleAutoCheck();
   return getUpdateStatus();
 }
 

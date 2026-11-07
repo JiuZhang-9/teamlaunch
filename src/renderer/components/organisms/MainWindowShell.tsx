@@ -177,7 +177,7 @@ export function MainWindowShell() {
     return off;
   }, []);
 
-  /* 启动时先捞一次状态：上次会话已下载好的更新不必等 30 秒后的周期检查才露面。
+  /* 启动时先捞一次状态：上次会话已下载好的更新不必等启动后那一轮检查才露面。
      刻意**不**在这条路径上自增 updateSignal——那会变成"每次开应用都弹一次小窗"。 */
   useEffect(() => {
     void api.updater

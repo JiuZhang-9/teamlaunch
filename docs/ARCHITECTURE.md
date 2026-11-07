@@ -818,7 +818,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 | `sidebarCollapsed` | boolean | false | 侧栏是否完全收起（用户意图，故留在 settings；本机记忆类状态见下方第 3 条） |
 | `announcementNotify` | boolean | true | 主页公告提醒（每篇只提示一次）；关掉只是不弹提示，公告仍在主页 |
 | `paletteOpacity` | int | 100 | 全局快捷窗口的不透明度（60–100，整数百分比；2026-10-19 起，只作用于面板窗口） |
-| `autoCheckUpdates` | boolean | true | **自动检查更新（O-07）**：开＝启动约 30s 后检查一次、此后每 6h 一次；关＝不排任何定时检查、零外网请求（「检查更新」按钮不受限，那是用户的显式动作） |
+| `autoCheckUpdates` | boolean | true | **自动检查更新（O-07）**：开＝启动约 8s 后检查一次、此后每 15min 一次，睡眠唤醒 / 网络恢复补查（10min 节流）；关＝不排任何定时检查、零外网请求（「检查更新」按钮不受限，那是用户的显式动作） |
 
 **两处改名/删字段，开发按新表实现**：
 1. `telemetryUpload` → **`telemetryEnabled`**。原名字会被读成"只控制上传"，而 AC-18 要求关闭时**停止记录并清空缓冲**；名字必须不暗示错误语义。
