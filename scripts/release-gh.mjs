@@ -152,4 +152,4 @@ if (missing.length > 0) fail(`Release 上缺少资产：${missing.join(' / ')} �
 ok(`回读核对通过：${listed.length} 个资产（含 latest.yml）`);
 
 process.stdout.write(`\n完成：${REPO}/releases/tag/${tag}\n`);
-process.stdout.write('提醒：客户端在启动 30 秒后会做第一次检查，之后每 6 小时一次。\n');
+process.stdout.write('提醒：客户端在启动约 8 秒后做第一次检查，之后每 15 分钟一次（睡眠唤醒 / 网络恢复补查）。\n');
