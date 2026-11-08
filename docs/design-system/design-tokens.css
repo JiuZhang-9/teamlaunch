@@ -240,9 +240,6 @@
   --identity-5-fg: #3c6574;
   --identity-6-bg: #efe7f1;
   --identity-6-fg: #644a6d;
-  /* 页面底色（2026-11-08 C）：团队冷、个人暖，只差一点点，不引入第二主色 */
-  --bg-canvas-team: color-mix(in srgb, var(--accent) 2.5%, var(--bg-canvas));
-  --bg-canvas-personal: color-mix(in srgb, var(--type-folder-accent) 1.5%, var(--bg-canvas));
   /* 编辑态表面：跟随主题色（accent 6% 混入画布），不再用固定品牌蓝 tint（2026-10-02 修复） */
   --surface-editing: color-mix(in srgb, var(--accent) 6%, var(--bg-canvas));
   --banner-offline-bg: #fdf3e3;
@@ -339,8 +336,6 @@
   --identity-5-fg: #b3d4df;
   --identity-6-bg: #2d2431;
   --identity-6-fg: #d6bfdc;
-  --bg-canvas-team: color-mix(in srgb, var(--accent) 4%, var(--bg-canvas));
-  --bg-canvas-personal: color-mix(in srgb, var(--type-folder-accent) 3%, var(--bg-canvas));
   --surface-editing: color-mix(in srgb, var(--accent) 9%, var(--bg-canvas));
   --banner-offline-bg: #2c2111;
   --draft-badge-bg: var(--accent-tint);

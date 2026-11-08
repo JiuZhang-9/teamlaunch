@@ -17,6 +17,7 @@ import { TitleBar } from './TitleBar.tsx';
 import { ContentHeader } from './ContentHeader.tsx';
 import { HomeHeader } from './HomeHeader.tsx';
 import { PageContextBar } from './PageContextBar.tsx';
+import { PageRippleBackground } from './PageRippleBackground.tsx';
 import { Sidebar, type SidebarMode } from './Sidebar.tsx';
 import { GroupActionsDialog } from './GroupActionsDialog.tsx';
 import { ConfirmDialog, RenameDialog } from './SimpleDialog.tsx';
@@ -902,13 +903,7 @@ export function MainWindowShell() {
     },
     [addPersonalEntries, clearDropUi, dialog, edit, editing, entryEditor, gateBlocking, groupUnderPointer, push, setTab, tab],
   );
-  const contentBackground = editing
-    ? 'var(--surface-editing)'
-    : tab === 'team'
-      ? 'var(--bg-canvas-team)'
-      : tab === 'personal'
-        ? 'var(--bg-canvas-personal)'
-        : 'var(--bg-canvas)';
+  const contentBackground = editing ? 'var(--surface-editing)' : 'var(--bg-canvas)';
   /**
    * 批量删除分组（侧栏多选）。空组整批直接删——没有连带删除的入口，
    * 再弹一次"确认删除"只会挡路（2026-10-21 用户要求）；只要有组非空就必须先确认。
@@ -1092,12 +1087,16 @@ export function MainWindowShell() {
             aria-labelledby={`tl-tab-${tab}`}
             tabIndex={-1}
             onPointerDown={marquee.onPointerDown}
-            className="min-h-0 flex-1 px-[calc(var(--space-6)-var(--space-2))] pt-[var(--space-5)] pb-[var(--space-6)]"
+            className="relative min-h-0 flex-1 overflow-hidden px-[calc(var(--space-6)-var(--space-2))] pt-[var(--space-5)] pb-[var(--space-6)]"
             style={{
               background: contentBackground,
               transition: 'background-color var(--motion-base) var(--ease-standard)',
             }}
           >
+            {tab !== 'home' && (
+              <PageRippleBackground tab={tab === 'personal' ? 'personal' : 'team'} />
+            )}
+            <div className="relative z-[1] h-full">
             {showSearch ? (
               <div className="h-full">
                 <WindowSearchView
@@ -1144,6 +1143,7 @@ export function MainWindowShell() {
                 </div>
               </ScrollArea>
             )}
+            </div>
           </div>
 
           {(selecting || selected.length > 0) && !editing && (
