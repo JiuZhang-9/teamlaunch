@@ -16,7 +16,7 @@ import { Banner } from '../molecules/Banner.tsx';
 import { TitleBar } from './TitleBar.tsx';
 import { ContentHeader } from './ContentHeader.tsx';
 import { HomeHeader } from './HomeHeader.tsx';
-import { PageContextBar } from './PageContextBar.tsx';
+import { PageIdentityHint } from './PageIdentityHint.tsx';
 import { PageRippleBackground } from './PageRippleBackground.tsx';
 import { Sidebar, type SidebarMode } from './Sidebar.tsx';
 import { GroupActionsDialog } from './GroupActionsDialog.tsx';
@@ -1058,10 +1058,6 @@ export function MainWindowShell() {
             />
           )}
 
-          {tab !== 'home' && (
-            <PageContextBar tab={tab} count={entriesFlat.length} editing={editing} />
-          )}
-
           {hotkeyConflicts.length > 0 && !gateBlocking && (
             <Banner
               tone="warn"
@@ -1095,6 +1091,13 @@ export function MainWindowShell() {
           >
             {tab !== 'home' && (
               <PageRippleBackground tab={tab === 'personal' ? 'personal' : 'team'} />
+            )}
+            {tab !== 'home' && (
+              <PageIdentityHint
+                tab={tab === 'personal' ? 'personal' : 'team'}
+                count={entriesFlat.length}
+                editing={editing}
+              />
             )}
             <div className="relative z-[1] h-full">
             {showSearch ? (
