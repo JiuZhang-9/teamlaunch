@@ -10,16 +10,31 @@
  */
 import { useEffect, useState } from 'react';
 import { api } from '../bridge/index.ts';
-import type { Entry, IconRef } from '../../shared/schema/entry.ts';
+import type { Entry } from '../../shared/schema/entry.ts';
 
 const cache = new Map<string, string | null>();
 
-function iconKey(entryId: string, icon?: IconRef): string {
-  return icon && icon.kind === 'emoji' && icon.char ? `${entryId}:emoji:${icon.char}` : entryId;
+function iconKey(entry: Entry): string {
+  if (entry.icon.kind === 'emoji' && entry.icon.char) return `${entry.id}:emoji:${entry.icon.char}`;
+  /* 网页的图标取决于 URL（favicon 按站点取）：换网址必须换缓存键，否则永远吃旧图。 */
+  if (entry.type === 'web') return `${entry.id}:web:${entry.url}`;
+  return entry.id;
+}
+
+/**
+ * 这张卡是否需要向主进程要图标：
+ *  - local：本机 exe/lnk 提取；
+ *  - web（非表情）：主进程按 URL 尝试 favicon，取不到回退首字方块；
+ *  - emoji：卡片内联渲染，不走 IO。
+ */
+export function wantsEntryIcon(entry: Entry): boolean {
+  if (entry.icon.kind === 'emoji') return false;
+  if (entry.type === 'web') return true;
+  return entry.icon.kind === 'local';
 }
 
 export function useEntryIcon(entry: Entry, enabled = true): string | null {
-  const key = iconKey(entry.id, entry.icon);
+  const key = iconKey(entry);
   const [url, setUrl] = useState<string | null>(() => cache.get(key) ?? null);
 
   useEffect(() => {

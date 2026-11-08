@@ -2,7 +2,7 @@
 
 Windows 桌面团队统一入口启动器（Electron）：管理员维护一份入口清单并发布，
 员工端经局域网自动同步；管理员机内嵌同步服务，无独立服务器部署。
-当前 v1.7.3 已开源（GitHub JiuZhang-9/teamlaunch，MIT）并小范围试点。
+当前 v1.8.0 已开源（GitHub JiuZhang-9/teamlaunch，MIT）并小范围试点。
 
 ## 命令
 
@@ -41,7 +41,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 
 ## 当前状态（2026-11-07）
 
-- v1.0.13 起逐版发布到 **v1.7.3**（latest = v1.7.3；自 1.1.0 起小修改按最后一位递增，
+- v1.0.13 起逐版发布到 **v1.8.0**（latest = v1.8.0；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
 - 用户反馈多批：v1.0.33（隐私门披露 / 书签两步 / 更新进度环）、v1.0.34（窗口尺寸记忆 / 卡片框选 /
   分组多选删 / 组名点击改名）、v1.0.35（连锁收藏 / 面板透明度 / Ctrl+空格 / Ctrl+Tab / 图标重画）、
@@ -74,7 +74,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   「我的入口」改名「个人入口」含老数据迁移；启动面判定抽 shared/startup-surface.ts 并扩 verify:surface）、
   v1.7.2（启动先弹快捷窗口再切主窗口 / 主窗口启动即搜索态：无记录默认主窗口 + 启动面立即落盘；
   Ctrl+Space 才进入搜索态，启动/托盘/切回都显示正常页面；新增 TL-SURFACE 日志）、
-  v1.7.3（更新检查节奏：启动 8s 首查 / 每 15min 兜底 / 睡眠唤醒与网络恢复补查，事件检查 10min 节流）
+  v1.7.3（更新检查节奏：启动 8s 首查 / 每 15min 兜底 / 睡眠唤醒与网络恢复补查，事件检查 10min 节流）、
+  v1.8.0（卡片身份：路径尾部副标题 / 类型形状 + 稳定身份色 / 团队·个人页面上下文条与底色 /
+  网页 favicon 默认按需抓取 + 手动表情覆盖；新增 verify:identity）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、

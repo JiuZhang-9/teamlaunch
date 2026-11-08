@@ -9,8 +9,9 @@ import { forwardRef, type KeyboardEvent } from 'react';
 import { Star } from 'lucide-react';
 import type { Entry } from '../../../shared/schema/entry.ts';
 import { TYPE_META } from '../../lib/entry.ts';
-import { useEntryIcon } from '../../hooks/useEntryIcon.ts';
+import { useEntryIcon, wantsEntryIcon } from '../../hooks/useEntryIcon.ts';
 import { IconFrame, Monogram } from '../atoms/Icon.tsx';
+import { identityTone } from '../../../shared/identity.ts';
 
 export interface FavoriteTileProps {
   entry: Entry;
@@ -29,7 +30,10 @@ export const FavoriteTile = forwardRef<HTMLButtonElement, FavoriteTileProps>(fun
   ref,
 ) {
   const meta = TYPE_META[entry.type];
-  const iconUrl = useEntryIcon(entry, entry.icon.kind === 'local');
+  const iconUrl = useEntryIcon(entry, wantsEntryIcon(entry));
+  const emoji = entry.icon.kind === 'emoji' ? entry.icon.char : null;
+  const autoFallback = !emoji && !iconUrl;
+  const tone = identityTone(entry.id);
   return (
     <button
       ref={ref}
@@ -41,17 +45,19 @@ export const FavoriteTile = forwardRef<HTMLButtonElement, FavoriteTileProps>(fun
       onKeyDown={onKeyDown}
       className="group relative flex w-full flex-col items-center gap-1.5 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--card-bg)] p-2 text-center transition-colors duration-[var(--motion-fast)] hover:bg-[var(--card-bg-hover)] focus-visible:shadow-[var(--ring-focus)]"
     >
-      {entry.icon.kind === 'emoji' ? (
-        <span aria-hidden className="grid h-10 w-10 place-items-center text-[26px] leading-none">
-          {entry.icon.char}
-        </span>
-      ) : iconUrl !== null ? (
-        <img src={iconUrl} alt="" aria-hidden className="h-10 w-10 shrink-0 object-contain" />
-      ) : (
-        <IconFrame tint={meta.tint}>
+      <IconFrame
+        tint={autoFallback ? `var(--identity-${tone}-bg)` : meta.tint}
+        fg={autoFallback ? `var(--identity-${tone}-fg)` : undefined}
+        shape={meta.shape}
+      >
+        {emoji ? (
+          <span aria-hidden className="grid place-items-center text-[26px] leading-none">{emoji}</span>
+        ) : iconUrl !== null ? (
+          <img src={iconUrl} alt="" aria-hidden className="h-10 w-10 shrink-0 object-contain" />
+        ) : (
           <Monogram letter={entry.name.slice(0, 1).toUpperCase()} />
-        </IconFrame>
-      )}
+        )}
+      </IconFrame>
       <span className="t-xs w-full truncate-1 text-[var(--fg)]">{entry.name}</span>
       {/* 悬浮才出现的「取消收藏」：与卡片上的星标同款（常驻会让小格子变吵）。 */}
       <span

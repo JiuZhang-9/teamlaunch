@@ -213,7 +213,9 @@ export function EntryEditDialog({ mode, scope = 'team', initial, groupOptions, i
         ))}
       </div>
 
-      <p className="t-xs mb-1 text-[var(--muted)]">图标（可选）</p>
+      <p className="t-xs mb-1 text-[var(--muted)]">
+        {isWeb ? '图标（可选；不选则自动尝试网站图标）' : '图标（可选）'}
+      </p>
       <div className="relative mb-3 flex items-center gap-2">
         <button
           type="button"
@@ -222,14 +224,18 @@ export function EntryEditDialog({ mode, scope = 'team', initial, groupOptions, i
         >
           {emojiPick ? <span className="text-[18px] leading-none">{emojiPick}</span> : <><Smile size={16} strokeWidth={2} aria-hidden />挑个表情</>}
         </button>
-        {emojiPick && (
+        {emojiPick ? (
           <>
             <Button tone="ghost" size="sm" icon={ImageIcon} onClick={() => setEmojiPick(null)}>
               恢复自动图标
             </Button>
-            <span className="t-2xs text-[var(--meta)]">已选表情将替代系统提取的图标</span>
+            <span className="t-2xs text-[var(--meta)]">
+              {isWeb ? '已选表情将替代网站图标' : '已选表情将替代系统提取的图标'}
+            </span>
           </>
-        )}
+        ) : isWeb ? (
+          <span className="t-2xs text-[var(--meta)]">默认尝试网站图标，取不到显示首字方块</span>
+        ) : null}
         {emojiOpen && (
           <div
             className="absolute left-0 top-9 z-[var(--z-dropdown)] max-h-[260px] w-[300px] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-2"

@@ -44,9 +44,9 @@
 
 | 类型 | 优先级链 | 说明 |
 |---|---|---|
-| 软件 | ① `icon.kind=asset`（管理员上传，随版本下发）→ ② 本机 `app.getFileIcon` 对 `target` 本地提取（`icon.kind=local`，**不跨网同步**）→ ③ `fallback` 首字单体图 → ④ Lucide `AppWindow` 24 | 管理员本机提取的 exe 图标对没装该软件的员工无意义（K-08） |
-| 文件夹 | ① 本机系统文件夹图标 → ② Lucide `Folder` 24 | 不做自定义，系统与用户认知一致 |
-| 网页 | ① `icon.kind=asset` 的 favicon（**管理员侧抓取后随版本下发**，员工端不联网抓）→ ② `fallback` 域名首字母单色圆 → ③ Lucide `Globe` 24 | 员工端禁止发起 favicon 网络请求 |
+| 软件 | ① `icon.kind=asset`（管理员上传，随版本下发）→ ② 本机 `app.getFileIcon` 对 `target` 本地提取（`icon.kind=local`，**不跨网同步**）→ ③ `fallback` 首字方块（身份色 + app 形状）→ ④ Lucide `AppWindow`（仅异常态） | 管理员本机提取的 exe 图标对没装该软件的员工无意义（K-08） |
+| 文件夹 | ① 本机系统文件夹图标 → ② 首字方块（身份色 + folder 标签缺口形状）→ ③ Lucide `Folder` | 不做自定义，系统与用户认知一致 |
+| 网页 | ① 手动表情（覆盖后不再请求）→ ② 客户端按需抓取 `origin/favicon.ico`（2026-11-08 F1；3 秒 / ≤256KB / 缓存 7 天）→ ③ 首字方块（身份色 + web 浏览器顶栏形状） | 失败静默回退，不出现破图；外网访问点已在 SECURITY.md 披露 |
 
 **类型 tint（只染文件夹和网页，软件保持中性）**
 

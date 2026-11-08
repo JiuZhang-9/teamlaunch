@@ -16,6 +16,7 @@ import { Banner } from '../molecules/Banner.tsx';
 import { TitleBar } from './TitleBar.tsx';
 import { ContentHeader } from './ContentHeader.tsx';
 import { HomeHeader } from './HomeHeader.tsx';
+import { PageContextBar } from './PageContextBar.tsx';
 import { Sidebar, type SidebarMode } from './Sidebar.tsx';
 import { GroupActionsDialog } from './GroupActionsDialog.tsx';
 import { ConfirmDialog, RenameDialog } from './SimpleDialog.tsx';
@@ -232,7 +233,6 @@ export function MainWindowShell() {
   }, [tab, personal.groups, editing, edit.draft, snapshot.config]);
 
   const entriesFlat = useMemo(() => groups.flatMap((g) => g.entries), [groups]);
-  const icons = useEntryIcons(entriesFlat);
 
   /* ---------- 主窗口搜索（1.4.0）：与快捷窗口共用候选/打分/去重 ---------- */
   const programs = usePrograms();
@@ -277,7 +277,9 @@ export function MainWindowShell() {
     [hits],
   );
   const searchIcons = useEntryIcons(searchHitEntries, showSearch);
-  const iconsForSearch = useMemo(() => ({ ...icons, ...searchIcons }), [icons, searchIcons]);
+  /* 只取当前搜索命中，不再为主窗口整份清单预取：网页 favicon 是网络请求，
+     全量预取会在打开主窗口时对着一堆站点发请求（2026-11-08）。 */
+  const iconsForSearch = searchIcons;
 
   useEffect(() => {
     if (searchIndex > hits.length - 1) setSearchIndex(0);
@@ -900,7 +902,13 @@ export function MainWindowShell() {
     },
     [addPersonalEntries, clearDropUi, dialog, edit, editing, entryEditor, gateBlocking, groupUnderPointer, push, setTab, tab],
   );
-  const contentBackground = editing ? 'var(--surface-editing)' : 'var(--bg-canvas)';
+  const contentBackground = editing
+    ? 'var(--surface-editing)'
+    : tab === 'team'
+      ? 'var(--bg-canvas-team)'
+      : tab === 'personal'
+        ? 'var(--bg-canvas-personal)'
+        : 'var(--bg-canvas)';
   /**
    * 批量删除分组（侧栏多选）。空组整批直接删——没有连带删除的入口，
    * 再弹一次"确认删除"只会挡路（2026-10-21 用户要求）；只要有组非空就必须先确认。
@@ -1053,6 +1061,10 @@ export function MainWindowShell() {
               onSearchEscape={closeSearch}
               onSwitchTab={setTab}
             />
+          )}
+
+          {tab !== 'home' && (
+            <PageContextBar tab={tab} count={entriesFlat.length} editing={editing} />
           )}
 
           {hotkeyConflicts.length > 0 && !gateBlocking && (

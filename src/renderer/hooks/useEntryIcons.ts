@@ -15,7 +15,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../bridge/index.ts';
-import type { Entry, IconRef } from '../../shared/schema/entry.ts';
+import type { Entry } from '../../shared/schema/entry.ts';
 
 const cache = new Map<string, string | null>();
 const inflight = new Map<string, Promise<string | null>>();
@@ -25,8 +25,10 @@ const CONCURRENCY = 4;
 /** 失败的条目等多久再试一次（首轮失败多半是瞬时/拥塞，不是路径不存在）。 */
 const RETRY_DELAY_MS = 600;
 
-function iconKey(id: string, icon?: IconRef): string {
-  return icon && icon.kind === 'emoji' && icon.char ? `${id}:emoji:${icon.char}` : id;
+function iconKey(entry: Entry): string {
+  if (entry.icon.kind === 'emoji' && entry.icon.char) return `${entry.id}:emoji:${entry.icon.char}`;
+  if (entry.type === 'web') return `${entry.id}:web:${entry.url}`;
+  return entry.id;
 }
 
 function resolve(entry: Entry, key: string): Promise<string | null> {
@@ -79,7 +81,7 @@ async function resolveAll(items: Item[], onOne: (id: string, url: string) => voi
 export function useEntryIcons(entries: Entry[], enabled = true): Record<string, string | null> {
   const [map, setMap] = useState<Record<string, string | null>>({});
   const items = useMemo(
-    () => entries.map((e) => ({ entry: e, id: e.id, key: iconKey(e.id, e.icon) })),
+    () => entries.map((e) => ({ entry: e, id: e.id, key: iconKey(e) })),
     [entries],
   );
   const key = items.map((it) => it.key).join('|');

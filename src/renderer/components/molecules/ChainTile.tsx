@@ -10,8 +10,9 @@ import { EllipsisVertical, ListChecks } from 'lucide-react';
 import type { SavedChain } from '../../bridge/types.ts';
 import type { Entry } from '../../../shared/schema/entry.ts';
 import { TYPE_META } from '../../lib/entry.ts';
-import { useEntryIcon } from '../../hooks/useEntryIcon.ts';
+import { useEntryIcon, wantsEntryIcon } from '../../hooks/useEntryIcon.ts';
 import { IconFrame, Monogram } from '../atoms/Icon.tsx';
+import { identityTone } from '../../../shared/identity.ts';
 
 /** 空壳入口（只在"连锁里的入口全失效"时占位；enabled=false 保证不发请求）。 */
 const EMPTY_ENTRY = {
@@ -46,7 +47,10 @@ export const ChainTile = forwardRef<HTMLButtonElement, ChainTileProps>(function 
   const broken = entryCount === 0;
   const meta = iconEntry ? TYPE_META[iconEntry.type] : null;
   /** 没步骤时传一个空壳 + enabled=false：hook 内部不会发任何请求（保持 hook 调用顺序固定）。 */
-  const iconUrl = useEntryIcon(iconEntry ?? EMPTY_ENTRY, iconEntry !== null && iconEntry.icon.kind === 'local');
+  const iconUrl = useEntryIcon(iconEntry ?? EMPTY_ENTRY, iconEntry !== null && wantsEntryIcon(iconEntry));
+  const emoji = iconEntry !== null && iconEntry.icon.kind === 'emoji' ? iconEntry.icon.char : null;
+  const autoFallback = iconEntry !== null && !emoji && !iconUrl;
+  const tone = iconEntry !== null ? identityTone(iconEntry.id) : 1;
   const steps = `${entryCount} 步 · ${(chain.intervalMs / 1000).toFixed(1)} 秒`;
   const detail = broken
     ? '入口都已不存在'
@@ -68,18 +72,22 @@ export const ChainTile = forwardRef<HTMLButtonElement, ChainTileProps>(function 
         'focus-visible:shadow-[var(--ring-focus)]',
       ].join(' ')}
     >
-      {iconEntry !== null && iconEntry.icon.kind === 'emoji' ? (
-        <span aria-hidden className="grid h-10 w-10 place-items-center text-[26px] leading-none">
-          {iconEntry.icon.char}
-        </span>
-      ) : iconUrl !== null ? (
-        <img src={iconUrl} alt="" aria-hidden className="h-10 w-10 shrink-0 object-contain" />
-      ) : iconEntry !== null && meta !== null ? (
-        <IconFrame tint={meta.tint}>
-          <Monogram letter={iconEntry.name.slice(0, 1).toUpperCase()} />
+      {iconEntry !== null && meta !== null ? (
+        <IconFrame
+          tint={autoFallback ? `var(--identity-${tone}-bg)` : meta.tint}
+          fg={autoFallback ? `var(--identity-${tone}-fg)` : undefined}
+          shape={meta.shape}
+        >
+          {emoji ? (
+            <span aria-hidden className="grid place-items-center text-[26px] leading-none">{emoji}</span>
+          ) : iconUrl !== null ? (
+            <img src={iconUrl} alt="" aria-hidden className="h-10 w-10 shrink-0 object-contain" />
+          ) : (
+            <Monogram letter={iconEntry.name.slice(0, 1).toUpperCase()} />
+          )}
         </IconFrame>
       ) : (
-        <IconFrame tint="var(--bg-surface-2)">
+        <IconFrame tint="var(--bg-surface-2)" shape="app">
           <ListChecks size={20} strokeWidth={2} aria-hidden />
         </IconFrame>
       )}

@@ -8,8 +8,10 @@ import type { MouseEvent } from 'react';
 import type { Entry } from '../../../shared/schema/entry.ts';
 import { TYPE_META } from '../../lib/entry.ts';
 import { Spinner } from '../atoms/Skeleton.tsx';
+import { IconFrame } from '../atoms/Icon.tsx';
 import { TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { identityTone } from '../../../shared/identity.ts';
 
 export interface ResultRowProps {
   entry: Entry;
@@ -64,16 +66,18 @@ export function ResultRow({
           style={{ background: 'var(--row-indicator)' }}
         />
       )}
-      <span
-        className="grid shrink-0 place-items-center rounded-[var(--radius-md)]"
-        style={{ width: iconSize, height: iconSize, background: meta.tint }}
+      <IconFrame
+        size={iconSize}
+        shape={meta.shape}
+        tint={iconUrl ? meta.tint : `var(--identity-${identityTone(entry.id)}-bg)`}
+        fg={iconUrl ? undefined : `var(--identity-${identityTone(entry.id)}-fg)`}
       >
         {iconUrl ? (
           <img src={iconUrl} alt="" width={glyphSize} height={glyphSize} />
         ) : (
-          <Glyph size={glyphSize} strokeWidth={2} aria-hidden style={{ color: 'var(--fg-2)' }} />
+          <Glyph size={glyphSize} strokeWidth={2} aria-hidden />
         )}
-      </span>
+      </IconFrame>
       <span className="min-w-0 flex-1">
         <span className="t-base w-emph block truncate-1 text-[var(--fg)]">{entry.name}</span>
         <span

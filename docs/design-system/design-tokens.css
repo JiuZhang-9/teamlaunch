@@ -223,6 +223,26 @@
   --type-app-container: var(--n-000);
   --type-folder-tint: #fcf6e9;
   --type-link-tint: #e7f4f4;
+  /* 类型识别边（2026-11-08 B）：与 tint 分开，2px 线条需要可读的深色 */
+  --type-app-accent: var(--n-400);
+  --type-folder-accent: #b7791f;
+  --type-web-accent: #0f766e;
+  /* 首字方块的身份色（2026-11-08 B）：低饱和、成对给出背景/前景，同一入口永远同一档 */
+  --identity-1-bg: #e7edf2;
+  --identity-1-fg: #31414d;
+  --identity-2-bg: #f2ecdf;
+  --identity-2-fg: #6b5636;
+  --identity-3-bg: #e7f0e4;
+  --identity-3-fg: #4a6544;
+  --identity-4-bg: #f4e8e3;
+  --identity-4-fg: #7a4b3b;
+  --identity-5-bg: #e3eef2;
+  --identity-5-fg: #3c6574;
+  --identity-6-bg: #efe7f1;
+  --identity-6-fg: #644a6d;
+  /* 页面底色（2026-11-08 C）：团队冷、个人暖，只差一点点，不引入第二主色 */
+  --bg-canvas-team: color-mix(in srgb, var(--accent) 2.5%, var(--bg-canvas));
+  --bg-canvas-personal: color-mix(in srgb, var(--type-folder-accent) 1.5%, var(--bg-canvas));
   /* 编辑态表面：跟随主题色（accent 6% 混入画布），不再用固定品牌蓝 tint（2026-10-02 修复） */
   --surface-editing: color-mix(in srgb, var(--accent) 6%, var(--bg-canvas));
   --banner-offline-bg: #fdf3e3;
@@ -304,6 +324,23 @@
   --type-app-container: var(--n-850);
   --type-folder-tint: #241f16;
   --type-link-tint: #152324;
+  --type-app-accent: var(--n-500);
+  --type-folder-accent: #d69e2e;
+  --type-web-accent: #2dd4bf;
+  --identity-1-bg: #26313a;
+  --identity-1-fg: #c7d6e2;
+  --identity-2-bg: #332c20;
+  --identity-2-fg: #e2cfae;
+  --identity-3-bg: #22301f;
+  --identity-3-fg: #bfd6b7;
+  --identity-4-bg: #33241f;
+  --identity-4-fg: #e0b7a8;
+  --identity-5-bg: #1c2c33;
+  --identity-5-fg: #b3d4df;
+  --identity-6-bg: #2d2431;
+  --identity-6-fg: #d6bfdc;
+  --bg-canvas-team: color-mix(in srgb, var(--accent) 4%, var(--bg-canvas));
+  --bg-canvas-personal: color-mix(in srgb, var(--type-folder-accent) 3%, var(--bg-canvas));
   --surface-editing: color-mix(in srgb, var(--accent) 9%, var(--bg-canvas));
   --banner-offline-bg: #2c2111;
   --draft-badge-bg: var(--accent-tint);

@@ -12,8 +12,9 @@ import type { Entry } from '../../../shared/schema/entry.ts';
 import { TYPE_META, failureSubtitleOf, subtitleOf, targetFull } from '../../lib/entry.ts';
 import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
 import { Spinner } from '../atoms/Skeleton.tsx';
-import { useEntryIcon } from '../../hooks/useEntryIcon.ts';
+import { useEntryIcon, wantsEntryIcon } from '../../hooks/useEntryIcon.ts';
 import { firstLetterOf } from '../../lib/entry.ts';
+import { identityTone } from '../../../shared/identity.ts';
 
 export type CardMode = 'readonly' | 'personal' | 'editing';
 
@@ -71,11 +72,16 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
   const meta = TYPE_META[entry.type];
   const emojiChar = entry.icon.kind === 'emoji' ? entry.icon.char : null;
   // 表情图标内联渲染，不走提取管道：换表情立刻生效（含编辑草稿态），也无缓存时效问题。
-  const iconUrl = useEntryIcon(entry, entry.icon.kind === 'local');
+  const iconUrl = useEntryIcon(entry, wantsEntryIcon(entry));
   const lastOpen = useRef(0);
   const failed = phase === 'failed';
   const loading = phase === 'opening';
   const editing = mode === 'editing';
+  /** 团队只读卡更平：没有可拖/可编辑的物理感，和个人工作台区分开（2026-11-08 C）。 */
+  const flatCard = source === 'team' && mode === 'readonly';
+  /** 没有真实图标（含 favicon 取不到）：用入口 id 的稳定身份色 + 首字。 */
+  const autoFallback = !emojiChar && !iconUrl;
+  const tone = identityTone(entry.id);
 
   const border = failed
     ? '1px solid var(--danger-solid)'
@@ -127,17 +133,18 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         'rounded-lg p-3 w-full',
         /* 背景/静置阴影走类：内联会压过 hover:/focus-visible:/active: 的同名规则，
            悬浮亮度、悬浮阴影、键盘焦点环全部失效（2026-10-03 实测定位）。 */
-        'bg-[var(--card-bg)] shadow-[var(--card-elev)]',
+        flatCard ? 'bg-[var(--card-bg)]' : 'bg-[var(--card-bg)] shadow-[var(--card-elev)]',
         'transition-[background-color,border-color,box-shadow,transform] duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
         'focus-visible:shadow-[var(--ring-focus)]',
         disabled ? 'cursor-not-allowed' : 'cursor-pointer',
         'active:bg-[var(--card-bg-active)]',
-        failed ? '' : 'hover:-translate-y-0.5 hover:bg-[var(--card-bg-hover)] hover:shadow-[var(--card-elev-hover)]',
+        failed ? '' : flatCard ? 'hover:bg-[var(--card-bg-hover)]' : 'hover:-translate-y-0.5 hover:bg-[var(--card-bg-hover)] hover:shadow-[var(--card-elev-hover)]',
         drag?.dragging ? 'opacity-40' : '',
       ].join(' ')}
       style={{
         height: 'var(--card-h)',
         border,
+        borderLeft: `2px solid ${failed ? 'var(--danger-solid)' : meta.accent}`,
       }}
     >
       {/* 多选徽标（左上角，唯一一处）：未选中 = 空心圆；选中 = 主题色实底 + **它是第几个被选中的**
@@ -267,7 +274,11 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       )}
 
       <span className="relative">
-        <IconFrame tint={meta.tint}>
+        <IconFrame
+          tint={autoFallback ? `var(--identity-${tone}-bg)` : meta.tint}
+          fg={autoFallback ? `var(--identity-${tone}-fg)` : undefined}
+          shape={meta.shape}
+        >
           {loading ? (
             <Spinner size={24} />
           ) : emojiChar ? (
@@ -287,7 +298,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
               className="rounded-sm"
               style={{ objectFit: 'contain' }}
             />
-          ) : entry.icon.kind === 'fallback' ? (
+          ) : autoFallback ? (
             <Monogram letter={firstLetterOf(entry.name)} size={17} />
           ) : (
             <Glyph icon={meta.icon} size={24} />

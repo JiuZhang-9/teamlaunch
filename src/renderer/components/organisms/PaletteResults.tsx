@@ -8,11 +8,13 @@
 import { AppWindow, LayoutGrid, Plus, RotateCcwClock, Search, Star, X } from 'lucide-react';
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Button } from '../atoms/Button.tsx';
+import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
 import { SourceTag } from '../atoms/Tag.tsx';
 import { EmptyBlock } from '../molecules/EmptyBlock.tsx';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { ResultRow } from '../molecules/ResultRow.tsx';
-import { firstLetterOf } from '../../lib/entry.ts';
+import { firstLetterOf, TYPE_META } from '../../lib/entry.ts';
+import { identityTone } from '../../../shared/identity.ts';
 import { isClipboardHit, type PaletteHit } from '../../lib/palette-source.ts';
 
 export interface PaletteResultsProps {
@@ -138,6 +140,10 @@ export function PaletteResults({
     const selected = i === selectedIndex;
     const hovered = i === hoverIndex;
     const iconUrl = iconFor(hit.entry.id);
+    const meta = TYPE_META[hit.entry.type];
+    const emoji = hit.entry.icon.kind === 'emoji' ? hit.entry.icon.char : null;
+    const autoFallback = !iconUrl && !emoji;
+    const tone = identityTone(hit.entry.id);
     return (
       <div
         key={hit.entry.id}
@@ -168,23 +174,37 @@ export function PaletteResults({
               : 'var(--card-bg)',
         }}
       >
-        {iconUrl !== null ? (
-          <img
-            src={iconUrl}
-            alt=""
-            aria-hidden
-            className="shrink-0 object-contain"
-            style={{ width: tileIconSize, height: tileIconSize }}
-          />
-        ) : (
-          <span
-            className="grid shrink-0 place-items-center rounded-[8px] t-sm"
-            style={{ width: tileIconSize, height: tileIconSize, background: 'var(--accent-tint)', color: 'var(--accent-text)' }}
-            aria-hidden
+        <span className="relative shrink-0">
+          <IconFrame
+            size={tileIconSize}
+            shape={meta.shape}
+            tint={autoFallback ? `var(--identity-${tone}-bg)` : meta.tint}
+            fg={autoFallback ? `var(--identity-${tone}-fg)` : undefined}
           >
-            {firstLetterOf(hit.entry.name)}
+            {iconUrl ? (
+              <img
+                src={iconUrl}
+                alt=""
+                aria-hidden
+                className="object-contain"
+                style={{ width: tileIconSize, height: tileIconSize }}
+              />
+            ) : emoji ? (
+              <span aria-hidden style={{ fontSize: tileIconSize >= 36 ? 22 : 19, lineHeight: 1 }}>
+                {emoji}
+              </span>
+            ) : (
+              <Monogram letter={firstLetterOf(hit.entry.name)} size={tileIconSize >= 36 ? 15 : 13} />
+            )}
+          </IconFrame>
+          <span
+            aria-hidden
+            className="absolute -bottom-1 -right-1 grid place-items-center rounded-[3px] border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
+            style={{ width: 12, height: 12 }}
+          >
+            <Glyph icon={meta.icon} size={12} micro />
           </span>
-        )}
+        </span>
         {/* 两行名（超出裁掉）：中文名 6~8 字一行，两行够放绝大多数入口名。 */}
         <span className="t-2xs line-clamp-2 w-full text-center leading-tight text-[var(--fg-2)]">
           {hit.entry.name}

@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { extractIcon, openEntry, openUrl, type OpenTarget, type RelocateResult } from './opener.ts';
 import { resolveAppCandidates, saveOverride } from './appResolver.ts';
 import { fetchPageTitle } from './pageTitle.ts';
+import { faviconForUrl } from './favicon.ts';
 import { listBookmarkBrowsers, scanBookmarks } from './bookmarks.ts';
 import { applyLayout, captureLayout, clearLayout, layoutCount } from './windowLayout.ts';
 import { recordEntryOpen, recordFeature, type UsageFeature } from './usageStats.ts';
@@ -96,7 +97,9 @@ async function extractEntryIcon(entry: Entry): Promise<string | null> {
       + "font-family=\"'Segoe UI Emoji','Noto Color Emoji',sans-serif\">" + char + '</text></svg>';
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
   }
-  if (entry.type === 'web') return null;
+  /* 网页：默认尝试站点 favicon（F1，2026-11-08）；取不到返回 null，卡片回退首字方块。
+     手动表情在上面已短路，所以"手动图标 > favicon > 默认"这条优先级是确定的。 */
+  if (entry.type === 'web') return faviconForUrl(entry.url);
   const direct = await extractIcon(entry.target);
   if (direct) return direct;
   // 回退 1：快捷方式解析出的目标提取失败时，试原始 .lnk 的图标（部分 stub 程序没有图标资源）。

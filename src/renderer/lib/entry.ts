@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import type { Entry } from '../../shared/schema/entry.ts';
 import type { OpenFailure } from '../bridge/types.ts';
-import { hostnameOf, toWindowsPath } from './format.ts';
+import { toWindowsPath } from './format.ts';
 
 export type EntryTypeKey = Entry['type'];
 
@@ -21,12 +21,16 @@ interface TypeMeta {
   icon: LucideIcon;
   /** 容器 tint：软件刻意保持中性（真实应用图标自带颜色，叠 tint 会打架） */
   tint: string;
+  /** 图标容器形状（2026-11-08 B）：app 圆角方块 / folder 带标签缺口 / web 带浏览器顶栏 */
+  shape: EntryTypeKey;
+  /** 类型识别边（卡片左缘 2px）；与 tint 分开，tint 太浅不能当线条 */
+  accent: string;
 }
 
 export const TYPE_META: Record<EntryTypeKey, TypeMeta> = {
-  app: { label: '桌面应用', icon: AppWindow, tint: 'var(--type-app-container)' },
-  folder: { label: '文件夹', icon: Folder, tint: 'var(--type-folder-tint)' },
-  web: { label: '网页', icon: Globe, tint: 'var(--type-link-tint)' },
+  app: { label: '桌面应用', icon: AppWindow, tint: 'var(--type-app-container)', shape: 'app', accent: 'var(--type-app-accent)' },
+  folder: { label: '文件夹', icon: Folder, tint: 'var(--type-folder-tint)', shape: 'folder', accent: 'var(--type-folder-accent)' },
+  web: { label: '网页', icon: Globe, tint: 'var(--type-link-tint)', shape: 'web', accent: 'var(--type-web-accent)' },
 };
 
 /**
@@ -43,14 +47,43 @@ export const TYPE_CHOICE_LABEL: Record<EntryTypeKey, string> = {
 };
 
 /** 原本/target/url 的可读摘要：卡片 Display 用。 */
+/**
+ * 路径尾（2026-11-08 A）：只露能区分的那一段。
+ *
+ * 旧实现显示完整路径、由 DOM 截尾，结果两张卡都只剩 `C:\Windows\S...`——
+ * 类型一样、前缀一样，真正不同的文件名被截掉了。现在直接取最后一级；
+ * 如果入口名本身就是最后一级（用户按文件夹名命名），则带上父级。
+ */
+function pathTail(rawPath: string, name: string): string {
+  const normalized = toWindowsPath(rawPath).replace(/[\\/]+$/, '');
+  const parts = normalized.split(/[\\/]+/).filter(Boolean);
+  if (parts.length === 0) return normalized;
+  const last = parts[parts.length - 1];
+  const parent = parts.length >= 2 ? parts[parts.length - 2] : '';
+  const sameAsName = last.toLowerCase() === name.trim().toLowerCase();
+  return sameAsName && parent ? `${parent}\\${last}` : last;
+}
+
+/** 网页：域名 + 路径尾；同域名不同页面也能分开（查询串不参与，避免卡片噪声）。 */
+function urlTail(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    const host = u.host.replace(/^www\./i, '');
+    const path = u.pathname.replace(/\/+$/, '');
+    return path.length > 0 ? `${host}${path}` : host;
+  } catch {
+    return rawUrl;
+  }
+}
+
+/** target/url 的可读摘要：卡片 Display 用（完整值仍在 title 里）。 */
 export function targetSummary(entry: Entry): string {
   switch (entry.type) {
     case 'app':
-      return toWindowsPath(entry.target);
     case 'folder':
-      return toWindowsPath(entry.target);
+      return pathTail(entry.target, entry.name);
     case 'web':
-      return hostnameOf(entry.url);
+      return urlTail(entry.url);
   }
 }
 
@@ -64,24 +97,11 @@ export function targetFull(entry: Entry): string {
   }
 }
 
-/** 使用痕迹（今天用过 / 3 天前）—— 只对软件派有意义的副信息。 */
-const USAGE: Record<string, string> = {
-  'e-wxwork': '今天用过',
-  'e-feishu': '3 天前',
-  'e-review': '上周用过',
-  'e-prototype': '本月用过',
-  'p-snipaste': '今天用过',
-};
-
-/** 副标签 = 类型文字前缀 + 内容。这是 AC-03 的第二通道。 */
+/** 副标签 = 类型文字前缀 + 可区分的目标尾部。这是 AC-03 的第二通道。 */
 export function subtitleOf(entry: Entry, opts: { withGroup?: string } = {}): string {
   const head = TYPE_META[entry.type].label;
-  const body =
-    entry.type === 'app'
-      ? USAGE[entry.id] ?? targetSummary(entry)
-      : targetSummary(entry);
   const tail = opts.withGroup ? ` · ${opts.withGroup}` : '';
-  return `${head} · ${body}${tail}`;
+  return `${head} · ${targetSummary(entry)}${tail}`;
 }
 
 /** 失效副标签（AC-12）。三句文案由规格锁定，不外推；UNKNOWN 必须说实话而不是套类型文案。 */
