@@ -227,6 +227,10 @@
   --type-app-accent: var(--n-400);
   --type-folder-accent: #b7791f;
   --type-web-accent: #0f766e;
+  /* 类型水印基色（2026-11-08 G1）：大面积 10% 透明装饰；app 的 2px 边太深，水印单独提亮/加深一档 */
+  --type-app-watermark: var(--n-500);
+  --type-folder-watermark: var(--type-folder-accent);
+  --type-web-watermark: var(--type-web-accent);
   /* 首字方块的身份色（2026-11-08 B）：低饱和、成对给出背景/前景，同一入口永远同一档 */
   --identity-1-bg: #e7edf2;
   --identity-1-fg: #31414d;
@@ -324,6 +328,9 @@
   --type-app-accent: var(--n-500);
   --type-folder-accent: #d69e2e;
   --type-web-accent: #2dd4bf;
+  --type-app-watermark: var(--n-300);
+  --type-folder-watermark: var(--type-folder-accent);
+  --type-web-watermark: var(--type-web-accent);
   --identity-1-bg: #26313a;
   --identity-1-fg: #c7d6e2;
   --identity-2-bg: #332c20;

@@ -4,13 +4,15 @@
  * 九态矩阵实现位置：Default / Hover / Focus-visible / Active / Disabled / Loading /
  * Error / Empty（图标缺失回退）/ Selected。
  *
- * 三重类型通道（AC-03）：12px 类型角标图标 + 副标签里的类型文字前缀 + 容器 tint（第三通道）。
+ * 四重类型通道（AC-03）：12px 类型角标图标 + 副标签里的类型文字前缀 + 容器 tint +
+ * 右下角类型水印（2026-11-08 G1，低对比辅助，不替代前两者）。
  */
 import { forwardRef, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import { GripVertical, MessageSquareWarning, Pencil, Star, TriangleAlert, Trash } from 'lucide-react';
 import type { Entry } from '../../../shared/schema/entry.ts';
 import { TYPE_META, failureSubtitleOf, subtitleOf, targetFull } from '../../lib/entry.ts';
 import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
+import { TypeWatermark } from '../atoms/TypeWatermark.tsx';
 import { Spinner } from '../atoms/Skeleton.tsx';
 import { useEntryIcon, wantsEntryIcon } from '../../hooks/useEntryIcon.ts';
 import { firstLetterOf } from '../../lib/entry.ts';
@@ -129,7 +131,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       title={targetFull(entry)}
       aria-label={`${entry.name}，${meta.label}，${source === 'team' ? '团队入口' : '个人入口'}`}
       className={[
-        'group relative flex flex-col items-start text-left',
+        'group relative isolate flex flex-col items-start text-left',
         'rounded-lg p-3 w-full',
         /* 背景/静置阴影走类：内联会压过 hover:/focus-visible:/active: 的同名规则，
            悬浮亮度、悬浮阴影、键盘焦点环全部失效（2026-10-03 实测定位）。 */
@@ -147,6 +149,15 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         borderLeft: `2px solid ${failed ? 'var(--danger-solid)' : meta.accent}`,
       }}
     >
+      {/* 类型水印（G1）：裁切壳单独一层，卡片自身不能 overflow-hidden——
+          拖拽落点指示线故意画在卡片外侧 −4px，裁掉就看不见了。 */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+        style={{ borderRadius: 'inherit' }}
+      >
+        <TypeWatermark type={entry.type} />
+      </span>
       {/* 多选徽标（左上角，唯一一处）：未选中 = 空心圆；选中 = 主题色实底 + **它是第几个被选中的**
           （序号＝点击顺序＝连锁启动顺序）。z-10 压在图标之上——此前它被图标盖住（用户实测）。
           两条进清单的路径显示完全一致：序号只看"在不在清单里"，不受多选模式开关影响
@@ -194,7 +205,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       {drag?.dropSide && (
         <span
           aria-hidden
-          className="absolute top-1 bottom-1 rounded-full"
+          className="absolute top-1 bottom-1 z-10 rounded-full"
           style={{
             width: 2,
             background: 'var(--accent)',
@@ -206,7 +217,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       {!editing && (
         <span
           aria-hidden
-          className="absolute top-2 bottom-2 left-0 w-0.5 rounded-full opacity-0 transition-opacity duration-[var(--motion-fast)] group-hover:opacity-100"
+          className="absolute top-2 bottom-2 left-0 z-10 w-0.5 rounded-full opacity-0 transition-opacity duration-[var(--motion-fast)] group-hover:opacity-100"
           style={{ background: 'var(--accent)' }}
         />
       )}
@@ -214,7 +225,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       {editing && (
         <span
           aria-hidden
-          className="absolute left-0.5 top-1 text-[var(--meta)]"
+          className="absolute left-0.5 top-1 z-10 text-[var(--meta)]"
           style={{ width: 24, height: 24, display: 'grid', placeItems: 'center' }}
         >
           <GripVertical size={16} strokeWidth={2} />
@@ -225,7 +236,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       {(editing || mode === 'personal') && (
         <span
           className={[
-            'absolute top-1 flex items-center gap-1',
+            'absolute top-1 z-10 flex items-center gap-1',
             onToggleFavorite ? 'right-[30px]' : 'right-0.5',
             editing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
             'transition-opacity duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
@@ -273,7 +284,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         </span>
       )}
 
-      <span className="relative">
+      <span className="relative z-[1]">
         <IconFrame
           tint={autoFallback ? `var(--identity-${tone}-bg)` : meta.tint}
           fg={autoFallback ? `var(--identity-${tone}-fg)` : undefined}
@@ -321,7 +332,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         )}
       </span>
 
-      <span className="mt-1.5 w-full">
+      <span className="relative z-[1] mt-1.5 w-full">
         <span
           className={[
             't-sm w-emph clamp-2',
@@ -349,7 +360,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         <span
           aria-label="有一条待发送的失效反馈"
           title="有一条待发送的失效反馈"
-          className="absolute bottom-1 right-1 grid place-items-center text-[var(--warn-fg)]"
+          className="absolute bottom-1 right-1 z-10 grid place-items-center text-[var(--warn-fg)]"
           style={{ width: 16, height: 16 }}
         >
           <MessageSquareWarning size={12} strokeWidth={1.75} />

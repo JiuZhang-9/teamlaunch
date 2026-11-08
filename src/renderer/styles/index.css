@@ -294,3 +294,31 @@ html.tl-marquee * {
   outline-offset: 4px;
   border-radius: var(--radius-md);
 }
+
+/* 入口类型水印（2026-11-08 G1 用户定稿）：右下出血 + -14°，只露局部。
+   尺寸/偏移按 152×132 卡片校准：可见 116×114，约等于设计稿的 7 成。
+   组件只管形状与类型色；透明度在组件里加在整组 <g> 上，交叉点不会叠深。 */
+.tl-entry-watermark {
+  position: absolute;
+  z-index: 0;
+  width: 164px;
+  height: 164px;
+  right: -48px;
+  bottom: -50px;
+  transform: rotate(-14deg);
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+.tl-entry-watermark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  shape-rendering: geometricPrecision;
+}
+/* 高对比度模式由系统接管颜色：装饰水印退场，类型仍靠角标 + 副标签文字。 */
+@media (forced-colors: active) {
+  .tl-entry-watermark {
+    display: none;
+  }
+}

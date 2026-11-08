@@ -58,6 +58,20 @@
 
 **类型角标（12px，永远显示，不靠 hover）**：软件 `app-window` / 文件夹 `folder` / 网页 `globe`。这是关闭颜色后仍能区分类型的第一通道。
 
+### 2.1 类型水印（2026-11-08 G1 定稿）
+
+| 项 | 值 |
+|---|---|
+| 位置 | 卡片右下角，右侧 `-48px` / 底部 `-50px` 出血，只露左上约 7 成 |
+| 角度 | `rotate(-14deg)`，`transform-origin: 50% 50%` |
+| 尺寸 | 164 × 164；卡片默认 152 × 132 时可见约 116 × 114 |
+| 图形 | 应用=窗口（标题栏 + 侧栏线）/ 文件夹（标签 + 内缝）/ 网页（球体经纬线）；按 200×200 画布重画，**不是放大 Lucide 24px 图标** |
+| 线宽 | 主轮廓 4.2 / 内部细节 2.2（viewBox 单位） |
+| 颜色 | `--type-*-watermark`（app 单独一档，保证深色主题可读） |
+| 透明度 | **整组 `<g>` 10%**；禁止改成每条线 `stroke-opacity`，否则球体经纬线交叉处会叠深 |
+| 语义 | `aria-hidden` 装饰层，不承载类型信息；`forced-colors: active` 下隐藏 |
+| 裁剪 | 单独一层 `absolute inset-0 overflow-hidden` 裁剪壳；卡片本身不能 `overflow-hidden`（拖拽落点线在卡片外 −4px） |
+
 ---
 
 ## 3. 文字层级与 AC-03 的类型文字
@@ -68,7 +82,7 @@
   - 网页：`网页 · expense.internal.company.com`
 - 副标签单行截断；**完整值写入 `title` 属性与 `aria-label`**，路径的完整值通过右键「复制路径」获取
 - `aria-label` 模板：`{名称}，{类型}，{来源}`，例：`2026 年度归档，文件夹，团队入口`
-- **三重类型通道**：12px 类型角标图标 + 副标签里的类型文字前缀 + tint（tint 只是第三通道，可关闭）
+- **四重类型通道**：12px 类型角标图标 + 副标签里的类型文字前缀 + tint + 类型水印（水印是低对比辅助通道，不替代前两者）
 
 ---
 
@@ -112,7 +126,7 @@
 ## 6. reduced-motion / forced-colors
 
 - `prefers-reduced-motion: reduce`：Loading 的 `LoaderCircle` 停转并换成静态 `Clock` 24；hover / active 的过渡降为 0.01ms
-- `forced-colors: active`：卡片边框强制 `CanvasText`；tint 全部失效（系统接管）；**类型仍可靠 12px 角标图标 + 副标签类型文字前缀区分**（AC-03）
+- `forced-colors: active`：卡片边框强制 `CanvasText`；tint 全部失效（系统接管）；类型水印隐藏；**类型仍可靠 12px 角标图标 + 副标签类型文字前缀区分**（AC-03）
 
 ---
 
@@ -125,3 +139,5 @@
 5. **16px 图标的命中区是 24×24**。视觉尺寸与命中尺寸是两个数。
 6. **双击不得打开两次**。要在一个事件循环内去重。
 7. **`icon.kind=asset` 的图标走 `/assets/{hash}`**，不可变长缓存；不要把 hash 算错导致每次全量重下。
+8. **类型水印的透明度必须加在整组 `<g>` 上**，不能改成每条线各自 `stroke-opacity`；否则球体经纬线/窗口线交叉处会叠成深色（用户明确否过）。
+9. **不要给卡片加 `overflow-hidden` 来裁水印**。拖拽落点指示线故意画在卡片外 −4px；水印用独立的 `absolute inset-0 overflow-hidden` 裁剪壳。

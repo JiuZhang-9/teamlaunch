@@ -25,12 +25,14 @@ interface TypeMeta {
   shape: EntryTypeKey;
   /** 类型识别边（卡片左缘 2px）；与 tint 分开，tint 太浅不能当线条 */
   accent: string;
+  /** 类型水印基色（2026-11-08 G1）：面积大、10% 透明度，需要比 2px 识别边更亮/更有对比 */
+  watermark: string;
 }
 
 export const TYPE_META: Record<EntryTypeKey, TypeMeta> = {
-  app: { label: '桌面应用', icon: AppWindow, tint: 'var(--type-app-container)', shape: 'app', accent: 'var(--type-app-accent)' },
-  folder: { label: '文件夹', icon: Folder, tint: 'var(--type-folder-tint)', shape: 'folder', accent: 'var(--type-folder-accent)' },
-  web: { label: '网页', icon: Globe, tint: 'var(--type-link-tint)', shape: 'web', accent: 'var(--type-web-accent)' },
+  app: { label: '桌面应用', icon: AppWindow, tint: 'var(--type-app-container)', shape: 'app', accent: 'var(--type-app-accent)', watermark: 'var(--type-app-watermark)' },
+  folder: { label: '文件夹', icon: Folder, tint: 'var(--type-folder-tint)', shape: 'folder', accent: 'var(--type-folder-accent)', watermark: 'var(--type-folder-watermark)' },
+  web: { label: '网页', icon: Globe, tint: 'var(--type-link-tint)', shape: 'web', accent: 'var(--type-web-accent)', watermark: 'var(--type-web-watermark)' },
 };
 
 /**
