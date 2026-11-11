@@ -166,6 +166,7 @@
 |---|---|
 | 状态 | **Open（接受现状，登记备查）**——`npm audit --omit=dev` = **0**（随包分发的运行时依赖干净）；下面这些全在 **devDependencies**（只在构建机上跑，不进安装包） |
 | 已修 | `source-map-js` 1.2.1 → **1.2.2**（高）：Dependabot 开出的 PR #1，**CI 全绿后已合并**（`066a7c6`）。来源＝`@tailwindcss/node` / `postcss` |
+| 已修② | `zod` 4.6.5 → **4.6.7**（高，GHSA-mrhx-c7xc-m3w5：超大受限集合校验可耗尽内存）：**runtime 依赖出现 high，触发条件②达成**，2026-11-12 随 v1.8.4 执行。zod 是请求/配置校验的唯一 Schema 来源，补丁线内更新，门禁全绿复核 |
 | 遗留① | `http-cache-semantics` ≤4.2.0（高，GHSA-ch52-4w7c-c8xp）：链路 `electron-builder → app-builder-lib → @electron/get@3.1.0 → got@11 → cacheable-request@7`。**无非破坏性修法**（`npm audit fix` 不动它；强升要换 @electron/get，等于换 electron-builder 主版本）；实际用途＝构建时下载 Electron 的 HTTP 缓存，不在受影响代码路径上 |
 | 遗留② | `sprintf-js` ≤1.1.3（中，GHSA-hp3w-g68c-fv3c）：链路 `@electron/get → global-agent → roarr`。**上游无修复版**；`npm audit fix --force` 会把 electron-builder 降级到 26.5.0（破坏性），不做。用途＝构建时日志格式化 |
 | 决定 | **不为了这两条强升/强降构建工具**（会把"能稳定出包"换成"追漏洞通告"）；每次升级 electron-builder 时顺带复查。**判断口径**：只有 `npm audit --omit=dev` 重新出现条目才算发版阻塞项 |

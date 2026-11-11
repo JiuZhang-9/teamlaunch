@@ -15,6 +15,7 @@
 - **v1.5（同日）：Phase 2 契约落地与可验证化** —— ① `docs/api/openapi.yaml` 审定去 Draft：补 `operationId`、错误信封（`error` / `details` / `diagnosticId` + `ErrorCode` 枚举）、分页参数、限流响应头、`Entry` 按 `type` 拆 `oneOf` + discriminator；`/diagnostics` 新增 `topIssue` 与 `checks[]`，让自用管理员首屏就能区分"服务没起来 / 公用网络 / 防火墙规则缺失 / 端口漂移 / 数据校验失败 / 对端未认证"；`POST /revisions/{revision}/restore` 补 `RestoreRequest.baseRevision`（还原同样受乐观并发保护，否则会静默覆盖他人发布）。② 新增契约文件 `src/shared/schema.ts`（zod 4.6.5）作为前后端唯一契约入口，定义按资源拆分到 `src/shared/schema/*.ts`（受 §3.2 单文件 ≤300 行约束，`schema.ts` 本身只做 re-export）。容量闸门（≤8 组 / ≤200 入口 / ≤1 MB）、入口 id 全局唯一、遥测 props 键名黑名单、时间必须带 Z 全部写进 schema。③ 新增两个**可执行的契约校验门** `scripts/verify-openapi.cjs` 与 `scripts/verify-schema.mjs`（见 §14.1），契约漂移不再靠人肉核对。④ ADR-006 状态补充：用户于 2026-09-29 确认 HMAC 签名作为 PRD §14「TLS + JWT 或经架构师确认的等价机制」条款的正式替代，TLS 保留 P1。⑤ 新增 §14 Spec 交叉索引（端点 1–13、坑位 K-01–K-10 与本文章节的双向对照）。
 - **v1.7（2026-09-30）：按已发生的事实回写版本锚定** —— ① §1.1 TypeScript 从"7.0.2（回退 5.9.3）"改为**"5.9.3（已回退）"**：D-04 已真实触发，触发插件 `typescript-eslint@8.71.0`（peer `typescript ">=4.8.4 <6.1.0"` 与 7.0.2 冲突，npm ERESOLVE 失败，已核实），按 Spec §11 K-10 整体回退，team-lead 已批准；开发必须按 5.9.3 的 API 写代码。② `OPEN-DECISIONS.md` D-04 状态由 Decided 改为 **Closed（已回退）**，记录触发插件、原因与重新评估条件。③ §1.1 前置说明补"两个 Node 版本不要混淆"：运行时由 Electron 44.4.5 内置 Node 24.21.0 提供，开发机最低 22.18（`engines.node` 已放宽），22.18+ 默认开启类型剥离故校验门可直接 import `.ts`。④ §14.4 新增 **K-11**（scrypt 参数夹紧）及其可验证用例。
 - **v1.8（同日）：把依赖锚定变成可执行约束** —— 起因是一起真实事故：`fastify` 装进了 node_modules 却从未写进 package.json，后来有人跑 `npm install`，npm 把它当多余包**静默裁掉**，内嵌服务当场起不来（现象与原因隔着一层，review 看不出来）。新增第三个校验门 `scripts/verify-deps.mjs`（`npm run verify:deps`，已接进 `verify:all`）：① 扫 `src/` 与 `scripts/` 的 import，**import 了但 package.json 没声明即红灯**；② 声明版本出现 `^`/`~`/`*`/区间即红灯（`@types/*` 除外，不进产物）；③ 从 §1.1 锚定表解析出的依赖若未安装必须在脚本内显式登记延期理由，防止"打包时才发现没装 electron-builder"。该门一跑即抓到 `fastify ^5.12.5` 与 `js-yaml ^4.1.0` 两处未写死（后者是我自己用 `npm i --save-dev` 装时默认带上 `^` 造成的），均已改为精确版本。当前 §1.1 中 7 项尚未安装，已全部登记延期理由（含 `@fastify/swagger` 接入时**不得**覆盖 openapi.yaml 的规定）。
+- **v1.9（2026-11-12）：依赖补丁线更新与锚定回写** —— ① zod 4.6.5 → **4.6.7**（修复 GHSA-mrhx-c7xc-m3w5：超大受限集合校验可耗尽内存，**high**；zod 是请求/配置校验的唯一 Schema 来源，按 O-10 触发条件②"runtime 依赖出现 high"随本版执行，升级后 `npm audit --omit=dev` 复核为 0）；② electron 44.4.5 → **44.9.1**（44 线补丁，Chromium 152.0.7977.167 / Node.js 24.22.0，同为 152.0.7977.x 与 Node 24 线，无 API 面变化）；③ fastify 5.12.5 → **5.12.6**、vite 8.3.1 → **8.3.5**（补丁线）。SPEC §4 / AGENTS / ADR-001、ADR-004 同步回写。无功能变化，随 v1.8.4 走常规发版流程（门禁 → 完整 build → 打包自验 → 实机验收）。
 - **v1.6（同日）：收口后端落地暴露的三处契约分叉** —— ① ADR-006 新增 §1.1（scrypt `maxmem` 必须显式给 64 MiB：N=2^15/r=8 实际用量 33,555,456 B 比默认上限 33,554,432 B **多 1,024 B**，已实测）与 §1.2（线上 `N/r/p` 必须先夹紧再派生，否则伪造 `N=2^20` 即可让管理员机器分配 1 GB 内存，是不需要口令的 DoS）。② 端点记忆归属收口到 `discovery.json`（ADR-002 L1、ADR-005 文件布局、§5.1），**删除 `settings.knownEndpoints`**——一个事实不允许两个写入点；同时补写节流纪律（不得每轮轮询重写）。③ §5.2 字段集与 `SettingsSchema` 对齐：`telemetryUpload` 改名 **`telemetryEnabled`**（原名会被读成"只控制上传"，而 AC-18 要求关闭即停止记录并清空缓冲），补齐 `editIdleTimeoutMs` / `theme` / `iconCacheVersion` / `deletedConflictPolicy`。④ 新增 T3.6.2：`GET /config` 的 404（服务可达但未发布）必须走空状态且 `offlineReason=null`，**不得显示为离线**；openapi 同步补该分支的 404 说明与"服务恒不会返回 SERVICE_NOT_LISTENING"的说明。
 
 ---
@@ -55,22 +56,22 @@
 
 所有版本号于 2026-09-29 通过 `npm view <pkg> version` 与 Electron 官方发布页核实，非记忆推测。实现时必须按下列版本的 API 编写。
 
-**两个 Node 版本不要混淆**：应用**运行时**由 Electron 44.4.5 内置 Node **24.21.0** 提供；**开发机**（跑 lint / typecheck / 校验门）最低 **22.18**（`engines.node`），本机实测 v22.22.2。22.18+ 已默认开启 Node 类型剥离，因此 `npm run verify:schema` 可直接 import `.ts` 源文件。统一用户开发机的 Node 版本不在可控范围，故 `engines` 取下限而非要求升级。
+**两个 Node 版本不要混淆**：应用**运行时**由 Electron 44.9.1 内置 Node **24.22.0** 提供（2026-11-12 由 44.4.5 / 24.21.0 做 44 线补丁升级）；**开发机**（跑 lint / typecheck / 校验门）最低 **22.18**（`engines.node`），本机实测 v22.22.2。22.18+ 已默认开启 Node 类型剥离，因此 `npm run verify:schema` 可直接 import `.ts` 源文件。统一用户开发机的 Node 版本不在可控范围，故 `engines` 取下限而非要求升级。
 
 ### 1.1 运行时与框架
 
 | 依赖 | 版本 | 用途 | 核实来源与备注 |
 |---|---|---|---|
-| electron | **44.4.5** | 桌面运行时 | npm `dist-tags.latest`；Chromium 152.0.7977.130 / Node.js **24.21.0**（应用运行时由它提供） |
+| electron | **44.9.1** | 桌面运行时 | npm `dist-tags.latest`；Chromium 152.0.7977.167 / Node.js **24.22.0**（应用运行时由它提供）。2026-11-12 由 44.4.5 升级（44 线补丁，官方发布 2026-10-20）；零原生模块故无 ABI 重编译风险（ADR-005） |
 | electron-builder | **26.15.3** | Windows NSIS 打包 | 同一直线维护版 |
 | electron-vite | **5.0.0** | 主/预加载/渲染进程构建 | 三进程 Vite 构建 |
 | electron-updater | **6.8.9** | 应用自更新 | 与 electron-builder NSIS 产物配套。2026-10-17 由 6.6.2 升级（O-04 关闭）；同时把直接依赖 js-yaml 4.1.0 → **4.3.2**（三个 high 级 DoS 通告的修复版） |
-| fastify | **5.12.5** | 内嵌同步服务 HTTP 框架 | Node HTTP 封装，纯 Node 无原生模块 |
+| fastify | **5.12.6** | 内嵌同步服务 HTTP 框架 | Node HTTP 封装，纯 Node 无原生模块。2026-11-12 由 5.12.5 补丁线升级 |
 | openapi.yaml（契约文件） | — | 服务端 HTTP 契约 | 手工维护，由 `verify:openapi` 校验门强制与 Spec §5 端点清单一致（此前本行误记为依赖 @fastify/swagger@9.9.0 自动生成，实际从未引入该包） |
 | react / react-dom | **19.3.0** | 渲染层 | — |
-| vite | **8.3.1** | 渲染层构建（经 electron-vite） | 需 Node 20.19+，本机 Node v22.22.2 满足 |
+| vite | **8.3.5** | 渲染层构建（经 electron-vite） | 需 Node 20.19+，本机 Node v22.22.2 满足。2026-11-12 由 8.3.1 补丁线升级 |
 | typescript | **5.9.3**（**已回退**，原定 7.0.2） | 类型系统 | **D-04 已触发**：`typescript-eslint@8.71.0` 的 peer 为 `typescript ">=4.8.4 <6.1.0"`，与 7.0.2 冲突，npm ERESOLVE 失败。按 Spec §11 K-10 整体回退 5.9.3（已实测确认 peer 区间）。**开发必须按 5.9.3 的 API 写代码，不得使用 TS 7 特有语法或编译器行为** |
-| zod | **4.6.5** | 请求/配置/校验的唯一 Schema 来源 | 主进程与 Fastify 共用 |
+| zod | **4.6.7** | 请求/配置/校验的唯一 Schema 来源 | 主进程与 Fastify 共用。2026-11-12 由 4.6.5 升级，修复 GHSA-mrhx-c7xc-m3w5（超大受限集合校验可耗尽内存，high）——runtime 依赖出现 high，按 O-10 触发条件②随本版执行 |
 | pinyin-pro | **3.29.5** | 本机程序索引的中文全拼/首字母检索键 | MIT，纯 JS 无原生模块；2026-10-24 引入。只在主进程构建索引时用，渲染层拿预计算键做纯字符串匹配（不把拼音库打进渲染包） |
 | **lucide-react** | **1.48.0** | **唯一图标库（已锁定）** | 见 §1.3 |
 | tailwindcss / @tailwindcss/vite | **4.3.3** | 样式 | v4 Vite 插件方案 |
@@ -129,7 +130,7 @@
 
 | 方案 | 依赖数 | 首包体积 | Schema 校验 | 生成 openapi | 学习成本 | 总分 | 结论 |
 |---|---|---|---|---|---|---|---|
-| **Fastify 5.12.5** | 中 | 中 | 内建 JSON Schema | 原生（@fastify/swagger） | 中 | **22** | **选定** |
+| **Fastify 5.12.6** | 中 | 中 | 内建 JSON Schema | 原生（@fastify/swagger） | 中 | **22** | **选定** |
 | Express 5.2.1 | 低 | 小 | 无（需外挂） | 需外挂 | 低 | 17 | 否决 |
 | 原生 node:http 手写路由 | 0 | 0 | 无 | 无 | 低（但易写错） | 12 | 否决 |
 
@@ -180,7 +181,7 @@
 └───────────────────────────────────────────┬──────────────────────────────────────────────────┘
                           IPC（preload contextBridge，类型由 typed-ipc 契约保证）
 ┌───────────────────────────────────────────▼──────────────────────────────────────────────────┐
-│ 主进程（Node.js 24.21.0，随 Electron 44.4.5 提供）                                            │
+│ 主进程（Node.js 24.22.0，随 Electron 44.9.1 提供）                                            │
 │                                                                                              │
 │  ipc/handlers/*.ts      薄：参数校验 → 转调 service → 组装 IPC 结果（禁止写业务逻辑）         │
 │           │                                                                                  │

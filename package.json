@@ -1,6 +1,6 @@
 {
   "name": "teamlaunch",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "private": true,
   "type": "module",
   "description": "TeamLaunch - Windows 桌面端团队统一入口启动器",
@@ -57,13 +57,13 @@
   },
   "dependencies": {
     "electron-updater": "6.8.9",
-    "fastify": "5.12.5",
+    "fastify": "5.12.6",
     "lucide-react": "1.48.0",
     "pinyin-pro": "3.29.5",
     "radix-ui": "1.6.7",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -72,7 +72,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
-    "electron": "44.4.5",
+    "electron": "44.9.1",
     "electron-builder": "26.15.3",
     "eslint": "10.11.0",
     "globals": "17.12.0",
@@ -80,7 +80,7 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.71.0",
-    "vite": "8.3.1"
+    "vite": "8.3.5"
   },
   "engines": {
     "node": ">=22.18.0"

@@ -16,7 +16,7 @@ Accepted（2026-09-29）｜ 决策人：高见远 ｜ 影响：可用性（最�
 
 ## Decision
 
-### 1. 服务形态：Fastify 5.12.5 实例跑在 Electron 主进程
+### 1. 服务形态：Fastify 5.12.6 实例跑在 Electron 主进程
 
 - 仅当 `settings.role === 'admin'` 且 `settings.syncEnabled` 为真时启动。
 - 监听 `0.0.0.0`（必须，否则局域网不可达），端口在 **17890–17899** 内自动探测。
