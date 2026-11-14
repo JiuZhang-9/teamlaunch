@@ -12,3 +12,7 @@ dist/
 *.log
 .smoke-shot.png
 qa-*.png
+
+# ===== 设计工作图（不入库：28 张 Midjourney 原始候选 39MB 太重，评审页本地看）=====
+docs/design-system/ip-mascot/candidates/
+docs/design-system/ip-mascot/selected.zip

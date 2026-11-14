@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TeamLaunch IP 吉祥物候选评审 · 28 张（Midjourney × ip-as-logo 提示词）</title>
+<style>
+  :root {
+    --bg: #2c2111; --card: #fdf3e3; --ink: #2c2111; --muted: #8a7a5f;
+    --ok: #2e7d4f; --warn: #b98a1e; --bad: #c04b3a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 32px 80px; background: #fcf6e9; color: var(--ink);
+         font: 15px/1.6 "Segoe UI", "Microsoft YaHei", sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 40px 0 6px; padding-top: 18px; border-top: 2px dashed #e0d5bd; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin: 10px 0 4px; }
+  .legend b { font-weight: 600; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; color: #fff; }
+  .tag.ok { background: var(--ok); } .tag.warn { background: var(--warn); } .tag.bad { background: var(--bad); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+  .card { background: var(--card); border: 1px solid #eadec4; border-radius: 14px; padding: 14px;
+          box-shadow: 0 1px 3px rgba(44,33,17,.08); }
+  .card img.main { width: 100%; border-radius: 10px; display: block; }
+  .card h3 { font-size: 15px; margin: 10px 0 2px; }
+  .card h3 small { color: var(--muted); font-weight: 400; }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .scales { display: flex; align-items: flex-end; gap: 14px; }
+  .scales figure { margin: 0; text-align: center; }
+  .scales figcaption { font-size: 10px; color: var(--muted); }
+  .scales img { border-radius: 4px; }
+  .mini32 { width: 32px; height: 32px; }
+  .mini96 { width: 96px; height: 96px; }
+  ul.rules { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+  ul.rules li { margin: 1px 0; }
+  .verdict { margin-top: 8px; font-size: 13px; padding: 8px 10px; border-radius: 8px;
+             background: #fff8e8; border: 1px solid #efe3c4; }
+  .summary { background: var(--card); border: 1px solid #eadec4; border-radius: 14px; padding: 16px 20px; }
+  .summary table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+  .summary th, .summary td { border: 1px solid #eadec4; padding: 6px 10px; text-align: left; }
+  .summary th { background: #f7ecd2; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<h1>TeamLaunch IP 吉祥物候选评审</h1>
+<div class="sub">Midjourney 执行 ip-as-logo 提示词 · 2026-11-14 · 共 7 批 × 4 张 = 28 张 · 提示词见 <b>ip-mascot-prompts.md</b></div>
+
+<div class="legend">
+  <span><span class="tag ok">✓ 符合</span> <b>符合</b> skill 规范项</span>
+  <span><span class="tag warn">△ 偏差</span> 轻度偏差（可接受/可后期处理）</span>
+  <span><span class="tag bad">✗ 违规</span> 明显违反 skill 规范项</span>
+  <span style="color:var(--muted)">每张图下方 32×32 / 96×96 为「缩小后可读性」实测（skill 硬指标：32×32 仍可识别）</span>
+</div>
+
+<div class="summary" style="margin-top:16px">
+  <b>批次 ↔ 提示词映射</b>
+  <table>
+    <tr><th>批次文件夹</th><th>对应提示词</th><th>方向</th><th>实际执行情况</th></tr>
+    <tr><td>A1-run1-d3fe0d96</td><td>A1 圆胖火箭（琥珀×奶油/深棕底）</td><td>A 火箭</td><td>✓ 已跑（16:36）</td></tr>
+    <tr><td>A1-run2-ede59ce1</td><td>A1 重跑 #2</td><td>A 火箭</td><td>✓ 已跑（17:23）</td></tr>
+    <tr><td>A1-run3-edb84616</td><td>A1 重跑 #3</td><td>A 火箭</td><td>✓ 已跑（17:25）</td></tr>
+    <tr><td>B2-run1-d12b6115</td><td>B2 机器人（珊瑚×奶油面罩/灰蓝底）</td><td>B 机器人</td><td>✓ 已跑（17:25）</td></tr>
+    <tr><td>B2-run2-088a7494</td><td>B2 重跑 #2</td><td>B 机器人</td><td>✓ 已跑（17:27）</td></tr>
+    <tr><td>C1-butter-675e87b3</td><td>C1 胖企鹅（深棕×奶油/黄油底）</td><td>C 企鹅</td><td>✓ 已跑（16:46）</td></tr>
+    <tr><td>C2-lilac-e3088f69</td><td>C2 珊瑚企鹅（珊瑚×琥珀/淡紫底）</td><td>C 企鹅</td><td>✓ 已跑（17:25）</td></tr>
+    <tr><td colspan="4">⚠ <b>A2（柔杏底近裁火箭）与 B1（琥珀黄机器人/薄荷底）两条提示词没有对应批次</b>——这批下载里没跑或没导出。</td></tr>
+  </table>
+  <div class="note">Midjourney 对 skill 约束的跟随度：极简圆润、大形状、两色组织 → 跟随好；「左下角探出、纯色无纹理背景、无描边、平面 graphic 处理」→ 跟随弱（大量 3D 渲染/手绘描边/渐变背景/居中构图）。这是模型特性，不是提示词问题；想严格执行 skill 规范需要 GPT Image 2 / Nano Banana Pro 级别的指令跟随。</div>
+</div>
+
+<h2>方向 A · 圆胖火箭（TeamLaunch＝发射，一键全员出发）· 12 张</h2>
+<div class="sub">定义轮廓：钝圆头锥 + 大圆窗 + 短圆尾翼 · 期望配色：暖琥珀黄×奶油白 / 深暖棕底</div>
+<div class="grid">
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_0.png" alt="A1-run1 #0">
+    <h3>A1-run1 · #0 <small>平面插画火箭</small></h3>
+    <ul class="rules">
+      <li><span class="tag warn">△</span> 构图：居中偏上，未左下探出；带地面投影阴影</li>
+      <li><span class="tag bad">✗</span> 深色描边 + 手绘纹理（skill 禁 outline/texture）</li>
+      <li><span class="tag warn">△</span> 三色基本守住（橘/奶油/红棕底），窗内多了一圈深色</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_0.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_0.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">形象活泼但画风偏"贴纸插画"，缩小后细节碎（描边+分节线在小尺寸发闷）。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_1.png" alt="A1-run1 #1">
+    <h3>A1-run1 · #1 <small>3D 黏土火箭 · 窗环脸</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 3D 毛毡质感渲染 + 背景渐变光（skill 要平面 graphic、纯色底）</li>
+      <li><span class="tag bad">✗</span> 构图居中，未左下探出</li>
+      <li><span class="tag ok">✓</span> 形状语言极佳：大形状圆润饱满、五官极简、双色组织清晰</li>
+      <li><span class="tag ok">✓</span> 32×32 缩小后依然一眼可读（头锥/窗/双脚三大块）</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_1.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_1.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict"><b>方向 A 里形象资产最好的一张</b>：IP 感、萌度和简化度都在线。当"3D 质感吉祥物"用很成立；若要严格符合 skill 的平面规范，需以它为目标重画矢量/平面版。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_2.png" alt="A1-run1 #2">
+    <h3>A1-run1 · #2 <small>手绘大头火箭</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 构图：底部+左侧裁切，有左下探出的意思</li>
+      <li><span class="tag bad">✗</span> 描边粗 + 纸面纹理背景（违规）</li>
+      <li><span class="tag warn">△</span> 主体形态略怪（头锥偏斜、鳍瓣不对称）</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_2.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_2.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">构图意识对，但形象完成度低。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_3.png" alt="A1-run1 #3">
+    <h3>A1-run1 · #3 <small>3D 黏土火箭 · 大圆盘脸</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 3D 渲染 + 木纹桌面（scenery 违规）+ 居中构图</li>
+      <li><span class="tag ok">✓</span> 大圆盘脸 + 豆眼微笑，萌度高，形状极简</li>
+      <li><span class="tag ok">✓</span> 32×32 可读性好</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_3.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run1-d3fe0d96/Full_bleed_11_square_image._Background_solid_deep_warm_brown__d3fe0d96-8763-4018-83b7-f676fe752e1c_3.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">形象可爱度并列第一梯队；脸部处理（奶油大盘+黑豆眼）比 #1 更"傻萌"。缺点同 #1：3D、居中、桌面场景。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_0.png" alt="A1-run2 #0">
+    <h3>A1-run2 · #0 <small>侧躺鱼雷</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 姿态歪斜（skill 要求 upright），形态不成立</li>
+      <li><span class="tag bad">✗</span> 描边 + 纹理背景</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_0.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_0.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">淘汰项：整体不成立。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_1.png" alt="A1-run2 #1">
+    <h3>A1-run2 · #1 <small>站立宇航服火箭</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 直立站姿、形象完整、双色（黄+奶油）清晰</li>
+      <li><span class="tag bad">✗</span> 3D 渲染 + 沙地场景；居中构图</li>
+      <li><span class="tag warn">△</span> 关节缝线/分节线偏多，32×32 下碎</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_1.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_1.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">站姿版火箭里最完整的一张，但细节密度高于 skill 预算，缩小可读性弱于 run1 的两张。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_2.png" alt="A1-run2 #2">
+    <h3>A1-run2 · #2 <small>漂浮火箭 · 粉橘渐变底</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 背景渐变（非纯色）+ 描边；构图居中</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_2.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_2.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">淘汰项：背景处理与整体气质跑偏。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_3.png" alt="A1-run2 #3">
+    <h3>A1-run2 · #3 <small>3D 火箭 · 沙丘光效</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 3D + 场景光效 + 渐变底</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_3.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run2-ede59ce1/Full_bleed_11_square_image._Background_solid_deep_warm_brown__ede59ce1-365f-41bc-82e3-49082bc3cde4_3.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">淘汰项：场景化太重。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_0.png" alt="A1-run3 #0">
+    <h3>A1-run3 · #0 <small>手绘尖头火箭</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 头锥尖锐（skill 禁 sharp tips）+ 笔刷纹理 + 斜向姿态</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_0.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_0.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">淘汰项：尖角+脏纹理。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_1.png" alt="A1-run3 #1">
+    <h3>A1-run3 · #1 <small>烟雾火箭</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 烟雾/蒸汽 = scenery 违规；纹理重；构图被裁过狠</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_1.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_1.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">淘汰项：场景化+细节失控。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_2.png" alt="A1-run3 #2">
+    <h3>A1-run3 · #2 <small>迷你小火箭</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 角色只占画面 ~15%（要求 85–95%）</li>
+      <li><span class="tag ok">✓</span> 形象本身圆滚滚很萌（小身材大窗户）</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_2.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_2.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">构图不合格，但这个"小小火箭"造型本身值得记入形象库，可作为后续周边/加载动画参考。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_3.png" alt="A1-run3 #3">
+    <h3>A1-run3 · #3 <small>3D 火箭 · 深棕渐变</small></h3>
+    <ul class="rules">
+      <li><span class="tag warn">△</span> 形象干净（黄身+奶油窗+豆眼），较符合色彩意图</li>
+      <li><span class="tag bad">✗</span> 3D 渲染 + 背景渐变光 + 居中</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_3.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/A1-run3-edb84616/Full_bleed_11_square_image._Background_solid_deep_warm_brown__edb84616-9b72-44d8-9458-dc37c05b87d4_3.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">run3 里唯一能打的：形象比 run2 更简，但整体仍弱于 run1 两张。</div>
+  </div>
+
+</div>
+
+<h2>方向 B · 圆角方块机器人（入口卡片拟人）· 8 张</h2>
+<div class="sub">定义轮廓：圆角矩形身体 + 宽圆面罩 · 期望配色（B2）：软珊瑚红×奶油白面罩 / 灰蓝底 · 两批全部是 B2 配色，B1（琥珀黄/薄荷底）未跑</div>
+<div class="grid">
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_0.png" alt="B2-run1 #0">
+    <h3>B2-run1 · #0 <small>手绘行走机器人</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 地面草丛 = scenery 违规 + 描边</li>
+      <li><span class="tag ok">✓</span> 方块+面罩形态成立，表情开心</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_0.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_0.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">形象可爱，场景和笔触拖后腿。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_1.png" alt="B2-run1 #1">
+    <h3>B2-run1 · #1 <small>3D 立正机器人 · 眨眼</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 形象干净：珊瑚红方块 + 奶白面罩 + 眨眼张嘴笑，双色清晰</li>
+      <li><span class="tag bad">✗</span> 头顶细天线（skill 禁 thin antennae）；关节缝线多；3D 渲染</li>
+      <li><span class="tag warn">△</span> 居中构图；32×32 下面罩还在但天线/关节全糊</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_1.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_1.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">方向 B 里完成度最高的一张。去掉天线、抹平缝线就是很好的 IP 定妆照。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_2.png" alt="B2-run1 #2">
+    <h3>B2-run1 · #2 <small>复古丝网印刷风</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 四周出现边框（skill 禁 borders）+ 纸底噪点；风格复古海报化</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_2.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_2.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">淘汰项：边框+做旧风格偏离品牌方向。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_3.png" alt="B2-run1 #3">
+    <h3>B2-run1 · #3 <small>珊瑚泡沫机器人</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 形态极简（身体+面罩+双手），眯眼笑温和，双色纯净</li>
+      <li><span class="tag bad">✗</span> 泡沫珊瑚质感 = 纹理渲染违规；居中构图</li>
+      <li><span class="tag ok">✓</span> 32×32 缩小后轮廓干净可读</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_3.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/B2-run1-d12b6115/Full_bleed_11_square_image._Background_solid_muted_steel_blue_d12b6115-5571-48c5-a366-87b3960e8243_3.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">形象本身在 B 方向并列第一梯队：最"傻萌"、细节最少。质感问题同前。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_0.png" alt="B2-run2 #0">
+    <h3>B2-run2 · #0 <small>手绘挥手 · 闭眼笑</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 构图：偏左、面罩占比大，形象有性格</li>
+      <li><span class="tag bad">✗</span> 钢笔排线纹理（texture）+ 描边</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_0.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_0.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">气质好，画风偏成人速写感。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_1.png" alt="B2-run2 #1">
+    <h3>B2-run2 · #1 <small>手绘挥手 · 眯眼</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 大构图、形态成立</li>
+      <li><span class="tag bad">✗</span> 笔刷纹理重 + 描边；左下有草点</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_1.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_1.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">与 #0 同族，纹理更重。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_2.png" alt="B2-run2 #2">
+    <h3>B2-run2 · #2 <small>超大方构图挥手</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 构图最符合 skill：左下探出+底部裁切+占满画面</li>
+      <li><span class="tag bad">✗</span> 排线纹理+描边；手指细节（五指）偏碎</li>
+      <li><span class="tag warn">△</span> 32×32 下只剩色块，五官糊</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_2.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_2.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">构图范本，画风不符；可作为"左下探出构图"的参考帧。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_3.png" alt="B2-run2 #3">
+    <h3>B2-run2 · #3 <small>3D 机器人 · 灌木背景</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 底部灌木 = scenery 违规；3D 渲染</li>
+      <li><span class="tag ok">✓</span> 耳机+面罩细节萌，但细节超出预算</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_3.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/B2-run2-088a7494/Full_bleed_11_square_image._Background_solid_muted_steel_blue_088a7494-ff2a-46a6-acd3-20214ee8eda1_3.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">场景化太重。</div>
+  </div>
+
+</div>
+
+<h2>方向 C · 胖企鹅领队（团队列队出发）· 8 张</h2>
+<div class="sub">C1：深棕×奶油/黄油底 · C2：珊瑚×琥珀/淡紫底</div>
+<div class="grid">
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_0.png" alt="C1 #0">
+    <h3>C1 · #0 <small>3D 走路企鹅</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 纯色黄油底✓、双色（黑褐+奶油）✓、走路姿态生动</li>
+      <li><span class="tag bad">✗</span> 3D 毛毡渲染；侧身朝右走出画面（构图非左下探出）</li>
+      <li><span class="tag warn">△</span> 32×32 下黑白对比强、可读性尚可</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_0.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_0.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">一摇一摆的走路姿态是这批里最有"故事感"的，适合做加载动画姿势参考。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_1.png" alt="C1 #1">
+    <h3>C1 · #1 <small>迷你棕企鹅</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 角色只占画面 ~25%（要求 85–95%）</li>
+      <li><span class="tag ok">✓</span> 深棕×琥珀双色符合 C1 提示词变体，形象可爱</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_1.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_1.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">构图不合格。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_2.png" alt="C1 #2">
+    <h3>C1 · #2 <small>版画风举手企鹅</small> ⭐</h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> <b>两色最纯净</b>：深棕黑+奶油白，全批最接近 skill "恰好 3 色"</li>
+      <li><span class="tag ok">✓</span> 双翅可见（一只举手）+ 白脸斑 + 豆眼微笑；形状全是大色块</li>
+      <li><span class="tag ok">✓</span> 32×32 实测极强：黑白大色块一眼可读</li>
+      <li><span class="tag warn">△</span> 构图居中（非左下）；riso 纸纹肌理轻微越界</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_2.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_2.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict"><b>全 28 张里最符合 skill 精神的一张</b>：色 discipline、图形化、可读性都最好；只需把构图从居中改为左下探出、去掉纸纹，就是合格的 skill 交付。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_3.png" alt="C1 #3">
+    <h3>C1 · #3 <small>像素风企鹅</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> pixel art 风格完全跑偏（skill 禁碎细节/纹理化）</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_3.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/C1-butter-675e87b3/Full_bleed_11_square_solid_soft_butter_yellow_background_visi_675e87b3-60ea-4f06-a0cf-af64a1eb2356_3.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">淘汰项：风格错位。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_0.png" alt="C2 #0">
+    <h3>C2 · #0 <small>手绘歪头大脸企鹅</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> <b>构图最符合 skill</b>：左下探出+底部裁切；淡紫纯色底✓；珊瑚×琥珀双色✓</li>
+      <li><span class="tag bad">✗</span> 黑描边；五官位置失衡（双目错位+嘴部处理怪）</li>
+      <li><span class="tag warn">△</span> 歪头呆萌感成立，但脸需要重画</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_0.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_0.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">构图和配色的范本，脸部是硬伤——同一构图重抽一次脸就有戏。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_1.png" alt="C2 #1">
+    <h3>C2 · #1 <small>手绘正面企鹅</small></h3>
+    <ul class="rules">
+      <li><span class="tag ok">✓</span> 双色✓、形态完整、表情温和</li>
+      <li><span class="tag bad">✗</span> 描边；居中构图；底色偏灰紫</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_1.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_1.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">中规中矩，可作 C2 备胎。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_2.png" alt="C2 #2">
+    <h3>C2 · #2 <small>3D 毛绒企鹅</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 3D 毛绒渲染；底色偏蓝灰（非淡紫）；居中</li>
+      <li><span class="tag ok">✓</span> 形态与配色意图接近，表情友善</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_2.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_2.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">质感不符，形象尚可。</div>
+  </div>
+
+  <div class="card">
+    <img class="main" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_3.png" alt="C2 #3">
+    <h3>C2 · #3 <small>3D 迷你企鹅</small></h3>
+    <ul class="rules">
+      <li><span class="tag bad">✗</span> 角色过小 + 3D + 底色偏蓝</li>
+    </ul>
+    <div class="row"><div class="scales">
+      <figure><img class="mini96" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_3.png" alt=""><figcaption>96×96</figcaption></figure>
+      <figure><img class="mini32" loading="lazy" src="candidates/C2-lilac-e3088f69/Full_bleed_11_square_solid_muted_lilac_background_filling_eve_e3088f69-b41b-4b9e-9464-4198ff0221b3_3.png" alt=""><figcaption>32×32</figcaption></figure>
+    </div></div>
+    <div class="verdict">淘汰项。</div>
+  </div>
+
+</div>
+
+<h2>汇总结论</h2>
+<div class="summary">
+  <table>
+    <tr><th>维度</th><th>结论</th></tr>
+    <tr><td>形象资产第一梯队</td><td>A1-run1·#1（3D 黄火箭）、A1-run1·#3（豆眼火箭）、B2-run1·#3（泡沫机器人）、B2-run1·#1（立正机器人）</td></tr>
+    <tr><td>最符合 skill 规范</td><td>C1·#2（版画企鹅：两色最纯+图形化最强+32×32 最好）＞ C2·#0（构图）＞ B2-run2·#2（构图）</td></tr>
+    <tr><td>可记入形象库的边角料</td><td>A1-run3·#2（迷你小火箭，适合加载动画/周边）、C1·#0（走路企鹅，动画姿势参考）</td></tr>
+    <tr><td>共性偏差（MJ 特性）</td><td>居中构图为主、"左下探出"几乎未实现；3D 渲染/手绘描边/背景渐变频发；部分角色过小</td></tr>
+    <tr><td>缺口</td><td>A2（柔杏底近裁火箭）与 B1（琥珀黄机器人/薄荷底）两条提示词没有对应批次</td></tr>
+  </table>
+  <div class="note">
+    图片文件共 ~39MB，<b>尚未 git add</b>。建议：① 确定方向后只保留少数几张入库（或压缩后提交）；② candidates/ 先加 .gitignore。
+    下一步任选：按第一梯队形象出"平面重绘版提示词"（补左下构图+去 3D 化）→ 或先补跑 A2/B1 → 或直接挑一张走 icon.ico 派生流程。
+  </div>
+</div>
+
+<style>
+  .pickbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px;
+             background: #2c2111; color: #fdf3e3; border-radius: 14px; padding: 10px 16px;
+             display: none; align-items: center; gap: 14px; max-width: 92vw;
+             box-shadow: 0 6px 24px rgba(44,33,17,.35); z-index: 99; font-size: 13px; }
+  .pickbar.show { display: flex; }
+  .pickbar .ids { max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .9; }
+  .pickbar button { border: 0; border-radius: 8px; padding: 6px 14px; cursor: pointer;
+                    font: 600 13px "Segoe UI", "Microsoft YaHei", sans-serif; }
+  .pickbar .copy { background: #fbbf24; color: #2c2111; }
+  .pickbar .clear { background: #6b5a3e; color: #fdf3e3; }
+  .card { position: relative; }
+  .card.picked { outline: 3px solid #fbbf24; outline-offset: 2px; }
+  .pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+          font-size: 13px; color: #8a7a5f; user-select: none; margin-top: 8px; }
+  .pick input { width: 16px; height: 16px; accent-color: #b98a1e; cursor: pointer; }
+  .pick.checked { color: #2c2111; font-weight: 600; }
+</style>
+
+<div class="pickbar" id="pickbar">
+  <b id="pickcount"></b>
+  <span class="ids" id="pickids"></span>
+  <button class="copy" id="pickcopy">复制清单</button>
+  <button class="clear" id="pickclear">清空</button>
+</div>
+
+<script>
+(function () {
+  var KEY = 'ipmascot-picks';
+  var bar = document.getElementById('pickbar');
+  var countEl = document.getElementById('pickcount');
+  var idsEl = document.getElementById('pickids');
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { saved = {}; }
+
+  function idOf(card) {
+    var h = card.querySelector('h3');
+    if (h && h.childNodes[0]) return h.childNodes[0].textContent.trim();
+    var img = card.querySelector('img.main');
+    return img ? (img.alt || '') : '';
+  }
+  function pathOf(card) {
+    var img = card.querySelector('img.main');
+    return img ? img.getAttribute('src') : '';
+  }
+
+  var cards = document.querySelectorAll('.card');
+  cards.forEach(function (card) {
+    var id = idOf(card), path = pathOf(card);
+    if (!id || !path) return;
+    var label = document.createElement('label');
+    label.className = 'pick';
+    label.innerHTML = '<input type="checkbox"' + (saved[path] ? ' checked' : '') + '> 提交这张';
+    var h3 = card.querySelector('h3');
+    h3.parentNode.insertBefore(label, h3.nextSibling);
+    label.querySelector('input').addEventListener('change', function () {
+      if (this.checked) saved[path] = id; else delete saved[path];
+      persist(); render();
+    });
+  });
+
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {} }
+  function render() {
+    var paths = Object.keys(saved);
+    bar.classList.toggle('show', paths.length > 0);
+    countEl.textContent = '已选 ' + paths.length + ' 张';
+    idsEl.textContent = paths.map(function (p) { return saved[p]; }).join('、');
+    cards.forEach(function (card) {
+      var img = card.querySelector('img.main');
+      var on = img && !!saved[img.getAttribute('src')];
+      card.classList.toggle('picked', on);
+      var lab = card.querySelector('.pick');
+      if (lab) lab.classList.toggle('checked', on);
+    });
+  }
+
+  document.getElementById('pickcopy').addEventListener('click', function () {
+    var lines = Object.keys(saved).map(function (p) { return '- ' + saved[p] + ' | ' + p; });
+    var text = '已选 ' + lines.length + ' 张（ip-mascot 候选）：\n' + lines.join('\n');
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(fallback);
+    } else { fallback(); }
+    this.textContent = '已复制 ✓';
+    var btn = this; setTimeout(function () { btn.textContent = '复制清单'; }, 1500);
+  });
+
+  document.getElementById('pickclear').addEventListener('click', function () {
+    saved = {}; persist();
+    document.querySelectorAll('.card input[type=checkbox]').forEach(function (c) { c.checked = false; });
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

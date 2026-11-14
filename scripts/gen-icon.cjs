@@ -1,17 +1,15 @@
 /*
  * 生成应用图标（build/icon.ico + build/tray.ico）—— 纯 node 实现，无第三方依赖。
  *
- * 2026-10-19 重设计（用户反馈：「目前的 T 图标不好看，缺乏设计感，显得简单粗鲁」）。
- * 方向不变（仍是他 2026-10-07 定下的黑底白 T、圆角方块、任务栏/托盘/安装器统一），
- * 变的是**字形的工艺**：
- *   1. 横笔改成**圆角矩形**（r≈1.0）而不是"粗线 + 全圆头线帽"——圆头在线宽 2.6 时
- *      两端鼓成两个半圆，远看像一团胖字，正是"粗鲁"的来源；
- *   2. 竖笔**带收分**（上宽 3.0 → 下宽 2.3，底端圆角）——真实的展示体 T 就是这么写；
- *   3. **视觉居中**：T 的重心在上方，所以上边距故意留得比下边距小（4.3 / 4.9），
- *      几何居中反而会让字看着往下坠；
- *   4. 方块外圆角从 6 放宽到 6.6，配合更细的字形，整体不再"楞"。
- * 光栅化仍是 4x 超采样抗锯齿 + 手写 PNG（Vista+ 支持 ICO 内嵌 PNG），零依赖。
- * 同时输出 build/icon-preview-sheet.png（多尺寸 + 带品牌色下划线的备选变体并排），供人工目检。
+ * 2026-11-14 换标：采用 ip-as-logo 流程选定的 IP 吉祥物「珊瑚企鹅」（用户拍板原样采用，
+ * 不修脸不裁剪，见 docs/design-system/ip-mascot/）。源图 build/icon-source.png
+ * （= selected/C2_0.png，1024×1024 8bit RGB）。脚本职责从"程序化画 T"改为：
+ *   1. 解码源 PNG（8bit RGB/RGBA、非隔行、全 5 种行滤波）；
+ *   2. 面积平均降采样到各尺寸（1024 → 256..16，只缩不放）；
+ *   3. 复用原有 PNG 编码 / ICO 容器（Vista+ 内嵌 PNG）/ 预览拼图。
+ * 尺寸集不变：icon = 256/128/64/48/32/24/16，tray = 32/24/16。
+ *
+ * 2026-10-19 旧版为黑底白 T（圆角方块 + 收分竖笔，4x 超采样光栅化），历史见 git。
  *
  * 用法：node scripts/gen-icon.cjs
  */
@@ -19,82 +17,127 @@ const zlib = require('node:zlib');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const BLACK = [0, 0, 0];
-const WHITE = [255, 255, 255];
-/** 品牌青蓝（与 settings.accentColor 默认值同源）：只用在下划线的备选变体上。 */
-const ACCENT = [0x10, 0x66, 0x96];
-
-/* 几何常量（24 viewBox）。 */
-const BOX = { x: 1.4, y: 1.4, w: 21.2, h: 21.2, r: 6.6 };
-/** 横笔：圆角矩形。 */
-const BAR = { x: 6.2, y: 5.7, w: 11.6, h: 2.7, r: 1.0 };
-/** 竖笔：带收分（上宽下窄）+ 底端圆角；从横笔下沿起、到 bottom 结束再补一个半圆。 */
-const STEM = { cx: 12, top: 8.4, bottom: 16.6, topHalf: 1.5, bottomHalf: 1.15 };
-/** 备选变体（B）：方块底部一条品牌色短线，示意"在启动"。 */
-const UNDERLINE = { x: 9.2, y: 19.0, w: 5.6, h: 1.3, r: 0.65 };
-
-/** 点是否落在圆角矩形内。 */
-function inRoundRect(x, y, r) {
-  const ox = Math.max(r.x + r.r, Math.min(x, r.x + r.w - r.r));
-  const oy = Math.max(r.y + r.r, Math.min(y, r.y + r.h - r.r));
-  const inCorner = (x < r.x + r.r || x > r.x + r.w - r.r) && (y < r.y + r.r || y > r.y + r.h - r.r);
-  return inCorner ? Math.hypot(x - ox, y - oy) <= r.r : x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+/* ---------- PNG 解码（8bit RGB/RGBA、非隔行；行滤波 0-4 全支持） ---------- */
+function decodePng(buf) {
+  const SIGNATURE = 0x89504e47;
+  if (buf.readUInt32BE(0) !== SIGNATURE) throw new Error('not a png file');
+  let pos = 8;
+  let width = 0;
+  let height = 0;
+  let depth = 0;
+  let colorType = 0;
+  let interlace = 0;
+  const idats = [];
+  while (pos + 8 <= buf.length) {
+    const len = buf.readUInt32BE(pos);
+    const type = buf.toString('ascii', pos + 4, pos + 8);
+    const data = buf.subarray(pos + 8, pos + 8 + len);
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      depth = data[8];
+      colorType = data[9];
+      interlace = data[12];
+    } else if (type === 'IDAT') {
+      idats.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+    pos += 12 + len;
+  }
+  if (depth !== 8) throw new Error(`unsupported png bit depth: ${depth}`);
+  if (interlace !== 0) throw new Error('interlaced png not supported');
+  if (colorType !== 2 && colorType !== 6) throw new Error(`unsupported png color type: ${colorType}`);
+  const bpp = colorType === 6 ? 4 : 3;
+  const raw = zlib.inflateSync(Buffer.concat(idats));
+  const stride = width * bpp;
+  if (raw.length < height * (stride + 1)) throw new Error('png idat too short');
+  const out = Buffer.alloc(width * height * 4);
+  let prev = Buffer.alloc(stride);
+  for (let y = 0; y < height; y += 1) {
+    const lineStart = y * (stride + 1);
+    const filter = raw[lineStart];
+    const line = raw.subarray(lineStart + 1, lineStart + 1 + stride);
+    const cur = Buffer.alloc(stride);
+    for (let i = 0; i < stride; i += 1) {
+      const a = i >= bpp ? cur[i - bpp] : 0;
+      const b = prev[i];
+      const c = i >= bpp ? prev[i - bpp] : 0;
+      let v = line[i];
+      if (filter === 1) {
+        v = (v + a) & 0xff;
+      } else if (filter === 2) {
+        v = (v + b) & 0xff;
+      } else if (filter === 3) {
+        v = (v + ((a + b) >> 1)) & 0xff;
+      } else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        v = (v + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 0xff;
+      }
+      cur[i] = v;
+    }
+    const rowOut = y * width * 4;
+    if (colorType === 6) {
+      for (let x = 0; x < width; x += 1) {
+        out[rowOut + x * 4] = cur[x * 4];
+        out[rowOut + x * 4 + 1] = cur[x * 4 + 1];
+        out[rowOut + x * 4 + 2] = cur[x * 4 + 2];
+        out[rowOut + x * 4 + 3] = cur[x * 4 + 3];
+      }
+    } else {
+      for (let x = 0; x < width; x += 1) {
+        out[rowOut + x * 4] = cur[x * 3];
+        out[rowOut + x * 4 + 1] = cur[x * 3 + 1];
+        out[rowOut + x * 4 + 2] = cur[x * 3 + 2];
+        out[rowOut + x * 4 + 3] = 255;
+      }
+    }
+    prev = cur;
+  }
+  return { width, height, rgba: out };
 }
 
-/** 点是否落在竖笔内（线性收分 + 底端半圆）。 */
-function inStem(x, y) {
-  if (y >= STEM.top && y <= STEM.bottom) {
-    const t = (y - STEM.top) / (STEM.bottom - STEM.top);
-    const half = STEM.topHalf + (STEM.bottomHalf - STEM.topHalf) * t;
-    return Math.abs(x - STEM.cx) <= half;
-  }
-  if (y > STEM.bottom && y <= STEM.bottom + STEM.bottomHalf) {
-    return Math.hypot(x - STEM.cx, y - STEM.bottom) <= STEM.bottomHalf;
-  }
-  return false;
-}
-
-/**
- * 光栅化一帧：黑底圆角方块 + 白 T（variant='accent' 时多一条品牌色下划线）。
- * 坐标按 24 viewBox 缩放；4x4 超采样做抗锯齿。
- * 覆盖率按像素聚合后再落色——同像素多次 put 会互相叠加，边缘会浑。
- */
-function rasterize(size, variant = 'plain') {
-  const buf = Buffer.alloc(size * size * 4, 0);
-  const scale = size / 24;
-  const ss = 4;
-  const total = ss * ss;
-  const putpixel = (px, py, rgb, a) => {
-    if (a <= 0) return;
-    const i = (py * size + px) * 4;
-    const inv = 255 - a;
-    buf[i] = (rgb[0] * a + buf[i] * inv) / 255;
-    buf[i + 1] = (rgb[1] * a + buf[i + 1] * inv) / 255;
-    buf[i + 2] = (rgb[2] * a + buf[i + 2] * inv) / 255;
-    buf[i + 3] = Math.max(buf[i + 3], a);
-  };
-  for (let py = 0; py < size; py += 1) {
-    for (let px = 0; px < size; px += 1) {
-      let boxHits = 0;
-      let whiteHits = 0;
-      let accentHits = 0;
-      for (let sy = 0; sy < ss; sy += 1) {
-        for (let sx = 0; sx < ss; sx += 1) {
-          const x = (px + (sx + 0.5) / ss) / scale;
-          const y = (py + (sy + 0.5) / ss) / scale;
-          if (!inRoundRect(x, y, BOX)) continue;
-          boxHits += 1;
-          if (inRoundRect(x, y, BAR) || inStem(x, y)) whiteHits += 1;
-          else if (variant === 'accent' && inRoundRect(x, y, UNDERLINE)) accentHits += 1;
+/* ---------- 面积平均降采样（正方形源 → 正方形目标；只缩不放） ---------- */
+function downscale(src, size) {
+  if (src.width !== src.height) throw new Error(`source must be square, got ${src.width}x${src.height}`);
+  if (size > src.width) throw new Error(`cannot upscale ${src.width} -> ${size}`);
+  const out = Buffer.alloc(size * size * 4);
+  const srcW = src.width;
+  for (let dy = 0; dy < size; dy += 1) {
+    const y0 = (dy * srcW) / size;
+    const y1 = ((dy + 1) * srcW) / size;
+    for (let dx = 0; dx < size; dx += 1) {
+      const x0 = (dx * srcW) / size;
+      const x1 = ((dx + 1) * srcW) / size;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let wsum = 0;
+      for (let sy = Math.floor(y0); sy < Math.min(srcW, Math.ceil(y1)); sy += 1) {
+        const wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
+        if (wy <= 0) continue;
+        for (let sx = Math.floor(x0); sx < Math.min(srcW, Math.ceil(x1)); sx += 1) {
+          const wx = Math.min(x1, sx + 1) - Math.max(x0, sx);
+          if (wx <= 0) continue;
+          const si = (sy * srcW + sx) * 4;
+          const w = wx * wy;
+          r += src.rgba[si] * w;
+          g += src.rgba[si + 1] * w;
+          b += src.rgba[si + 2] * w;
+          wsum += w;
         }
       }
-      if (boxHits === 0) continue;
-      putpixel(px, py, BLACK, (boxHits / total) * 255);
-      if (whiteHits > 0) putpixel(px, py, WHITE, (whiteHits / total) * 255);
-      if (accentHits > 0) putpixel(px, py, ACCENT, (accentHits / total) * 255);
+      const di = (dy * size + dx) * 4;
+      out[di] = Math.round(r / wsum);
+      out[di + 1] = Math.round(g / wsum);
+      out[di + 2] = Math.round(b / wsum);
+      out[di + 3] = 255;
     }
   }
-  return buf;
+  return out;
 }
 
 /* ---------- PNG 编码（RGBA，无滤波；支持任意宽高，预览拼图要用） ---------- */
@@ -166,7 +209,7 @@ function buildIco(entries) {
   return Buffer.concat([header, ...dirs, ...bodies]);
 }
 
-/** 把若干张正方形图标按格子摆进一块浅灰画布（便于目检黑方块）。 */
+/** 把若干张正方形图标按格子摆进一块浅灰画布（便于目检小尺寸表现）。 */
 function composeSheet(cells, cellSize, cols) {
   const rows = Math.ceil(cells.length / cols);
   const width = cols * cellSize;
@@ -201,21 +244,19 @@ function composeSheet(cells, cellSize, cols) {
 const outDir = path.join(__dirname, '..', 'build');
 fs.mkdirSync(outDir, { recursive: true });
 
+const src = decodePng(fs.readFileSync(path.join(outDir, 'icon-source.png')));
+const pick = (size) => encodePng(size, size, downscale(src, size));
+
 const iconSizes = [256, 128, 64, 48, 32, 24, 16];
-const iconEntries = iconSizes.map((size) => ({ size, png: encodePng(size, size, rasterize(size)) }));
-fs.writeFileSync(path.join(outDir, 'icon.ico'), buildIco(iconEntries));
+fs.writeFileSync(path.join(outDir, 'icon.ico'), buildIco(iconSizes.map((size) => ({ size, png: pick(size) }))));
 
 const traySizes = [32, 24, 16];
-const trayEntries = traySizes.map((size) => ({ size, png: encodePng(size, size, rasterize(size)) }));
-fs.writeFileSync(path.join(outDir, 'tray.ico'), buildIco(trayEntries));
+fs.writeFileSync(path.join(outDir, 'tray.ico'), buildIco(traySizes.map((size) => ({ size, png: pick(size) }))));
 
-/* 预览：第一行 = 定稿（256 / 96 / 48 / 32 / 16），第二行 = 带品牌色下划线的备选变体。 */
-const preview = [
-  ...[256, 96, 48, 32, 16].map((s) => ({ size: s, rgba: rasterize(s) })),
-  ...[128, 48, 32].map((s) => ({ size: s, rgba: rasterize(s, 'accent') })),
-];
+/* 预览：256 / 96 / 48 / 32 / 16 一行排开，供人工目检各尺寸表现。 */
+const preview = [256, 96, 48, 32, 16].map((s) => ({ size: s, rgba: downscale(src, s) }));
 const sheet = composeSheet(preview, 288, 5);
 fs.writeFileSync(path.join(outDir, 'icon-preview-sheet.png'), encodePng(sheet.width, sheet.height, sheet.rgba));
-fs.writeFileSync(path.join(outDir, 'icon-preview-256.png'), encodePng(256, 256, rasterize(256)));
-fs.writeFileSync(path.join(outDir, 'icon-preview-32.png'), encodePng(32, 32, rasterize(32)));
-console.log('icons written to build/ (icon.ico + tray.ico + preview-sheet/256/32)');
+fs.writeFileSync(path.join(outDir, 'icon-preview-256.png'), encodePng(256, 256, downscale(src, 256)));
+fs.writeFileSync(path.join(outDir, 'icon-preview-32.png'), encodePng(32, 32, downscale(src, 32)));
+console.log(`icons written to build/ from icon-source.png (${src.width}x${src.height}): icon.ico + tray.ico + preview-sheet/256/32`);
