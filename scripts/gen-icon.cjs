@@ -253,10 +253,15 @@ fs.writeFileSync(path.join(outDir, 'icon.ico'), buildIco(iconSizes.map((size) =>
 const traySizes = [32, 24, 16];
 fs.writeFileSync(path.join(outDir, 'tray.ico'), buildIco(traySizes.map((size) => ({ size, png: pick(size) }))));
 
+/* 应用内品牌标（TitleBar / 设置·关于 的 BrandMark 组件 import 用）：与 ico 同一源图派生。 */
+const brandDir = path.join(__dirname, '..', 'src', 'renderer', 'assets');
+fs.mkdirSync(brandDir, { recursive: true });
+fs.writeFileSync(path.join(brandDir, 'brand-mark.png'), pick(128));
+
 /* 预览：256 / 96 / 48 / 32 / 16 一行排开，供人工目检各尺寸表现。 */
 const preview = [256, 96, 48, 32, 16].map((s) => ({ size: s, rgba: downscale(src, s) }));
 const sheet = composeSheet(preview, 288, 5);
 fs.writeFileSync(path.join(outDir, 'icon-preview-sheet.png'), encodePng(sheet.width, sheet.height, sheet.rgba));
 fs.writeFileSync(path.join(outDir, 'icon-preview-256.png'), encodePng(256, 256, downscale(src, 256)));
 fs.writeFileSync(path.join(outDir, 'icon-preview-32.png'), encodePng(32, 32, downscale(src, 32)));
-console.log(`icons written to build/ from icon-source.png (${src.width}x${src.height}): icon.ico + tray.ico + preview-sheet/256/32`);
+console.log(`icons written from icon-source.png (${src.width}x${src.height}): build/icon.ico + tray.ico + preview-sheet/256/32 + src/renderer/assets/brand-mark.png`);

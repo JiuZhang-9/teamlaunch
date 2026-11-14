@@ -689,7 +689,7 @@ export function SettingsPanel({
         {section === 'about' && (
           <>
             <div className="flex items-center gap-3 pt-1">
-              <BrandMark variant="solid" size={18} />
+              <BrandMark />
               <div className="min-w-0">
                 <p className="t-md w-emph m-0 text-[var(--fg)]">TeamLaunch</p>
                 <p className="t-xs m-0 text-[var(--muted)]">Windows 桌面端团队统一入口启动器</p>

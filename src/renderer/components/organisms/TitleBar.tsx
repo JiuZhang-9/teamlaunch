@@ -113,7 +113,7 @@ export function TitleBar({
           className="flex h-10 shrink-0 select-none items-center gap-2 rounded-[var(--radius-md)] px-1.5 transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)]"
           style={NO_DRAG}
         >
-          <BrandMark variant="frame" />
+          <BrandMark />
           <span
             className="t-sm truncate-1"
             style={{ color: 'var(--fg-2)', fontWeight: 'var(--weight-read)' }}
@@ -126,7 +126,7 @@ export function TitleBar({
         </button>
       ) : (
         <>
-          <BrandMark variant="frame" />
+          <BrandMark />
           <span
             className="t-sm truncate-1 select-none"
             style={{ color: 'var(--fg-2)', fontWeight: 'var(--weight-read)' }}
