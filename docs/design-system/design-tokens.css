@@ -176,6 +176,11 @@
   --bg-surface-active: var(--n-100);
   --bg-overlay: var(--n-000);
 
+  /* 主窗口搜索浮层遮罩（2026-11-15）：压住当前页让结果卡浮出；frost 档 blur 已吃掉
+     一截对比度，遮罩比 dim 档浅一档。两个档共用「自上而下渐入」的 mask，不在此处。 */
+  --search-scrim: rgba(16, 19, 22, 0.42);
+  --search-scrim-frost: rgba(16, 19, 22, 0.3);
+
   /* 顶栏/侧栏等窗口 chrome：比内容画布亮一档（2026-10-03 用户定稿） */
   --bg-chrome: var(--n-000);
   --bg-chrome-hover: var(--accent-tint);
@@ -278,6 +283,10 @@
   --bg-surface-hover: var(--n-850);
   --bg-surface-active: var(--n-800);
   --bg-overlay: var(--n-980);
+
+  /* 主窗口搜索浮层遮罩（2026-11-15）：深主题下变暗靠纯黑，强度比亮主题深一档 */
+  --search-scrim: rgba(0, 0, 0, 0.48);
+  --search-scrim-frost: rgba(0, 0, 0, 0.38);
 
   /* 顶栏/侧栏等窗口 chrome：n-850，比画布 n-950 亮两档、比卡片 n-900 亮一档 */
   --bg-chrome: var(--n-850);

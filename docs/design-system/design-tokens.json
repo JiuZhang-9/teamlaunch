@@ -602,6 +602,16 @@
           "type": "color"
         }
       },
+      "searchScrim": {
+        "dim": {
+          "value": "rgba(16, 19, 22, 0.42)",
+          "type": "color"
+        },
+        "dimFrost": {
+          "value": "rgba(16, 19, 22, 0.30)",
+          "type": "color"
+        }
+      },
       "border": {
         "subtle": {
           "value": "{primitive.color.neutral.100}",
@@ -768,6 +778,16 @@
         },
         "editing": {
           "value": "#151A1F",
+          "type": "color"
+        }
+      },
+      "searchScrim": {
+        "dim": {
+          "value": "rgba(0, 0, 0, 0.48)",
+          "type": "color"
+        },
+        "dimFrost": {
+          "value": "rgba(0, 0, 0, 0.38)",
           "type": "color"
         }
       },

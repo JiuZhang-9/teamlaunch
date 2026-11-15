@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<title>提案 · 主窗口搜索态改造：顶部结果浮层 + 底部透出</title>
+<style>
+/* ============================================================================
+   TeamLaunch Design Tokens v1.1.0（照抄 docs/design-system/design-tokens.css）
+   ========================================================================= */
+:root {
+  --n-000:#ffffff; --n-025:#f5f5f5; --n-050:#efefef; --n-100:#e3e3e3; --n-200:#d4d4d4;
+  --n-300:#b8b8b8; --n-400:#8c8c8c; --n-500:#6e6e6e; --n-600:#575757; --n-700:#404040;
+  --n-800:#2b2b2b; --n-850:#222222; --n-900:#1b1b1b; --n-950:#151515; --n-980:#0f0f0f;
+  --sig-50:#eaf4fb; --sig-100:#cfe8f6; --sig-200:#a2d0ec; --sig-300:#68b1de; --sig-400:#3890ce;
+  --sig-500:#1780bc; --sig-600:#106696; --sig-700:#0d5278;
+  --font-body:"Inter",system-ui,-apple-system,"Segoe UI","Noto Sans SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  --text-2xs:11px; --lh-2xs:16px; --text-xs:12px; --lh-xs:18px; --text-sm:13px; --lh-sm:20px;
+  --text-base:14px; --lh-base:22px; --text-md:15px; --text-lg:17px; --lh-lg:26px;
+  --weight-read:400; --weight-emphasize:510; --weight-announce:590;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px; --space-8:32px;
+  --radius-sm:6px; --radius-md:8px; --radius-lg:12px; --radius-xl:16px; --radius-pill:9999px;
+  --win-w:1040px; --win-h:720px; --win-titlebar-h:40px; --content-header-h:48px; --sidebar-w:240px;
+  --card-w:152px; --card-h:132px; --grid-gap:16px; --icon-box:40px; --row-h:44px;
+  --motion-fast:120ms; --motion-base:160ms; --ease-standard:cubic-bezier(0.2,0,0,1);
+  --icon-stroke:2;
+}
+:root, :root[data-theme="light"] { color-scheme: light;
+  --bg-canvas:var(--n-025); --bg-surface:var(--n-000); --bg-surface-2:var(--n-050);
+  --bg-surface-hover:var(--n-050); --bg-surface-active:var(--n-100);
+  --bg-chrome:var(--n-000); --bg-chrome-hover:var(--accent-tint);
+  --border-subtle:var(--n-100); --border-default:var(--n-200); --border-strong:var(--n-300);
+  --fg:var(--n-800); --fg-2:var(--n-600); --muted:var(--n-500); --meta:var(--n-400);
+  --accent:var(--sig-600); --accent-hover:var(--sig-700); --accent-on:#fff;
+  --accent-text:var(--sig-700); --accent-tint:var(--sig-50); --accent-border:var(--sig-200);
+  --input-bg:var(--bg-surface); --input-border:var(--border-default); --input-border-focus:var(--accent);
+  --card-bg:var(--bg-surface); --card-border:var(--border-default); --card-bg-hover:var(--bg-surface-active);
+  --card-icon-box:var(--n-000); --card-title:var(--fg); --card-subtitle:var(--muted);
+  --tag-bg:var(--bg-surface-2); --tag-fg:var(--fg-2);
+  --favorite-star:#fbbf24;
+  --type-folder-accent:#b7791f; --type-web-accent:#0f766e; --type-app-accent:var(--n-400);
+  --type-app-watermark:var(--n-500); --type-folder-watermark:var(--type-folder-accent); --type-web-watermark:var(--type-web-accent);
+  --identity-1-bg:#e7edf2; --identity-1-fg:#31414d; --identity-2-bg:#f2ecdf; --identity-2-fg:#6b5636;
+  --identity-3-bg:#e7f0e4; --identity-3-fg:#4a6544; --identity-4-bg:#f4e8e3; --identity-4-fg:#7a4b3b;
+  --identity-5-bg:#e3eef2; --identity-5-fg:#3c6574; --identity-6-bg:#efe7f1; --identity-6-fg:#644a6d;
+  --row-bg-selected:var(--bg-surface-2); --row-indicator:var(--accent);
+  --elev-1:0 1px 2px rgba(16,19,22,.06);
+  --elev-2:0 4px 12px rgba(16,19,22,.10),0 1px 2px rgba(16,19,22,.06);
+  --elev-3:0 16px 40px rgba(16,19,22,.18),0 2px 6px rgba(16,19,22,.10),0 0 0 1px rgba(16,19,22,.06);
+  --scrollbar-thumb:var(--n-300);
+  /* 遮罩档位（提案值，亮主题） */
+  --scrim-dim:rgba(16,19,22,.42);
+  --frost-veil:rgba(255,255,255,.14);
+  --scrim-mixed:rgba(16,19,22,.34);
+  --blur-px:10px;
+}
+:root[data-theme="dark"] { color-scheme: dark;
+  --bg-canvas:var(--n-950); --bg-surface:var(--n-900); --bg-surface-2:var(--n-850);
+  --bg-surface-hover:var(--n-850); --bg-surface-active:var(--n-800);
+  --bg-chrome:var(--n-850);
+  --border-subtle:var(--n-850); --border-default:var(--n-800); --border-strong:var(--n-700);
+  --fg:var(--n-050); --fg-2:var(--n-300); --muted:var(--n-400); --meta:var(--n-500);
+  --accent:var(--sig-400); --accent-hover:var(--sig-500); --accent-on:var(--n-980);
+  --accent-text:var(--sig-450); --accent-text:#a2d0ec; --accent-tint:#12222e; --accent-border:#1e3a4b;
+  --card-bg:var(--bg-surface); --card-border:var(--border-default); --card-bg-hover:var(--bg-surface-active);
+  --card-icon-box:var(--n-850);
+  --tag-bg:var(--bg-surface-2); --tag-fg:var(--fg-2);
+  --type-folder-accent:#d69e2e; --type-web-accent:#2dd4bf; --type-app-accent:var(--n-500);
+  --type-app-watermark:var(--n-300);
+  --identity-1-bg:#26313a; --identity-1-fg:#c7d6e2; --identity-2-bg:#332c20; --identity-2-fg:#e2cfae;
+  --identity-3-bg:#22301f; --identity-3-fg:#bfd6b7; --identity-4-bg:#33241f; --identity-4-fg:#e0b7a8;
+  --identity-5-bg:#1c2c33; --identity-5-fg:#b3d4df; --identity-6-bg:#2d2431; --identity-6-fg:#d6bfdc;
+  --row-bg-selected:var(--bg-surface-2);
+  --elev-1:none;
+  --elev-2:0 4px 12px rgba(0,0,0,.50),0 1px 2px rgba(0,0,0,.40);
+  --elev-3:0 16px 40px rgba(0,0,0,.62),0 2px 6px rgba(0,0,0,.50),0 0 0 1px rgba(255,255,255,.06);
+  --scrollbar-thumb:var(--n-700);
+  --scrim-dim:rgba(0,0,0,.48);
+  --frost-veil:rgba(0,0,0,.22);
+  --scrim-mixed:rgba(0,0,0,.38);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; }
+body {
+  font-family:var(--font-body); background:#d8dadd; color:var(--fg);
+  font-size:var(--text-base); line-height:var(--lh-base);
+  display:flex; flex-direction:column; align-items:center; gap:16px; padding:24px 0 40px;
+}
+:root[data-theme="dark"] body { background:#0a0a0a; }
+
+/* ---- 页面顶部说明与控制条（不属于窗口，属于提案文档） ---- */
+.doc-head { width:var(--win-w); display:flex; flex-direction:column; gap:10px; }
+.doc-title { font-size:17px; font-weight:var(--weight-announce); letter-spacing:-0.01em; }
+.doc-sub { font-size:var(--text-sm); color:#555; line-height:1.7; }
+:root[data-theme="dark"] .doc-sub { color:#9a9a9a; }
+.doc-sub b { color:inherit; }
+.ctrl {
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+  padding:10px 12px; border-radius:12px; background:rgba(127,127,127,.08);
+}
+.ctrl .grp { display:flex; align-items:center; gap:6px; padding-right:12px; border-right:1px solid rgba(127,127,127,.25); }
+.ctrl .grp:last-child { border-right:none; }
+.ctrl .lbl { font-size:var(--text-xs); color:#666; margin-right:2px; }
+:root[data-theme="dark"] .ctrl .lbl { color:#999; }
+.ctrl button {
+  font:inherit; font-size:var(--text-xs); line-height:18px; padding:5px 12px; border-radius:9999px;
+  border:1px solid rgba(127,127,127,.35); background:transparent; color:inherit; cursor:pointer;
+  transition:all var(--motion-fast) var(--ease-standard);
+}
+.ctrl button:hover { background:rgba(127,127,127,.15); }
+.ctrl button.on { background:#106696; border-color:#106696; color:#fff; font-weight:var(--weight-emphasize); }
+
+/* ---- 窗口框 ---- */
+.win {
+  width:var(--win-w); height:var(--win-h); display:flex; flex-direction:column;
+  border-radius:12px; overflow:hidden; background:var(--bg-canvas); color:var(--fg);
+  box-shadow:0 24px 64px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.12);
+}
+
+/* ---- 标题栏 40px ---- */
+.titlebar { height:var(--win-titlebar-h); background:var(--bg-chrome); border-bottom:1px solid var(--border-subtle);
+  display:flex; align-items:center; padding:0 12px; gap:8px; flex-shrink:0; user-select:none; }
+.titlebar .app-ico { width:18px; height:18px; border-radius:5px; background:linear-gradient(135deg,#f07a5a,#e05a3a);
+  display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:700; }
+.titlebar .name { font-size:var(--text-xs); color:var(--fg-2); font-weight:var(--weight-emphasize); }
+.titlebar .win-btns { margin-left:auto; display:flex; gap:2px; }
+.titlebar .win-btns span { width:34px; height:28px; display:flex; align-items:center; justify-content:center;
+  color:var(--fg-2); font-size:11px; border-radius:6px; }
+.titlebar .win-btns span:hover { background:var(--bg-surface-hover); }
+
+/* ---- 主区 ---- */
+.main { flex:1; display:flex; min-height:0; }
+
+/* ---- 侧栏 240px ---- */
+.sidebar { width:var(--sidebar-w); background:var(--bg-chrome); border-right:1px solid var(--border-subtle);
+  display:flex; flex-direction:column; padding:10px 12px; gap:2px; flex-shrink:0; user-select:none; }
+.sb-h { font-size:var(--text-2xs); letter-spacing:.06em; text-transform:uppercase; color:var(--meta);
+  padding:8px 8px 4px; }
+.sb-item { height:36px; display:flex; align-items:center; gap:10px; padding:0 10px; border-radius:8px;
+  font-size:var(--text-sm); color:var(--fg-2); }
+.sb-item svg { flex-shrink:0; }
+.sb-item.on { background:var(--accent-tint); color:var(--fg); font-weight:var(--weight-emphasize);
+  box-shadow:inset 3px 0 0 var(--accent); }
+.sb-item:hover { background:var(--bg-surface-hover); }
+
+/* ---- 内容头 48px ---- */
+.content-header { height:var(--content-header-h); display:flex; align-items:center; gap:8px;
+  padding:0 var(--space-6); border-bottom:1px solid var(--border-subtle); background:var(--bg-canvas); flex-shrink:0; }
+.icon-btn { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  color:var(--fg-2); border:none; background:transparent; cursor:pointer; }
+.icon-btn:hover { background:var(--bg-surface-hover); }
+.search-box { width:420px; height:32px; border-radius:8px; background:var(--input-bg);
+  border:1px solid var(--accent); box-shadow:0 0 0 2px rgba(16,102,150,.15);
+  display:flex; align-items:center; gap:8px; padding:0 10px; color:var(--meta); font-size:var(--text-sm); }
+.search-box .caret { width:1px; height:16px; background:var(--fg); animation:blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.hdr-spacer { flex:1; }
+.hdr-tool { height:30px; display:flex; align-items:center; gap:6px; padding:0 10px; border-radius:8px;
+  font-size:var(--text-sm); color:var(--fg-2); }
+.hdr-tool:hover { background:var(--bg-surface-hover); }
+.page-switch { height:30px; display:flex; align-items:center; gap:6px; padding:0 10px; border-radius:8px;
+  border:1px solid var(--border-default); font-size:var(--text-xs); color:var(--fg-2); }
+
+/* ---- 内容面板 ---- */
+.panel { flex:1; position:relative; overflow:hidden; padding:var(--space-5) var(--space-6) var(--space-6); }
+/* 个人页错位点阵背景（v1.8.1，静态） */
+.dots { position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background-image:radial-gradient(var(--border-strong) 1.2px, transparent 1.2px),
+                   radial-gradient(var(--border-strong) 1.2px, transparent 1.2px);
+  background-size:22px 22px; background-position:0 0, 11px 11px;
+}
+:root[data-theme="dark"] .dots { opacity:.35; }
+.panel-inner { position:relative; z-index:1; height:100%; }
+
+/* ---- 入口卡片网格（个人入口页，搜索时它是"底下透出的内容"） ---- */
+.grid { display:grid; grid-template-columns:repeat(4, var(--card-w)); gap:var(--grid-gap); align-content:start; }
+.card { width:var(--card-w); height:var(--card-h); border-radius:var(--radius-lg); background:var(--card-bg);
+  border:1px solid var(--card-border); box-shadow:var(--elev-1); padding:12px; position:relative; overflow:hidden;
+  display:flex; flex-direction:column; }
+.card:hover { background:var(--card-bg-hover); }
+.card .ibox { width:var(--icon-box); height:var(--icon-box); border-radius:10px; display:flex; align-items:center;
+  justify-content:center; font-size:15px; font-weight:var(--weight-announce); }
+.card .nm { margin-top:10px; font-size:var(--text-sm); font-weight:var(--weight-emphasize); color:var(--card-title);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card .sub { margin-top:2px; font-size:var(--text-2xs); line-height:var(--lh-2xs); color:var(--card-subtitle);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card .wm { position:absolute; right:-10px; bottom:-10px; width:56px; height:56px; transform:rotate(-14deg);
+  opacity:.10; pointer-events:none; }
+.card[data-type="app"] .wm { color:var(--type-app-watermark); }
+.card[data-type="folder"] .wm { color:var(--type-folder-watermark); }
+.card[data-type="web"] .wm { color:var(--type-web-watermark); }
+.card .fav { position:absolute; top:8px; right:8px; color:var(--favorite-star); }
+
+/* ---- ========== 搜索态改造：浮层卡 + 遮罩 ========== ---- */
+.backdrop {
+  /* 盖满整个内容面板（含内边距：直抵侧栏边 / 窗口右缘 / 窗口底），不留亮框 */
+  position:absolute; inset:calc(-1 * var(--space-5)) calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) calc(-1 * var(--space-6));
+  z-index:2; cursor:pointer;
+  transition:background-color var(--motion-base) var(--ease-standard), backdrop-filter var(--motion-base) var(--ease-standard);
+  /* 遮罩自上而下渐入：卡片边缘处只半透，往下才到全暗，不再生硬切一刀 */
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 340px);
+  mask-image:linear-gradient(to bottom, transparent 0, #000 340px);
+}
+/* 方案 A：纯变暗 */
+[data-variant="a"] .backdrop { background:var(--scrim-dim); }
+[data-variant="a"] .backdrop:hover { background:rgba(16,19,22,.52); }
+:root[data-theme="dark"] [data-variant="a"] .backdrop:hover { background:rgba(0,0,0,.60); }
+/* 方案 B：毛玻璃（轻度提亮/压暗薄纱） */
+[data-variant="b"] .backdrop { backdrop-filter:blur(var(--blur-px)); -webkit-backdrop-filter:blur(var(--blur-px)); background:var(--frost-veil); }
+[data-variant="b"] .backdrop:hover { background:rgba(16,19,22,.22); }
+:root[data-theme="dark"] [data-variant="b"] .backdrop:hover { background:rgba(0,0,0,.36); }
+/* 方案 C：毛玻璃 + 变暗 */
+[data-variant="c"] .backdrop { backdrop-filter:blur(var(--blur-px)); -webkit-backdrop-filter:blur(var(--blur-px)); background:var(--scrim-mixed); }
+[data-variant="c"] .backdrop:hover { background:rgba(16,19,22,.46); }
+:root[data-theme="dark"] [data-variant="c"] .backdrop:hover { background:rgba(0,0,0,.52); }
+
+.search-card {
+  position:absolute; z-index:3; top:var(--space-5); left:var(--space-6); right:var(--space-6);
+  background:var(--bg-surface); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  box-shadow:var(--elev-3); overflow:hidden;
+  display:flex; flex-direction:column;
+  max-height:calc(50% - var(--space-5));  /* 「不到一半」硬上限；内部滚动 */
+  animation:card-in var(--motion-base) var(--ease-standard);
+}
+@keyframes card-in { from { opacity:0; transform:translateY(-4px); } }
+.search-scroll { overflow-y:auto; min-height:0; padding:var(--space-3) 0 var(--space-2); }
+.search-scroll::-webkit-scrollbar { width:8px; }
+.search-scroll::-webkit-scrollbar-thumb { background:var(--scrollbar-thumb); border-radius:4px; }
+.sc-count { padding:0 var(--space-4) var(--space-2); font-size:var(--text-2xs); line-height:var(--lh-2xs); color:var(--muted); }
+.sc-label { display:flex; align-items:center; gap:6px; padding:6px var(--space-4) 4px;
+  font-size:var(--text-2xs); letter-spacing:.06em; color:var(--meta); font-weight:var(--weight-emphasize); }
+.sc-label svg { color:var(--meta); }
+.sc-tiles { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; padding:2px var(--space-3) 8px; }
+.tile { height:86px; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  font-size:var(--text-2xs); color:var(--fg-2); cursor:pointer; position:relative; }
+.tile:hover { background:var(--bg-surface-hover); }
+.tile.sel { background:var(--row-bg-selected); box-shadow:inset 0 0 0 1px var(--border-strong), inset 0 2px 0 var(--row-indicator); }
+.tile .tbox { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:var(--weight-announce); }
+.sc-row { display:flex; align-items:center; gap:12px; height:var(--row-h); margin:0 var(--space-2);
+  padding:0 var(--space-2); border-radius:var(--radius-md); font-size:var(--text-sm); color:var(--fg); cursor:pointer; }
+.sc-row:hover { background:var(--bg-surface-hover); }
+.sc-row.sel { background:var(--row-bg-selected); box-shadow:inset 3px 0 0 var(--row-indicator); }
+.sc-row .rbox { width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:var(--weight-announce); flex-shrink:0; }
+.sc-row .rname { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sc-row .rpath { font-size:var(--text-2xs); color:var(--meta); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tag { font-size:10px; padding:2px 6px; border-radius:5px; background:var(--tag-bg); color:var(--tag-fg); flex-shrink:0; }
+.add-btn { font-size:var(--text-xs); color:var(--accent-text); border:1px solid var(--accent-border);
+  border-radius:6px; padding:3px 8px; flex-shrink:0; display:flex; align-items:center; gap:4px; }
+
+/* 现状方案（对照）：整页替换 */
+[data-variant="cur"] .backdrop, [data-variant="cur"] .search-card { display:none; }
+[data-variant="cur"] .grid-wrap { display:none; }
+.cur-view { position:absolute; inset:0; z-index:1; padding:var(--space-5) var(--space-6) var(--space-6); }
+[data-variant="cur"] .cur-view { display:block; }
+.cur-view .sc-tiles { grid-template-columns:repeat(6, var(--card-w)); }
+
+/* 标注层 */
+.anno { position:absolute; z-index:4; pointer-events:none; font-size:var(--text-2xs); color:#c7f; display:none; }
+[data-annotate="1"] .anno { display:block; }
+.anno .half-line { position:absolute; left:var(--space-6); right:var(--space-6); top:calc(50% - 1px);
+  border-top:1px dashed #7a5cc8; }
+.anno .half-tag { position:absolute; right:var(--space-6); top:calc(50% + 4px); background:#7a5cc8; color:#fff;
+  padding:2px 8px; border-radius:9999px; }
+.anno .card-tag { position:absolute; left:calc(var(--space-6) + 8px); top:calc(var(--space-5) + 8px);
+  background:#7a5cc8; color:#fff; padding:2px 8px; border-radius:9999px; }
+.anno .exit-tag { position:absolute; left:50%; top:58%; transform:translateX(-50%);
+  background:rgba(122,92,200,.9); color:#fff; padding:3px 10px; border-radius:9999px; font-size:var(--text-xs); }
+
+.hide { display:none !important; }
+</style>
+</head>
+<body data-state="quick" data-variant="b" data-annotate="0">
+
+<div class="doc-head">
+  <div class="doc-title">主窗口搜索态改造提案 · 顶部结果浮层 + 底部透出当前页</div>
+  <div class="doc-sub">
+    现状问题：搜索激活后整个内容区被替换成搜索结果（只有收藏 / 最近打开两行），下方空白点不了、也退不出，只能点顶栏。<br>
+    提案：搜索输入框留在顶栏不动；内容区改为「顶部结果浮层卡（高度自适应，硬上限 50%）+ 底部透出当前页内容」，
+    <b>点下方遮罩任意位置即退出搜索</b>——"点空白退出"从此成为真交互。Ctrl+F / Esc / 点侧栏 / 点顶栏行为不变。
+  </div>
+  <div class="ctrl">
+    <div class="grp"><span class="lbl">方案</span>
+      <button data-set="variant" data-v="cur">现状（对照）</button>
+      <button data-set="variant" data-v="a">A 变暗</button>
+      <button data-set="variant" data-v="b">B 毛玻璃</button>
+      <button data-set="variant" data-v="c">C 毛玻璃＋变暗</button>
+    </div>
+    <div class="grp"><span class="lbl">搜索内容</span>
+      <button data-set="state" data-v="quick">聚焦空查询（收藏＋最近打开）</button>
+      <button data-set="state" data-v="results">输入查询（长结果验证 50% 上限）</button>
+    </div>
+    <div class="grp"><span class="lbl">主题</span>
+      <button data-set="theme" data-v="light">亮</button>
+      <button data-set="theme" data-v="dark">暗</button>
+    </div>
+    <div class="grp"><button data-set="annotate">标注开关</button></div>
+    <div class="grp"><button id="toggleSearch">开 / 关搜索（点遮罩也能关）</button></div>
+  </div>
+</div>
+
+<div class="win" id="win">
+  <!-- 标题栏 -->
+  <div class="titlebar">
+    <div class="app-ico">企</div>
+    <div class="name">TeamLaunch</div>
+    <div class="win-btns"><span>─</span><span>▢</span><span>✕</span></div>
+  </div>
+
+  <div class="main">
+    <!-- 侧栏 -->
+    <div class="sidebar">
+      <div class="sb-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>主页</div>
+      <div class="sb-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>团队入口</div>
+      <div class="sb-item on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>个人入口</div>
+      <div class="sb-h">分组</div>
+      <div class="sb-item">日常办公</div>
+      <div class="sb-item">开发工具</div>
+      <div class="sb-item on" style="background:var(--accent-tint);box-shadow:inset 3px 0 0 var(--accent)">财务报销</div>
+      <div class="sb-item">部门文档</div>
+    </div>
+
+    <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+      <!-- 内容头：搜索框留在顶栏，不动 -->
+      <div class="content-header">
+        <button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg></button>
+        <div class="search-box" id="searchBox">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <span class="caret"></span>
+        </div>
+        <div class="hdr-spacer"></div>
+        <div class="hdr-tool"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>新建分组</div>
+        <div class="hdr-tool"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>添加入口</div>
+        <div class="hdr-tool"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>批量</div>
+        <button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg></button>
+        <div class="page-switch">个人入口<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      </div>
+
+      <!-- 内容面板：底下是当前页网格，搜索时上面盖浮层 -->
+      <div class="panel" id="panel" data-variant="b">
+        <div class="dots"></div>
+        <div class="panel-inner">
+          <div class="grid-wrap">
+            <div class="grid">
+              <!-- 12 张卡，3 行，保证遮罩下有足够内容 -->
+            </div>
+          </div>
+          <!-- 现状对照：整页替换 -->
+          <div class="cur-view hide">
+            <div class="sc-count">输入名称搜索入口和本机程序</div>
+            <div class="sc-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.6.6-5 4.4 1.5 6.5L12 16.9 6 19.8l1.5-6.5-5-4.4 6.6-.6z"/></svg>收藏</div>
+            <div class="sc-tiles" id="curTilesFav"></div>
+            <div class="sc-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>最近打开</div>
+            <div class="sc-tiles" id="curTilesRecent"></div>
+          </div>
+          <!-- 提案：遮罩 + 浮层卡 -->
+          <div class="backdrop" id="backdrop" title="点击退出搜索"></div>
+          <div class="anno"><div class="half-line"></div><div class="half-tag">50% 上限</div>
+            <div class="card-tag">结果卡：高度自适应内容，超出内部滚动</div>
+            <div class="exit-tag">点这里任意位置 = 退出搜索</div></div>
+          <div class="search-card hide" id="searchCard">
+            <div class="search-scroll">
+              <div class="sc-count" id="scCount">输入名称搜索入口和本机程序</div>
+              <!-- 快速访问（空查询） -->
+              <div id="quickAccess">
+                <div class="sc-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.6.6-5 4.4 1.5 6.5L12 16.9 6 19.8l1.5-6.5-5-4.4 6.6-.6z"/></svg>收藏</div>
+                <div class="sc-tiles" id="favTiles"></div>
+                <div class="sc-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>最近打开</div>
+                <div class="sc-tiles" id="recentTiles"></div>
+              </div>
+              <!-- 输入查询结果（长内容验证上限滚动） -->
+              <div id="results" class="hide">
+                <div class="sc-row sel">
+                  <div class="rbox" style="background:var(--identity-5-bg);color:var(--identity-5-fg)">剪</div>
+                  <div style="min-width:0"><div class="rname">https://jira.internal.example.com/browse/TL-1024</div></div>
+                  <span class="tag">剪贴板</span>
+                  <span class="add-btn"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>加为入口</span>
+                </div>
+                <div class="sc-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>入口</div>
+                <div class="sc-tiles" id="resultTiles"></div>
+                <div class="sc-row"><div class="rbox" style="background:var(--identity-1-bg);color:var(--identity-1-fg)">记</div>
+                  <div style="min-width:0"><div class="rname">记事本</div><div class="rpath">C:\Windows\System32\notepad.exe</div></div><span class="tag">本机程序</span></div>
+                <div class="sc-row"><div class="rbox" style="background:var(--identity-2-bg);color:var(--identity-2-fg)">计</div>
+                  <div style="min-width:0"><div class="rname">计算器</div><div class="rpath">C:\Windows\System32\calc.exe</div></div><span class="tag">本机程序</span></div>
+                <div class="sc-row"><div class="rbox" style="background:var(--identity-3-bg);color:var(--identity-3-fg)">画</div>
+                  <div style="min-width:0"><div class="rname">画图</div><div class="rpath">C:\Windows\System32\mspaint.exe</div></div><span class="tag">本机程序</span></div>
+                <div class="sc-row"><div class="rbox" style="background:var(--identity-4-bg);color:var(--identity-4-fg)">截</div>
+                  <div style="min-width:0"><div class="rname">截图工具</div><div class="rpath">C:\Windows\System32\SnippingTool.exe</div></div><span class="tag">本机程序</span></div>
+                <div class="sc-row"><div class="rbox" style="background:var(--identity-6-bg);color:var(--identity-6-fg)">命</div>
+                  <div style="min-width:0"><div class="rname">命令提示符</div><div class="rpath">C:\Windows\System32\cmd.exe</div></div><span class="tag">本机程序</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- 数据 ---- */
+const entries = [
+  ['钉钉','web','dingtalk.com','5','钉'],['企业微信','app','D:\\Apps\\WeCom','2','微'],
+  ['OA 系统','web','oa.corp.example.com','1','O'],['人事系统','web','hr.corp.example.com','6','人'],
+  ['共享文件夹','folder','\\\\fs01\\部门共享','3','共'],['报销工具','app','D:\\Apps\\BaoXiao','4','报'],
+  ['GitLab','web','git.corp.example.com','5','G'],['财务软件','app','D:\\Apps\\Finance','2','财'],
+  ['部门文档','folder','\\\\fs01\\部门文档','3','部'],['Wiki','web','wiki.corp.example.com','6','W'],
+  ['客户列表','folder','\\\\fs01\\客户资料','1','客'],['周报模板','app','D:\\Docs\\周报','4','周'],
+];
+const favIdx = [0,1,2,6,11], recentIdx = [2,9,4,5];
+const resultIdx = [0,3,2,6,7,9];
+
+const wm = {
+  app:'<rect x="6" y="10" width="36" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="3"/><path d="M6 18h36" stroke="currentColor" stroke-width="3"/>',
+  folder:'<path d="M6 12h16l6 6h18v26a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="currentColor"/>',
+  web:'<circle cx="28" cy="28" r="20" fill="none" stroke="currentColor" stroke-width="3"/><ellipse cx="28" cy="28" rx="20" ry="8" fill="none" stroke="currentColor" stroke-width="3"/>',
+};
+const ident = i => `var(--identity-${i}-bg)`;
+const identFg = i => `var(--identity-${i}-fg)`;
+
+function tile(e, sel) {
+  return `<div class="tile${sel?' sel':''}"><div class="tbox" style="background:${ident(e[3])};color:${identFg(e[3])}">${e[4]}</div>${e[0]}</div>`;
+}
+
+/* 底下透出的入口网格（12 张卡） */
+document.querySelector('.grid').innerHTML = entries.map(e => `
+  <div class="card" data-type="${e[1]}">
+    ${favIdx.includes(entries.indexOf(e)) ? '<svg class="fav" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.6.6-5 4.4 1.5 6.5L12 16.9 6 19.8l1.5-6.5-5-4.4 6.6-.6z"/></svg>' : ''}
+    <div class="ibox" style="background:${ident(e[3])};color:${identFg(e[3])}">${e[4]}</div>
+    <div class="nm">${e[0]}</div><div class="sub">${e[2]}</div>
+    <svg class="wm" viewBox="0 0 56 56">${wm[e[1]]}</svg>
+  </div>`).join('');
+
+/* 搜索卡内容 */
+document.getElementById('favTiles').innerHTML = favIdx.map((i,n) => tile(entries[i], n===0)).join('');
+document.getElementById('recentTiles').innerHTML = recentIdx.map((i,n) => tile(entries[i], n===0)).join('');
+document.getElementById('resultTiles').innerHTML = resultIdx.map((i,n) => tile(entries[i], n===0)).join('');
+document.getElementById('curTilesFav').innerHTML = favIdx.map(i => tile(entries[i])).join('');
+document.getElementById('curTilesRecent').innerHTML = recentIdx.map(i => tile(entries[i])).join('');
+
+/* ---- 控制逻辑 ---- */
+const body = document.body, panel = document.getElementById('panel');
+const card = document.getElementById('searchCard'), backdrop = document.getElementById('backdrop');
+const curView = document.querySelector('.cur-view'), gridWrap = document.querySelector('.grid-wrap');
+const quick = document.getElementById('quickAccess'), results = document.getElementById('results');
+const count = document.getElementById('scCount');
+
+function applyVariant(v) {
+  body.dataset.variant = v; panel.dataset.variant = v;
+  document.querySelectorAll('[data-set="variant"]').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const isCur = v === 'cur';
+  backdrop.classList.toggle('hide', isCur || !isSearchOpen());
+  card.classList.toggle('hide', isCur || !isSearchOpen());
+  curView.classList.toggle('hide', !isCur || !isSearchOpen());
+  gridWrap.classList.toggle('hide', isCur && isSearchOpen());
+}
+function applyState(s) {
+  body.dataset.state = s;
+  document.querySelectorAll('[data-set="state"]').forEach(b => b.classList.toggle('on', b.dataset.v === s));
+  const isQ = s === 'quick';
+  quick.classList.toggle('hide', !isQ); results.classList.toggle('hide', isQ);
+  count.textContent = isQ ? '输入名称搜索入口和本机程序' : '找到 11 个结果 · 个人入口';
+}
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll('[data-set="theme"]').forEach(b => b.classList.toggle('on', b.dataset.v === t));
+}
+let searchOpen = true;
+const isSearchOpen = () => searchOpen;
+function setSearch(open) {
+  searchOpen = open;
+  card.classList.toggle('hide', !open);
+  backdrop.classList.toggle('hide', !open);
+}
+document.querySelectorAll('button[data-set]').forEach(b => {
+  b.addEventListener('click', () => {
+    if (b.dataset.set === 'variant') applyVariant(b.dataset.v);
+    else if (b.dataset.set === 'state') applyState(b.dataset.v);
+    else if (b.dataset.set === 'theme') applyTheme(b.dataset.v);
+    else body.dataset.annotate = body.dataset.annotate === '1' ? '0' : '1';
+  });
+});
+document.getElementById('toggleSearch').addEventListener('click', () => setSearch(!searchOpen));
+backdrop.addEventListener('click', () => setSearch(false));
+document.getElementById('searchBox').addEventListener('click', () => setSearch(true));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setSearch(false); });
+
+/* 初始：B 毛玻璃 + 快速访问 + 亮主题 */
+applyVariant('b'); applyState('quick'); applyTheme('light');
+</script>
+</body>
+</html>

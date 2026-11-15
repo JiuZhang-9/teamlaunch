@@ -106,6 +106,13 @@ export const SettingsSchema = z.object({
   /** 界面缩放（百分比）。浏览器式缩放：窗口不变，字体与内部 UI 等比放大重排。 */
   uiZoom: z.int().min(80).max(150).default(100),
   /**
+   * 主窗口搜索浮层的底部遮罩（2026-11-15 用户拍板）：
+   * 'dim' = 变暗（默认，深色半透明 + 自上而下渐入）；
+   * 'frost' = 毛玻璃＋变暗（再多一层 backdrop-filter blur，底下内容更"退后"）。
+   * 只作用于主窗口搜索态；纯毛玻璃档并入 frost 不单列。
+   */
+  searchBackdrop: z.enum(['dim', 'frost']).default('dim'),
+  /**
    * 应用内快捷键覆盖表：动作 id → 加速器串（如 'Ctrl+Shift+E'）。
    * 只存**用户改过**的动作，未出现的动作跟随内置默认（shared/app-hotkeys.ts）；
    * 空串 = 用户显式解绑。格式由录制器保证，匹配在渲染层完成。

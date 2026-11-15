@@ -816,6 +816,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 | `appHotkeys` | record | `{}` | 用户**改过**的应用内快捷键覆盖表（动作 id → 加速器串）；未出现的跟随内置默认，空串 = 显式解绑 |
 | `accentColor` | string | `#106696` | 主题色（品牌青蓝）：只用于 7 处点缀，画布/卡片/正文永远中性灰 |
 | `uiZoom` | int | 100 | 界面缩放百分比（浏览器式 zoom，窗口不变；schema 夹紧 80–150） |
+| `searchBackdrop` | enum | `dim` | 主窗口搜索浮层的底部遮罩：`dim` 变暗（默认）／`frost` 毛玻璃＋变暗（blur 10px）；两种都自上而下渐入（2026-11-15） |
 | `sidebarCollapsed` | boolean | false | 侧栏是否完全收起（用户意图，故留在 settings；本机记忆类状态见下方第 3 条） |
 | `announcementNotify` | boolean | true | 主页公告提醒（每篇只提示一次）；关掉只是不弹提示，公告仍在主页 |
 | `paletteOpacity` | int | 100 | 全局快捷窗口的不透明度（60–100，整数百分比；2026-10-19 起，只作用于面板窗口） |

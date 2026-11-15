@@ -9,6 +9,10 @@
  * 1.4.0（2026-10-27）：结果区改用与快捷窗口共用的 `PaletteResults`——
  * 剪贴板候选、收藏、最近打开、本机程序与面板走同一套构造与去重逻辑。
  * 主窗口不做右键收藏与 Alt+序号（用户明确 C4 不做）。
+ *
+ * 1.8.7（2026-11-15）：从「替换整个内容区」改成「顶部浮层卡」——外壳把本组件装进一张
+ * 限高（面板 50%）的圆角卡片，底下当前页透出并被遮罩压暗。因此根节点从 h-full 换成
+ * flex-1 min-h-0（高度由卡片约束，超出时 PaletteResults 自己滚动），并自带卡内边距。
  */
 import { PaletteResults } from '../components/organisms/PaletteResults.tsx';
 import type { PaletteHit } from '../lib/palette-source.ts';
@@ -40,8 +44,8 @@ export function WindowSearchView({
   programScanning, programError, teamUnavailable,
 }: WindowSearchViewProps) {
   return (
-    <div data-tl-search-surface className="flex h-full flex-col">
-      <p className="t-2xs mb-2 shrink-0 text-[var(--muted)]" aria-live="polite">
+    <div data-tl-search-surface className="flex min-h-0 flex-1 flex-col px-3 pb-1 pt-3">
+      <p className="t-2xs mb-2 shrink-0 px-2 text-[var(--muted)]" aria-live="polite">
         {debouncing
           ? '搜索中…'
           : quickAccess

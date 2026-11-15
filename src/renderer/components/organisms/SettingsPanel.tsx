@@ -443,6 +443,24 @@ export function SettingsPanel({
               </label>
             </div>
 
+            {/* 搜索浮层遮罩（2026-11-15 用户拍板）：默认变暗；毛玻璃＋变暗给喜欢底下更"退后"的人。
+                只影响主窗口搜索态——快捷窗口面板本来就是整面浮层，没有"底下内容"可言。 */}
+            <Row
+              title="搜索浮层遮罩"
+              detail="主窗口进入搜索时，底下当前页的压暗方式；两种都自上而下渐入，点击遮罩任意位置退出搜索"
+              control={
+                <Segmented
+                  label="搜索浮层遮罩"
+                  value={settings.searchBackdrop}
+                  onChange={(v) => onPatch({ searchBackdrop: v })}
+                  options={[
+                    { value: 'dim' as const, label: '变暗' },
+                    { value: 'frost' as const, label: '毛玻璃＋变暗' },
+                  ]}
+                />
+              }
+            />
+
             <Row
               title="开机自动启动"
               control={

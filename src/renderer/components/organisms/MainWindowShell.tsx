@@ -578,7 +578,8 @@ export function MainWindowShell() {
    * 刻意不引入常驻 scroll-spy——这条键按下时才读一次 DOM。只作用于卡片页；编辑态与主页不参与。
    */
   const selectAllCards = useCallback(() => {
-    if (tab === 'home' || editing || groups.length === 0) return;
+    /* 搜索态不参与（1.8.7）：卡片被遮罩盖住，全选了用户也看不见，只会莫名其妙弹出连锁条。 */
+    if (tab === 'home' || editing || groups.length === 0 || showSearch) return;
     const scroller = document.querySelector(`#tl-panel-${tab} .tl-scroll`);
     let currentName: string | null = null;
     if (scroller !== null) {
@@ -603,7 +604,7 @@ export function MainWindowShell() {
       return;
     }
     clearSelected();
-  }, [tab, editing, groups, selected, addSelected, clearSelected]);
+  }, [tab, editing, showSearch, groups, selected, addSelected, clearSelected]);
 
   /**
    * 框选多选（2026-10-18 用户要求）：在卡片区空白处拖出选框，松手即选中框住的卡片。
@@ -613,7 +614,9 @@ export function MainWindowShell() {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const marquee = useMarqueeSelect({
     containerRef: panelRef,
-    enabled: tab !== 'home' && groups.length > 0,
+    /* 搜索态必须关掉（1.8.7）：浮层遮罩上的 pointerdown 会冒泡进面板容器，
+       而被遮住的卡片还在 DOM 里——不关就会隔着一层暗幕框选看不见的卡片。 */
+    enabled: tab !== 'home' && groups.length > 0 && !showSearch,
     onSelect: (ids, additive) => {
       const byId = new Map(groups.flatMap((g) => g.entries).map((e) => [e.id, e]));
       const list = ids.map((id) => byId.get(id)).filter((e): e is NonNullable<typeof e> => e !== undefined);
@@ -1100,52 +1103,82 @@ export function MainWindowShell() {
               />
             )}
             <div className="relative z-[1] h-full">
-            {showSearch ? (
-              <div className="h-full">
-                <WindowSearchView
-                  query={debouncedQuery}
-                  hits={hits}
-                  debouncing={query !== debouncedQuery}
-                  quickAccess={quickAccess}
-                  tabLabel={tab === 'team' ? '团队入口' : '个人入口'}
-                  icons={iconsForSearch}
-                  runtime={runtime}
-                  selectedIndex={searchIndex}
-                  onSelectIndex={setSearchIndex}
-                  onOpen={handleSearchOpen}
-                  onAddToPersonal={handleSearchAdd}
-                  onClear={() => setQuery('')}
-                  programScanning={programs.scanning}
-                  programError={programs.error}
-                  teamUnavailable={!p.renderable && personal.groups.some((g) => g.entries.length > 0)}
-                />
+              {/* 当前页常驻挂载（1.8.7）：搜索不再整页替换——浮层盖在上面时底下透出真实页面，
+                  关掉搜索也少一次重挂载（滚动位置天然保留）。inert 把被遮住的卡片从
+                  Tab 焦点序里摘掉，避免焦点漏进看不见的内容。 */}
+              <div className="h-full" inert={showSearch || undefined}>
+                <ScrollArea
+                  className="h-full"
+                  ariaLabel="入口内容区"
+                  initialTop={scrollTop.current[tab]}
+                  onScrollTop={(top) => {
+                    scrollTop.current[tab] = top;
+                  }}
+                >
+                  {/* 边缘留白（2026-10-21 用户反馈）：多选描边 / 焦点环 / 拖拽落点虚线都画在卡片
+                      **外侧**（outline-offset 2~4px），而卡片网格正好顶到滚动容器边缘，
+                      这些线在左右两侧会被容器裁掉——"蓝色边缘被遮挡"的根因。
+                      这里给内容让出 8px，网格按自身宽度重新算列数，不影响列宽口径。 */}
+                  <div className="flex h-full flex-col px-2 pb-2">
+                    {tab === 'home' ? (
+                      <HomePageView />
+                    ) : tab === 'personal' ? (
+                      <PersonalEntriesView />
+                    ) : editing ? (
+                      <AdminEditView />
+                    ) : (
+                      <TeamEntriesView />
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
-            ) : (
-              <ScrollArea
-                className="h-full"
-                ariaLabel="入口内容区"
-                initialTop={scrollTop.current[tab]}
-                onScrollTop={(top) => {
-                  scrollTop.current[tab] = top;
-                }}
-              >
-                {/* 边缘留白（2026-10-21 用户反馈）：多选描边 / 焦点环 / 拖拽落点虚线都画在卡片
-                    **外侧**（outline-offset 2~4px），而卡片网格正好顶到滚动容器边缘，
-                    这些线在左右两侧会被容器裁掉——"蓝色边缘被遮挡"的根因。
-                    这里给内容让出 8px，网格按自身宽度重新算列数，不影响列宽口径。 */}
-                <div className="flex h-full flex-col px-2 pb-2">
-                  {tab === 'home' ? (
-                    <HomePageView />
-                  ) : tab === 'personal' ? (
-                    <PersonalEntriesView />
-                  ) : editing ? (
-                    <AdminEditView />
-                  ) : (
-                    <TeamEntriesView />
-                  )}
-                </div>
-              </ScrollArea>
-            )}
+              {showSearch && (
+                <>
+                  {/* 遮罩（2026-11-15 用户拍板：默认变暗，「毛玻璃＋变暗」进设置）：盖满整个面板
+                      （含内边距，直抵侧栏边与窗口边缘），自上而下渐入。它不在任何
+                      data-tl-search-surface 里，点击任意位置都走既有的「点外面退出」链路。 */}
+                  <div
+                    aria-hidden
+                    data-tl-search-backdrop
+                    className="absolute inset-0 z-[2] cursor-pointer"
+                    style={{
+                      background:
+                        settings.searchBackdrop === 'frost' ? 'var(--search-scrim-frost)' : 'var(--search-scrim)',
+                      maskImage: 'linear-gradient(to bottom, transparent 0px, #000 340px)',
+                      ...(settings.searchBackdrop === 'frost' ? { backdropFilter: 'blur(10px)' } : {}),
+                    }}
+                  />
+                  {/* 结果浮层卡（2026-11-15 用户拍板）：高度自适应内容，硬上限面板一半（超出卡内滚动）。
+                      data-tl-search-surface 在外壳这层也要有：卡片边框与内边距都算搜索面，
+                      点卡片边上不退出；WindowSearchView 根节点自带一份，嵌套无碍。
+                      onMouseDown preventDefault 与 PaletteResults 同款：点卡片任何空白不抢走输入框焦点
+                      （查询为空时失焦会直接收起搜索，点卡片边框就关显得像 bug）。 */}
+                  <div
+                    data-tl-search-surface
+                    className="absolute inset-x-[calc(var(--space-6)-var(--space-2))] top-[var(--space-5)] z-[3] flex max-h-[calc(50%_-_var(--space-5))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-default)]"
+                    style={{ background: 'var(--bg-surface)', boxShadow: 'var(--elev-3)' }}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    <WindowSearchView
+                      query={debouncedQuery}
+                      hits={hits}
+                      debouncing={query !== debouncedQuery}
+                      quickAccess={quickAccess}
+                      tabLabel={tab === 'team' ? '团队入口' : '个人入口'}
+                      icons={iconsForSearch}
+                      runtime={runtime}
+                      selectedIndex={searchIndex}
+                      onSelectIndex={setSearchIndex}
+                      onOpen={handleSearchOpen}
+                      onAddToPersonal={handleSearchAdd}
+                      onClear={() => setQuery('')}
+                      programScanning={programs.scanning}
+                      programError={programs.error}
+                      teamUnavailable={!p.renderable && personal.groups.some((g) => g.entries.length > 0)}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

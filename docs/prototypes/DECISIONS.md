@@ -50,3 +50,10 @@
 - 文案：AdminEditView「工具栏」→「侧栏」；vite define 注入 __APP_VERSION__。
 - 功能底账 15 条风险点逐项核对：对话框/迷你面板/热键/右键菜单/导入导出/容量链路/aria 契约/关闭安全约束全部保留，未删任何功能。
 - 校验：typecheck ✓ lint ✓ validate-tokens PASS ✓ build（renderer+preload+main）✓。
+
+## 07-search-overlay（2026-11-15）
+
+主窗口搜索态改造：整页替换 → 顶部结果浮层卡（max 50%，卡内滚动）+ 底部遮罩透出当前页。
+- 用户拍板：默认「变暗」（`--search-scrim`，自上而下渐入 mask 340px）；「毛玻璃＋变暗」（blur 10px + `--search-scrim-frost`）进设置·通用·外观（`settings.searchBackdrop`）。
+- 原型迭代两轮：①遮罩四周亮框（只盖了内容盒、面板内边距漏光）→ 盖满面板含内边距；②上缘生硬切一刀 → mask 渐入。
+- 落地：MainWindowShell 浮层卡（`data-tl-search-surface` 外壳层 + 卡内 preventDefault 保焦点）+ `data-tl-search-backdrop`；当前页常驻挂载 + inert；搜索态停用 marquee 与 Ctrl+A。

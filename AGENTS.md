@@ -39,7 +39,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 `docs/design-system/`｜分发与现场排障 `docs/DELIVERY.md`｜开发细节 `docs/DEVELOPMENT.md`｜
 决策与待办登记 `docs/decisions/OPEN-DECISIONS.md` + `docs/decisions/ADR-001..008`
 
-## 当前状态（2026-11-14）
+## 当前状态（2026-11-15）
 
 - v1.0.13 起逐版发布到 **v1.8.6**（latest = v1.8.6；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
@@ -82,7 +82,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   v1.8.3（入口卡片类型水印 G1：应用窗口/文件夹/球体线稿，右下出血 -14°、整组 10% 透明）、
   v1.8.5（应用图标焕新：ip-as-logo 珊瑚企鹅吉祥物，gen-icon.cjs 改源图派生 + 依赖安全更新 zod 4.6.7；
   1.8.4 号被 %TEMP% QA 实例占用作废，跳号发布——同号不同内容对更新器不可见）、
-  v1.8.6（应用内品牌标同步换企鹅：BrandMark 组件渲染图标方图，标题栏/关于页与系统图标统一）
+  v1.8.6（应用内品牌标同步换企鹅：BrandMark 组件渲染图标方图，标题栏/关于页与系统图标统一）、
+  v1.8.7（主窗口搜索改「顶部结果浮层卡（上限面板 50%）＋底部遮罩透出当前页」，点遮罩即退出；
+  遮罩档位进设置：默认变暗，可选毛玻璃＋变暗；搜索态停用框选与 Ctrl+A，被遮内容 inert）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、
