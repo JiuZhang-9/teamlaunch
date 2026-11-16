@@ -2,7 +2,7 @@
 
 Windows 桌面团队统一入口启动器（Electron）：管理员维护一份入口清单并发布，
 员工端经局域网自动同步；管理员机内嵌同步服务，无独立服务器部署。
-当前 v1.8.6 已开源（GitHub JiuZhang-9/teamlaunch，MIT）并小范围试点。
+当前 v1.9.0 已开源（GitHub JiuZhang-9/teamlaunch，MIT）并小范围试点。
 
 ## 命令
 
@@ -39,9 +39,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 `docs/design-system/`｜分发与现场排障 `docs/DELIVERY.md`｜开发细节 `docs/DEVELOPMENT.md`｜
 决策与待办登记 `docs/decisions/OPEN-DECISIONS.md` + `docs/decisions/ADR-001..008`
 
-## 当前状态（2026-11-15，工作区 1.9.0 已实现待实测）
+## 当前状态（2026-11-16，latest = v1.9.0 已发布）
 
-- v1.0.13 起逐版发布到 **v1.8.6**（latest = v1.8.6；自 1.1.0 起小修改按最后一位递增，
+- v1.0.13 起逐版发布到 **v1.9.0**（latest = v1.9.0；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
 - 用户反馈多批：v1.0.33（隐私门披露 / 书签两步 / 更新进度环）、v1.0.34（窗口尺寸记忆 / 卡片框选 /
   分组多选删 / 组名点击改名）、v1.0.35（连锁收藏 / 面板透明度 / Ctrl+空格 / Ctrl+Tab / 图标重画）、

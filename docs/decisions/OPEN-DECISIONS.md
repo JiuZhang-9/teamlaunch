@@ -169,7 +169,8 @@
 | 已修② | `zod` 4.6.5 → **4.6.7**（高，GHSA-mrhx-c7xc-m3w5：超大受限集合校验可耗尽内存）：**runtime 依赖出现 high，触发条件②达成**，2026-11-14 随 v1.8.5 执行。zod 是请求/配置校验的唯一 Schema 来源，补丁线内更新，门禁全绿复核 |
 | 遗留① | `http-cache-semantics` ≤4.2.0（高，GHSA-ch52-4w7c-c8xp）：链路 `electron-builder → app-builder-lib → @electron/get@3.1.0 → got@11 → cacheable-request@7`。**无非破坏性修法**（`npm audit fix` 不动它；强升要换 @electron/get，等于换 electron-builder 主版本）；实际用途＝构建时下载 Electron 的 HTTP 缓存，不在受影响代码路径上 |
 | 遗留② | `sprintf-js` ≤1.1.3（中，GHSA-hp3w-g68c-fv3c）：链路 `@electron/get → global-agent → roarr`。**上游无修复版**；`npm audit fix --force` 会把 electron-builder 降级到 26.5.0（破坏性），不做。用途＝构建时日志格式化 |
-| 决定 | **不为了这两条强升/强降构建工具**（会把"能稳定出包"换成"追漏洞通告"）；每次升级 electron-builder 时顺带复查。**判断口径**：只有 `npm audit --omit=dev` 重新出现条目才算发版阻塞项 |
+| 遗留③ | `minimatch` 7.0.0–11.0.1（中，"globparts amplification" DoS，2026-11-16 Dependabot alert #35）：链路全在 devDependencies（`eslint` / `typescript-eslint` / `electron-builder` 的工具链）。修复版是 **11.0.1（major）**；`npm audit fix` 虽提示可动 5 个包，但 major 升级会改变 glob 语义，需完整门禁＋重新打包复验才敢收，暂不动。`npm audit --omit=dev` 复核 = **0** |
+| 决定 | **不为了这些条目强升/强降构建工具**（会把"能稳定出包"换成"追漏洞通告"）；每次升级 electron-builder 时顺带复查。**判断口径**：只有 `npm audit --omit=dev` 重新出现条目才算发版阻塞项 |
 | 触发条件 | ①这两条出现"有修复版且升级不破坏打包"时；②任何 **runtime** 依赖出现 high 及以上（按 O-04 的流程单独发版） |
 
 ---
