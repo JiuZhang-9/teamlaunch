@@ -1,24 +1,12 @@
 /**
- * BrandMark —— 产品 Logo：应用图标（ip-as-logo 珊瑚企鹅）的圆角方图。
- * 与 build/icon.ico 同源（gen-icon.cjs 从 build/icon-source.png 派生
- * src/renderer/assets/brand-mark.png）——换图标只换源文件重跑脚本，本组件不用动。
- * 旧的手绘"T"字形（frame/solid 变体）随 1.8.5 换标退役，历史见 git。
+ * BrandMark —— 产品 Logo：源图派生的「双色标」（1.9.0，2026-11-15 用户定稿）。
+ *
+ * 形状来自 gen-icon.cjs 从 build/icon-source.png 实算的 alpha 遮罩（暗/亮主题各一张，
+ * 极性相反：暗=深色像素实心、亮=浅色像素实心；半透档 30% 能透出背景），颜色 = var(--accent)
+ * 用 CSS mask 上色——主题色、亮暗主题切换即时生效，不重算图片。
+ * 与任务栏/托盘的圆角实色企鹅（icon.ico / tray.ico）同一管线：换图标只换源图重跑脚本。
+ * 1.8.5/1.8.6 的彩色企鹅位图（brand-mark.png）随之退役：脚本继续产出但不再被引用。
  */
-import brandMarkUrl from '../../assets/brand-mark.png';
-
 export function BrandMark({ size = 22 }: { size?: number }) {
-  return (
-    <img
-      aria-hidden
-      src={brandMarkUrl}
-      width={size}
-      height={size}
-      alt=""
-      style={{
-        borderRadius: 'var(--radius-md, 8px)',
-        display: 'block',
-        flexShrink: 0,
-      }}
-    />
-  );
+  return <span aria-hidden className="tl-brand-mark" style={{ width: size, height: size }} />;
 }

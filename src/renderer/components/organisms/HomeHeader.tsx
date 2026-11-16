@@ -1,47 +1,30 @@
 /**
- * HomeHeader —— 主页的精简顶栏（2026-11-07 用户拍板方案 A）。
+ * HomeHeader —— 主页的精简顶栏（2026-11-07 方案 A；1.9.0 起主页是"态"：顶栏只剩退出开关）。
  *
- * 主页此前是整个外壳里唯一不渲染 ContentHeader 的页面：侧栏一收起，
- * 主页就没有任何可见入口回到团队 / 个人（只能靠 Ctrl+E / Ctrl+Q）。
- * 这里用与 ContentHeader 同高、同边框的一条栏，只放主页标题和两个目标页按钮，
- * 不显示搜索框 / 工作栏 / 类型筛选——主页没有可搜索的内容。
+ * 1.9.0 用户拍板：主页不再是与团队/个人并列的一页，而是一个由小房子开关的态——
+ * 顶栏右侧的「团队入口 / 个人入口」按钮去掉，退出主页只走左侧的小房子
+ * （回到进入主页之前的那个页面）；侧栏里主页也与两个入口页做了区分。
  */
-import { BuildingComplex, House, UserRound } from 'lucide-react';
+import { House } from 'lucide-react';
 import { Button } from '../atoms/Button.tsx';
-import type { TabKey } from '../../store/workbenchStore.tsx';
 
 export interface HomeHeaderProps {
-  onSwitchTab(tab: TabKey): void;
+  /** 退出主页：回到进入主页之前的那个内容页（外壳记住了它）。 */
+  onExitHome(): void;
 }
 
-export function HomeHeader({ onSwitchTab }: HomeHeaderProps) {
+export function HomeHeader({ onExitHome }: HomeHeaderProps) {
   return (
     <div
       data-tl-home-header
       className="flex h-[var(--content-header-h)] shrink-0 items-center gap-2 border-b border-[var(--border-subtle)] px-[var(--space-6)]"
       style={{ background: 'var(--bg-surface)' }}
     >
-      <House size={20} strokeWidth={2} aria-hidden className="text-[var(--fg-2)]" />
+      {/* 与 ContentHeader 的主页小房子同一个 Button 组件、同尺寸（1.9.0 复测反馈：
+          两个小房子没对齐，切换主页时按钮会位移）。 */}
+      <Button tone="ghost" icon={House} iconSize={20} aria-label="退出主页" title="退出主页，回到上次的页面" onClick={onExitHome} />
       <span className="t-base w-emph text-[var(--fg)]">主页</span>
       <div className="flex-1" />
-      <Button
-        tone="ghost"
-        size="sm"
-        icon={BuildingComplex}
-        iconSize={16}
-        onClick={() => onSwitchTab('team')}
-      >
-        团队入口
-      </Button>
-      <Button
-        tone="ghost"
-        size="sm"
-        icon={UserRound}
-        iconSize={16}
-        onClick={() => onSwitchTab('personal')}
-      >
-        个人入口
-      </Button>
     </div>
   );
 }

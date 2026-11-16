@@ -17,7 +17,7 @@ import type { ProgramIndexSnapshot } from '../../shared/schema/programs.ts';
 import type { IdentifyResult } from '../bridge/types.ts';
 
 /** 行的种类（默认 result）。 */
-export type PaletteHitKind = 'result' | 'system' | 'clip-new' | 'clip-existing' | 'favorite' | 'recent';
+export type PaletteHitKind = 'result' | 'system' | 'clip-new' | 'clip-existing' | 'favorite' | 'recent' | 'chain';
 
 export interface PaletteHit {
   entry: Entry;
@@ -26,6 +26,8 @@ export interface PaletteHit {
   kind?: PaletteHitKind;
   /** 入口结果所属分组（主窗口副标题用；程序/剪贴板新条目没有）。 */
   groupName?: string;
+  /** kind='chain' 时的步数（副标题与徽标用）。 */
+  chainSteps?: number;
 }
 
 export interface Candidate {
@@ -45,9 +47,10 @@ type Identified = Exclude<IdentifyResult, { kind: 'none' }>;
 export const MAX_ROWS = 9;
 export const MAX_PROGRAM_ROWS = 8;
 export const MAX_PROGRAM_SCOPE_ROWS = 14;
-/** 「收藏」与「最近打开」各占一行图标格：面板 720px 下 7 列，主窗口 6 列。 */
+/** 「收藏」与「最近打开」各占一行图标格：面板 720px 下 7 列，主窗口方格 86px 下 8 列（1.9.0）。 */
 export const SECTION_MAX = 6;
 export const PALETTE_SECTION_MAX = 7;
+export const WINDOW_SECTION_MAX = 8;
 /** 剪贴板文本长度上限：再长就不是"一个网址/一条路径"了。 */
 export const CLIP_MAX = 4096;
 /** 主窗口内容区更宽：入口结果与程序结果都可以多显示一些。 */
@@ -137,16 +140,47 @@ export interface BuildHitsInput {
   searchCandidates?: Candidate[];
   clip: ClipboardCandidate | null;
   query: string;
-  /** 收藏 id，最近收藏的在前。 */
+  /** 收藏 id，最近收藏的在前。收藏的连锁带 `chain:` 前缀（1.9.0），用 chains 解析。 */
   favoriteIds: string[];
   recentIds: string[];
   programHits: PaletteHit[];
+  /** 本机已存的连锁（1.9.0 连锁可收藏）：收藏行与按名搜索都从这里出。 */
+  chains?: PaletteChainRef[];
   /** entries=入口搜索（默认）；programs=Ctrl+Alt+F 的程序专用范围。 */
   scope?: 'entries' | 'programs';
   /** 入口结果最多显示几条。 */
   maxRows?: number;
-  /** 收藏/最近打开各显示几个（面板 7、主窗口 6）。 */
+  /** 收藏/最近打开各显示几个（面板 7、主窗口 8——方格一行能放下）。 */
   sectionMax?: number;
+}
+
+/** 收藏里的连锁引用（只带渲染需要的字段，避免 palette-source 依赖 chainStore）。 */
+export interface PaletteChainRef {
+  id: string;
+  name: string;
+  steps: number;
+}
+
+/** 收藏列表里的连锁 id 前缀（favorites.json 与入口 id 同列表存，前缀区分）。 */
+export const CHAIN_FAV_PREFIX = 'chain:';
+
+/** 连锁的合成入口：只为渲染（稳定身份色 + 首字），不走图标提取；打开走连锁启动链路。 */
+function chainEntryOf(c: PaletteChainRef): Entry {
+  const now = new Date().toISOString();
+    return {
+      id: `${CHAIN_FAV_PREFIX}${c.id}`,
+      name: c.name,
+      type: 'app',
+      target: '',
+      args: '',
+      cwd: '',
+      expandEnv: true,
+      sort: 0,
+      description: null,
+      icon: { kind: 'fallback' },
+      iconAssetHash: null,
+      updatedAt: now,
+    };
 }
 
 /** 剪贴板置顶行（旧名 isPinnedHit 容易和收藏混淆，1.7.0 改名）。 */
@@ -193,12 +227,26 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
   if (q.length === 0) {
     const byId = new Map(candidates.map((c) => [c.entry.id, c]));
 
-    /* 「收藏」行：用户主动收藏的入口，一行放得下 6/7 个。
+    /* 「收藏」行：用户主动收藏的入口 + 收藏的连锁（chain: 前缀，1.9.0），一行放得下 7/8 个。
        favoriteIds 已经是最近收藏在前；超过一行时只显示最近的，刚收藏完立刻能看到。 */
     const favoriteHits: PaletteHit[] = [];
     const favoriteIdSet = new Set<string>();
     for (const id of favoriteIds) {
       if (id === clipId || favoriteIdSet.has(id)) continue;
+      if (id.startsWith(CHAIN_FAV_PREFIX)) {
+        const c = (input.chains ?? []).find((x) => `${CHAIN_FAV_PREFIX}${x.id}` === id);
+        if (!c) continue;
+        favoriteIdSet.add(id);
+        favoriteHits.push({
+          entry: chainEntryOf(c),
+          subtitle: `连锁 · ${c.steps} 步`,
+          source: '本机',
+          kind: 'chain',
+          chainSteps: c.steps,
+        });
+        if (favoriteHits.length >= sectionMax) break;
+        continue;
+      }
       const c = byId.get(id);
       if (!c) continue;
       favoriteIdSet.add(id);
@@ -257,7 +305,21 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
     return !(e.sourcePath && matchedEntryPaths.has(normalizeProgramPath(e.sourcePath)));
   });
 
-  return [...clipRows, ...rows, ...programsToShow];
+  /* 收藏的连锁按名参与搜索（1.9.0）：排在入口结果之后、本机程序之前——
+     连锁是用户手工攒的组合，优先级理应高于自动索引的程序。 */
+  const chainHits: PaletteHit[] = (input.chains ?? [])
+    .map((c) => ({ c, score: matches(chainEntryOf(c), '', q) }))
+    .filter((x) => x.score > 0)
+    .slice(0, 3)
+    .map((x) => ({
+      entry: chainEntryOf(x.c),
+      subtitle: `连锁 · ${x.c.steps} 步`,
+      source: '本机' as const,
+      kind: 'chain' as const,
+      chainSteps: x.c.steps,
+    }));
+
+  return [...clipRows, ...rows, ...chainHits, ...programsToShow];
 }
 
 /** 空查询的快速打开：收藏 + 最近打开（没有最近记录时回退当前范围前几条）。 */

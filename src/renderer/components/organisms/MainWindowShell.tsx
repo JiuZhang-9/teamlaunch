@@ -36,8 +36,10 @@ import { DEFAULT_APP_HOTKEYS, type HotkeyConflictInfo } from '../../../shared/ap
 import { quickAddScope } from '../../../shared/quick-add.ts';
 import { useEntryIcons } from '../../hooks/useEntryIcons.ts';
 import {
+  CHAIN_FAV_PREFIX,
   MAX_WINDOW_PROGRAM_ROWS,
   MAX_WINDOW_ROWS,
+  WINDOW_SECTION_MAX,
   buildCandidates,
   buildHits,
   buildProgramHits,
@@ -77,14 +79,14 @@ const OFFLINE_BANNER_STATES = new Set([
 ]);
 
 export function MainWindowShell() {
-  const { tab, setTab, setEditingLock, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, addSelected, selectMany, clearSelected, exitSelecting, launchChain, quickAddFromText } =
+  const { tab, setTab, setEditingLock, query, setQuery, runtime, openEntry, dialog, openDialog, closeDialog, feedbackTargetId, openEntryEditor, entryEditor, typeFilter, toggleTypeFilter, clearTypeFilter, openSettings, selecting, selected, toggleSelecting, addSelected, selectMany, clearSelected, exitSelecting, launchChain, quickAddFromText, runSavedChain } =
     useWorkbench();
   const { snapshot, refresh } = useSync();
   const { settings, patch } = useSettings();
   const edit = useEdit();
   const { config: personal, usage, beginImport, addEntries: addPersonalEntries, addGroup: addPersonalGroup, renameGroup: personalRenameGroup, moveGroup: personalMoveGroup, removeGroup: personalRemoveGroup, removeGroups: personalRemoveGroups, sortGroupsByName: personalSortGroupsByName } = usePersonal();
   /** 连锁收藏（2026-10-19）：这里只用「保存」——主页负责展示与启动。 */
-  const { chains, save: saveChain } = useChains();
+  const { chains, save: saveChain, resolve: resolveChain } = useChains();
   const { push } = useToasts();
 
   const [miniOpen, setMiniOpen] = useState(false);
@@ -237,7 +239,7 @@ export function MainWindowShell() {
 
   /* ---------- 主窗口搜索（1.4.0）：与快捷窗口共用候选/打分/去重 ---------- */
   const programs = usePrograms();
-  const { favoriteIds } = useFavorites();
+  const { favoriteIds, setFavoriteMany } = useFavorites();
   const recentIds = useRecentOpenIds();
   /** 全部候选（团队 + 本机）：收藏/最近/剪贴板去重用。团队侧用已发布配置，不用编辑草稿。 */
   const allCandidates = useMemo(
@@ -263,9 +265,12 @@ export function MainWindowShell() {
         favoriteIds,
         recentIds,
         programHits,
+        chains: chains.map((c) => ({ id: c.id, name: c.name, steps: c.entryIds.length })),
         maxRows: MAX_WINDOW_ROWS,
+        /* 方格 86px 一行 8 个（1.9.0）：收藏/最近行不再只给 6 个留位。 */
+        sectionMax: WINDOW_SECTION_MAX,
       }),
-    [allCandidates, searchCandidates, clip, debouncedQuery, favoriteIds, recentIds, programHits],
+    [allCandidates, searchCandidates, clip, debouncedQuery, favoriteIds, recentIds, programHits, chains],
   );
 
   /* 搜索态：输入框聚焦（空查询 = 快速打开）或已有查询词；编辑态不参与搜索。 */
@@ -490,7 +495,7 @@ export function MainWindowShell() {
     push({ title: '团队入口由管理员维护，本机未开启管理员模式', tone: 'info' });
   }, [tab, editing, settings.role, openEntryEditor, toggleEdit, push]);
 
-  /** 主窗口搜索结果：系统程序直接开（不进最近打开），其余走既有 openEntry（含失败解释）。 */
+  /** 主窗口搜索结果：系统程序直接开（不进最近打开），连锁走启动链路（1.9.0），其余走既有 openEntry（含失败解释）。 */
   const handleSearchOpen = useCallback(
     (hit: PaletteHit) => {
       if (hit.kind === 'system') {
@@ -501,9 +506,27 @@ export function MainWindowShell() {
         });
         return;
       }
+      if (hit.kind === 'chain') {
+        const chain = chains.find((c) => `${CHAIN_FAV_PREFIX}${c.id}` === hit.entry.id);
+        if (!chain) {
+          push({ title: '这条连锁已被删除，它的收藏会随之失效', tone: 'warn' });
+          return;
+        }
+        const res = resolveChain(chain, allCandidates.map((c) => c.entry), []);
+        if (res.entries.length === 0) {
+          push({ title: '这条连锁里的入口都已不存在，删掉它或重新保存一条', tone: 'warn' });
+          return;
+        }
+        /* 与主页连锁同一启动器（含间隔与窗口摆位回放）；搜索态不关，方便连着开别的。 */
+        void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length, (entry) => {
+          if (entry.type === 'web') return;
+          void api.windowLayout.apply(chain.id, entry.id);
+        });
+        return;
+      }
       void openEntry(hit.entry);
     },
-    [openEntry, push],
+    [allCandidates, chains, openEntry, push, resolveChain, runSavedChain],
   );
 
   /** 搜索结果里的「加为入口」：系统程序交 .lnk 路径，剪贴板新内容交原文，走粘贴添加同一条链路。 */
@@ -605,6 +628,30 @@ export function MainWindowShell() {
     }
     clearSelected();
   }, [tab, editing, showSearch, groups, selected, addSelected, clearSelected]);
+
+  /* Tab 翻页（1.9.0 用户定稿）：团队 / 个人卡片页上 Tab = 向下翻一屏、Shift+Tab = 向上翻一屏
+     （平滑滚动，像看网页那样翻页读），不做焦点跳卡片。搜索态不接管（那里 Tab 仍逐个跳选结果）；
+     焦点在输入框 / 文本域 / 弹窗打开时不接管，保持原生行为。主页内容短，无需翻页。 */
+  useEffect(() => {
+    const onTabPage = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      if (showSearch || tab === 'home' || dialog !== 'none') return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable="true"], [data-tl-search-surface]')) return;
+      const scroller = document.querySelector<HTMLElement>(`#tl-panel-${tab} .tl-scroll`);
+      if (!scroller) return;
+      /* 内容不满一屏时也吞掉 Tab：卡片页上 Tab 只有"翻页"一个语义，不做焦点跳转
+         （否则短页面上按 Tab 会把焦点环点亮到卡片上——复测反馈的原症状之一）。 */
+      e.preventDefault();
+      e.stopPropagation();
+      scroller.scrollBy({ top: (e.shiftKey ? -1 : 1) * (scroller.clientHeight - 24), behavior: 'smooth' });
+    };
+    /* 捕获阶段拦截（1.9.0 复测反馈：按完 Tab 卡片边框会亮）——卡片是可聚焦按钮且分组网格
+       自己也监听 keydown，冒泡阶段注册会被它们抢先（默认 Tab 移焦点 → 焦点环亮起）。
+       捕获 + stopPropagation + preventDefault 三件套保证翻页是 Tab 在卡片页的唯一语义。 */
+    window.addEventListener('keydown', onTabPage, true);
+    return () => window.removeEventListener('keydown', onTabPage, true);
+  }, [showSearch, tab, dialog]);
 
   /**
    * 框选多选（2026-10-18 用户要求）：在卡片区空白处拖出选框，松手即选中框住的卡片。
@@ -966,6 +1013,38 @@ export function MainWindowShell() {
   /** 侧栏分组对话框的换序边界：按真实索引算（此前硬编码 true，边界上点了不动）。 */
   const sidebarGroupIdx = sidebarGroup ? groups.findIndex((g) => g.id === sidebarGroup.id) : -1;
 
+  /* 主页态（1.9.0 用户定稿）：主页不再与团队/个人并列，而是由小房子开关的"态"。
+     进入时记住从哪来，退出（顶栏小房子 / 侧栏主页钮再点一次）回那个页面。 */
+  const lastContentTab = useRef<TabKey>('team');
+  useEffect(() => {
+    if (tab !== 'home') lastContentTab.current = tab;
+  }, [tab]);
+  const toggleHome = useCallback(() => {
+    if (tab === 'home') setTab(lastContentTab.current);
+    else {
+      lastContentTab.current = tab;
+      setTab('home');
+    }
+  }, [tab, setTab]);
+
+  /* 老连锁一次性迁入收藏（1.9.0 复测反馈"收藏的连锁在搜索里没看到"）：
+     1.9.0 之前保存的连锁没有收藏记录，只有升级后新保存的才会自动收藏——
+     升级后第一次跑把还没进收藏的连锁全部补进；之后用户手动取消的不再补回。
+     ref 守卫保证每个挂载周期最多跑一次：补收藏会广播 favorites，若依赖 favorites
+     重跑就会在"补→广播→重跑"之间打满渲染线程（实测冻住过）。 */
+  const chainMigrationRan = useRef(false);
+  useEffect(() => {
+    if (chainMigrationRan.current || settings.chainFavoritesMigrated || chains.length === 0) return;
+    chainMigrationRan.current = true;
+    const missing = chains
+      .map((c) => `${CHAIN_FAV_PREFIX}${c.id}`)
+      .filter((id) => !favoriteIds.includes(id));
+    if (missing.length > 0) void setFavoriteMany(missing, true);
+    void patch({ chainFavoritesMigrated: true });
+    /* 依赖刻意不含 favoriteIds/patch：ref 守卫下本 effect 每个挂载周期只跑一次，
+       补收藏的广播若反哺依赖会形成回环（实测把渲染线程打满过）。 */
+  }, [chains, settings.chainFavoritesMigrated]);
+
   return (
     <div
       className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden"
@@ -998,6 +1077,7 @@ export function MainWindowShell() {
           groups={groups}
           snapshot={tab === 'personal' ? null : snapshot}
           onTabChange={setTab}
+          onToggleHome={toggleHome}
           onOpenSettings={() => openSettings()}
           onOpenDiagnostics={() => openDialog('diagnostics')}
           onRefresh={() => void refresh()}
@@ -1039,7 +1119,7 @@ export function MainWindowShell() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {tab === 'home' ? (
             /* 主页精简顶栏（2026-11-07 方案 A）：侧栏收起时也能回团队 / 个人入口。 */
-            <HomeHeader onSwitchTab={setTab} />
+            <HomeHeader onExitHome={() => setTab(lastContentTab.current)} />
           ) : (
             <ContentHeader
               tab={tab}
@@ -1058,6 +1138,7 @@ export function MainWindowShell() {
               onSearchBlur={() => setSearchFocused(false)}
               onSearchEscape={closeSearch}
               onSwitchTab={setTab}
+              onToggleHome={toggleHome}
             />
           )}
 
@@ -1100,6 +1181,7 @@ export function MainWindowShell() {
                 tab={tab === 'personal' ? 'personal' : 'team'}
                 count={entriesFlat.length}
                 editing={editing}
+                leaveDelayMs={settings.pageHintLeaveMs}
               />
             )}
             <div className="relative z-[1] h-full">
@@ -1140,7 +1222,7 @@ export function MainWindowShell() {
                   <div
                     aria-hidden
                     data-tl-search-backdrop
-                    className="absolute inset-0 z-[2] cursor-pointer"
+                    className="tl-search-backdrop-in absolute inset-0 z-[2] cursor-pointer"
                     style={{
                       background:
                         settings.searchBackdrop === 'frost' ? 'var(--search-scrim-frost)' : 'var(--search-scrim)',
@@ -1155,7 +1237,7 @@ export function MainWindowShell() {
                       （查询为空时失焦会直接收起搜索，点卡片边框就关显得像 bug）。 */}
                   <div
                     data-tl-search-surface
-                    className="absolute inset-x-[calc(var(--space-6)-var(--space-2))] top-[var(--space-5)] z-[3] flex max-h-[calc(50%_-_var(--space-5))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-default)]"
+                    className="tl-search-card-in absolute inset-x-[calc(var(--space-6)-var(--space-2))] top-[var(--space-5)] z-[3] flex max-h-[calc(50%_-_var(--space-5))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-default)]"
                     style={{ background: 'var(--bg-surface)', boxShadow: 'var(--elev-3)' }}
                     onMouseDown={(e) => e.preventDefault()}
                   >
@@ -1275,12 +1357,12 @@ export function MainWindowShell() {
           两条同名会让人分不清点哪条。保存的是"当前多选清单的顺序 + 当前间隔"。 */}
       {saveChainOpen && (
         <RenameDialog
-          title="保存为连锁"
-          detail={`把当前选中的 ${selected.length} 个入口按这个顺序存成一条连锁；之后在主页点一下就能依次启动。`}
+          title="收藏连锁"
+          detail={`把当前选中的 ${selected.length} 个入口按这个顺序存成一条连锁并加入收藏；主页「连锁」区可管理，搜索与快捷窗口的收藏里一键启动。`}
           fieldLabel="连锁名称"
           placeholder="例如：开工三件套"
           initial=""
-          confirmLabel="保存"
+          confirmLabel="收藏"
           maxLength={40}
           validate={(next) => {
             if (next.trim().length === 0) return '名称不能为空';
@@ -1290,8 +1372,10 @@ export function MainWindowShell() {
           onConfirm={(name) => {
             setSaveChainOpen(false);
             void saveChain(name, selected, settings.chainIntervalMs).then((r) => {
-              if (r.ok) {
-                push({ title: `已保存连锁「${name.trim()}」，主页「连锁」里可一键启动`, tone: 'success' });
+              if (r.ok && r.id) {
+                /* 保存即收藏（1.9.0 用户拍板）：连锁直接进收藏，搜索 / 快捷窗口里一键启动。 */
+                void setFavoriteMany([`${CHAIN_FAV_PREFIX}${r.id}`], true);
+                push({ title: `已收藏连锁「${name.trim()}」，主页「连锁」里可一键启动`, tone: 'success' });
                 return;
               }
               push({ title: r.reason ?? '没能保存这条连锁', tone: 'warn' });

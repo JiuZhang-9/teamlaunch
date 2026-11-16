@@ -63,6 +63,8 @@ export function WindowSearchView({
         enableFavoriteMenu={false}
         showAltHints={false}
         scope="entries"
+        /* 方格模式（1.9.0）：86×86 正方格自适应列数，一行放更多（用户反馈扁格太宽）。 */
+        tileSquare
         programScanning={programScanning}
         programError={programError}
         teamUnavailable={teamUnavailable}

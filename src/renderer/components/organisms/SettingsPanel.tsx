@@ -461,6 +461,45 @@ export function SettingsPanel({
               }
             />
 
+            {/* 删除动效（2026-11-15 用户从 10 机制演示中选定 6 种做成设置项）：默认像素溶解。 */}
+            <Row
+              title="删除动效"
+              detail="删除入口卡片时播放的退场动画；六种机制完全不同，随时可换"
+              control={
+                <Segmented
+                  label="删除动效"
+                  value={settings.deleteFx}
+                  onChange={(v) => onPatch({ deleteFx: v })}
+                  options={[
+                    { value: 'dissolve' as const, label: '像素溶解' },
+                    { value: 'rgb' as const, label: 'RGB 爆散' },
+                    { value: 'crt' as const, label: 'CRT 关机' },
+                    { value: 'melt' as const, label: '熔化下滴' },
+                    { value: 'burn' as const, label: '烧灼扫描' },
+                    { value: 'tiles' as const, label: '方块爆飞' },
+                  ]}
+                />
+              }
+            />
+
+            <Row
+              title="横幅撤回延迟"
+              detail="团队 / 个人页顶部横幅：鼠标移开后等多久再收起；悬停期间的自动收起不受影响"
+              control={
+                <Segmented
+                  label="横幅撤回延迟"
+                  value={settings.pageHintLeaveMs}
+                  onChange={(v) => onPatch({ pageHintLeaveMs: v })}
+                  options={[
+                    { value: 500 as const, label: '0.5s' },
+                    { value: 1000 as const, label: '1s' },
+                    { value: 1500 as const, label: '1.5s' },
+                    { value: 2000 as const, label: '2s' },
+                  ]}
+                />
+              }
+            />
+
             <Row
               title="开机自动启动"
               control={

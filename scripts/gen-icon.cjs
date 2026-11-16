@@ -9,6 +9,11 @@
  *   3. 复用原有 PNG 编码 / ICO 容器（Vista+ 内嵌 PNG）/ 预览拼图。
  * 尺寸集不变：icon = 256/128/64/48/32/24/16，tray = 32/24/16。
  *
+ * 2026-11-15 v1.9.0：①任务栏/托盘/预览全部烘焙圆角（alpha 遮罩，比例 24%，与应用内观感一致）；
+ * ②应用内品牌标改双色——从源图实算两档 alpha 遮罩（brand-mask-dark/light.png，暗=深色实心，
+ * 亮=浅色实心，Otsu 分档点按用户实调 T=113 固定；背景用边缘泛洪识别，肚子等主体内浅色不误伤），
+ * BrandMark 组件用 CSS mask + var(--accent) 上色，主题色与亮暗主题即时跟随。
+ *
  * 2026-10-19 旧版为黑底白 T（圆角方块 + 收分竖笔，4x 超采样光栅化），历史见 git。
  *
  * 用法：node scripts/gen-icon.cjs
@@ -140,6 +145,99 @@ function downscale(src, size) {
   return out;
 }
 
+/* ---------- 圆角烘焙（任务栏/托盘 v1.9.0）：rounded-rect alpha 遮罩，1px 羽化 ---------- */
+const ICON_ROUND_RATIO = 0.24;
+function roundedCoverage(size, ratio = ICON_ROUND_RATIO) {
+  const r = size * ratio;
+  const half = size / 2;
+  const cov = new Float32Array(size * size);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const qx = Math.abs(x + 0.5 - half) - (half - r);
+      const qy = Math.abs(y + 0.5 - half) - (half - r);
+      const d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+      cov[y * size + x] = d <= -0.5 ? 1 : d >= 0.5 ? 0 : 0.5 - d;
+    }
+  }
+  return cov;
+}
+function withRoundedCorners(size, rgba, ratio = ICON_ROUND_RATIO) {
+  const cov = roundedCoverage(size, ratio);
+  const out = Buffer.from(rgba);
+  for (let i = 0; i < size * size; i += 1) {
+    out[i * 4 + 3] = Math.round(rgba[i * 4 + 3] * cov[i]);
+  }
+  return out;
+}
+
+/* ---------- 应用内双色标遮罩（v1.9.0）：源图实算两档 alpha ----------
+   128px 下分档：主体像素按亮度二分（Otsu 点被用户实调固定为 T=113），深色档实心（alpha 255）、
+   浅色档半透（alpha = 255*0.30）。暗主题遮罩=深色实心（B），亮主题遮罩=浅色实心（C）。
+   背景=从图像边界按颜色泛洪识别（连通区域），肚子等主体内浅色不会被误判打穿。 */
+const DUOTONE_SIZE = 128;
+const DUOTONE_T = 113;
+const DUOTONE_TRANS = Math.round(255 * 0.3);
+function deriveDuotoneMask(src, darkSolid) {
+  const N = DUOTONE_SIZE;
+  const small = downscale(src, N);
+  const lum = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i += 1) {
+    const j = i * 4;
+    lum[i] = 0.2126 * small[j] + 0.7152 * small[j + 1] + 0.0722 * small[j + 2];
+  }
+  // 边界采样求背景参考色（源图无 alpha 通道，背景必为实色）
+  let br = 0;
+  let bg_ = 0;
+  let bb = 0;
+  let n = 0;
+  for (let x = 0; x < N; x += 1) {
+    for (const y of [0, N - 1]) {
+      const j = (y * N + x) * 4;
+      br += small[j]; bg_ += small[j + 1]; bb += small[j + 2]; n += 1;
+    }
+  }
+  for (let y = 1; y < N - 1; y += 1) {
+    for (const x of [0, N - 1]) {
+      const j = (y * N + x) * 4;
+      br += small[j]; bg_ += small[j + 1]; bb += small[j + 2]; n += 1;
+    }
+  }
+  br = Math.round(br / n); bg_ = Math.round(bg_ / n); bb = Math.round(bb / n);
+  const isBgColor = (p) => {
+    const j = p * 4;
+    return (
+      Math.abs(small[j] - br) + Math.abs(small[j + 1] - bg_) + Math.abs(small[j + 2] - bb) < 48
+    );
+  };
+  const isBg = new Uint8Array(N * N);
+  const stack = [];
+  for (let x = 0; x < N; x += 1) stack.push(x, (N - 1) * N + x);
+  for (let y = 0; y < N; y += 1) stack.push(y * N, y * N + (N - 1));
+  while (stack.length > 0) {
+    const p = stack.pop();
+    if (isBg[p]) continue;
+    if (!isBgColor(p)) continue;
+    isBg[p] = 1;
+    const x = p % N;
+    const y = (p / N) | 0;
+    if (x > 0) stack.push(p - 1);
+    if (x < N - 1) stack.push(p + 1);
+    if (y > 0) stack.push(p - N);
+    if (y < N - 1) stack.push(p + N);
+  }
+  const out = Buffer.alloc(N * N * 4);
+  for (let p = 0; p < N * N; p += 1) {
+    const j = p * 4;
+    if (isBg[p]) continue;
+    const isSolid = darkSolid ? lum[p] < DUOTONE_T : lum[p] >= DUOTONE_T;
+    out[j] = 0;
+    out[j + 1] = 0;
+    out[j + 2] = 0;
+    out[j + 3] = isSolid ? 255 : DUOTONE_TRANS;
+  }
+  return encodePng(N, N, out);
+}
+
 /* ---------- PNG 编码（RGBA，无滤波；支持任意宽高，预览拼图要用） ---------- */
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -245,7 +343,8 @@ const outDir = path.join(__dirname, '..', 'build');
 fs.mkdirSync(outDir, { recursive: true });
 
 const src = decodePng(fs.readFileSync(path.join(outDir, 'icon-source.png')));
-const pick = (size) => encodePng(size, size, downscale(src, size));
+/* ico / tray / 预览一律烘焙圆角（任务栏与托盘 v1.9.0 用户要求：与应用内圆角观感一致）。 */
+const pick = (size) => encodePng(size, size, withRoundedCorners(size, downscale(src, size)));
 
 const iconSizes = [256, 128, 64, 48, 32, 24, 16];
 fs.writeFileSync(path.join(outDir, 'icon.ico'), buildIco(iconSizes.map((size) => ({ size, png: pick(size) }))));
@@ -253,15 +352,17 @@ fs.writeFileSync(path.join(outDir, 'icon.ico'), buildIco(iconSizes.map((size) =>
 const traySizes = [32, 24, 16];
 fs.writeFileSync(path.join(outDir, 'tray.ico'), buildIco(traySizes.map((size) => ({ size, png: pick(size) }))));
 
-/* 应用内品牌标（TitleBar / 设置·关于 的 BrandMark 组件 import 用）：与 ico 同一源图派生。 */
+/* 应用内品牌标（v1.9.0 起为双色 alpha 遮罩，BrandMark 用 CSS mask + var(--accent) 上色）：
+   dark = 深色像素实心（暗主题），light = 浅色像素实心（亮主题）。分档点 T=113 用户实调。 */
 const brandDir = path.join(__dirname, '..', 'src', 'renderer', 'assets');
 fs.mkdirSync(brandDir, { recursive: true });
-fs.writeFileSync(path.join(brandDir, 'brand-mark.png'), pick(128));
+fs.writeFileSync(path.join(brandDir, 'brand-mask-dark.png'), deriveDuotoneMask(src, true));
+fs.writeFileSync(path.join(brandDir, 'brand-mask-light.png'), deriveDuotoneMask(src, false));
 
-/* 预览：256 / 96 / 48 / 32 / 16 一行排开，供人工目检各尺寸表现。 */
-const preview = [256, 96, 48, 32, 16].map((s) => ({ size: s, rgba: downscale(src, s) }));
+/* 预览：256 / 96 / 48 / 32 / 16 一行排开（含圆角，反映实际出货观感），供人工目检各尺寸表现。 */
+const preview = [256, 96, 48, 32, 16].map((s) => ({ size: s, rgba: withRoundedCorners(s, downscale(src, s)) }));
 const sheet = composeSheet(preview, 288, 5);
 fs.writeFileSync(path.join(outDir, 'icon-preview-sheet.png'), encodePng(sheet.width, sheet.height, sheet.rgba));
-fs.writeFileSync(path.join(outDir, 'icon-preview-256.png'), encodePng(256, 256, downscale(src, 256)));
-fs.writeFileSync(path.join(outDir, 'icon-preview-32.png'), encodePng(32, 32, downscale(src, 32)));
-console.log(`icons written from icon-source.png (${src.width}x${src.height}): build/icon.ico + tray.ico + preview-sheet/256/32 + src/renderer/assets/brand-mark.png`);
+fs.writeFileSync(path.join(outDir, 'icon-preview-256.png'), encodePng(256, 256, withRoundedCorners(256, downscale(src, 256))));
+fs.writeFileSync(path.join(outDir, 'icon-preview-32.png'), encodePng(32, 32, withRoundedCorners(32, downscale(src, 32))));
+console.log(`icons written from icon-source.png (${src.width}x${src.height}): build/icon.ico + tray.ico（圆角）+ preview-sheet/256/32 + src/renderer/assets/brand-mask-dark.png + brand-mask-light.png`);

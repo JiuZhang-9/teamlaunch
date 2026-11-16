@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>10 种完全不同的删除机制 · 点卡片播放</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Inter","Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif; background:#0f0f0f; color:#f0f0f0; padding:24px 18px 60px; }
+.wrap { max-width:1150px; margin:0 auto; }
+h1 { font-size:18px; font-weight:600; }
+.sub { font-size:12.5px; color:#9a9a9a; line-height:1.8; margin-top:6px; }
+.sub b { color:#e8e8e8; }
+.grid { display:grid; grid-template-columns:repeat(5, 176px); gap:16px; margin-top:16px; }
+.cell { border:1px solid #2b2b2b; border-radius:12px; padding:10px; background:#151515; cursor:pointer; transition:border-color 120ms; }
+.cell:hover { border-color:#1785c4; }
+.cell .no { font-size:11px; color:#1785c4; font-weight:700; }
+.cell .lbl { font-size:10.5px; color:#8c8c8c; line-height:1.5; margin:4px 0 6px; min-height:30px; }
+.gwrap { position:relative; width:156px; height:132px; }
+.gcard { width:156px; height:132px; border-radius:10px; background:#1b1b1b; border:1px solid #2b2b2b; padding:10px; position:relative; display:flex; flex-direction:column; overflow:hidden; }
+.gcard .ibox { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; background:#26313a; color:#c7d6e2; }
+.gcard .nm { margin-top:8px; font-size:12.5px; font-weight:600; color:#f0f0f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gcard .sb { margin-top:2px; font-size:10px; color:#8c8c8c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cl { position:absolute; inset:0; pointer-events:none; }
+.cl > .gcard { background:transparent !important; border:none !important; }
+.cap { font-size:11px; color:#8c8c8c; margin-top:8px; line-height:1.6; }
+.mockcard { width:152px; height:132px; border-radius:12px; background:#1b1b1b; border:1px solid #2b2b2b; padding:12px; display:flex; flex-direction:column; user-select:none; }
+.mockcard .ibox { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:600; background:#26313a; color:#c7d6e2; }
+.mockcard .nm { margin-top:10px; font-size:13px; font-weight:600; color:#f0f0f0; }
+.mockcard .sb { margin-top:2px; font-size:11px; color:#8c8c8c; }
+.toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:#1b1b1b; border:1px solid #404040; border-radius:10px; padding:9px 16px; font-size:12.5px; color:#f0f0f0; z-index:99; opacity:0; transition:opacity 200ms; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>10 种完全不同的删除机制</h1>
+  <div class="sub">不是同一个效果调参数——<b>每个卡片是另一种机制</b>。点卡片播放。看完回我机制编号（可多选），选中后我再按你选的机制做进应用、并可派生变体。页面最底部是已确认的「中键进入编辑」。</div>
+  <div class="grid" id="grid"></div>
+  <div style="border:1px solid #2b2b2b;border-radius:16px;background:#1b1b1b;padding:18px 20px;margin-top:26px">
+    <h2 style="font-size:15px;font-weight:600">中键进入编辑（已确认）</h2>
+    <p style="font-size:12.5px;color:#9a9a9a;line-height:1.7;margin:6px 0 12px">中键点卡片 = 直接进编辑；左键仍是打开。</p>
+    <div class="mockcard" id="mockMid"><div class="ibox">钉</div><div class="nm">钉钉</div><div class="sb">dingtalk.com</div></div>
+    <div class="cap" id="midLog">（还没按过中键）</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const CARD_HTML = '<div class="gcard"><div class="ibox">钉</div><div class="nm">钉钉</div><div class="sb">dingtalk.com</div></div>';
+const MECHS = [
+  { no:1,  lbl:'RGB 三通道爆散：红/绿/蓝三层各朝一个方向飞散淡出' },
+  { no:2,  lbl:'CRT 关机：整卡压扁成一条亮线，亮点一缩即灭' },
+  { no:3,  lbl:'VHS 走带失步：画面上下滚动错位＋噪声横带扫过' },
+  { no:4,  lbl:'玻璃碎裂：沿裂纹分成五块碎片，带旋转坠落' },
+  { no:5,  lbl:'像素溶解：切成 30 个小块，乱序闪烁着消失' },
+  { no:6,  lbl:'熔化下滴：八根液柱各自以不同速度拉长滴落' },
+  { no:7,  lbl:'烧灼扫描：橙色灼线从上往下扫，扫过即烧穿' },
+  { no:8,  lbl:'黑洞吸入：整卡旋转向中心塌缩，被黑场吞掉' },
+  { no:9,  lbl:'代码雨擦除：绿色字符雨逐列落下，落过即擦除' },
+  { no:10, lbl:'方块爆飞：4×4 碎块从中心向外炸开带旋转' },
+];
+const grid = document.getElementById('grid');
+MECHS.forEach((m) => {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.innerHTML = `<div class="no">机制 ${m.no}</div><div class="lbl">${m.lbl}</div>
+    <div class="gwrap" data-no="${m.no}">${CARD_HTML}</div>`;
+  cell.addEventListener('click', () => PLAYERS[m.no](cell.querySelector('.gwrap')));
+  grid.appendChild(cell);
+});
+function cloneIn(wrap, tint) {
+  const d = document.createElement('div');
+  d.className = 'cl';
+  if (tint) d.style.background = tint;
+  d.innerHTML = CARD_HTML;
+  wrap.appendChild(d);
+  return d;
+}
+function baseHide(wrap) { wrap.querySelector('.gcard').style.visibility = 'hidden'; }
+function cleanup(wrap, ms) { setTimeout(() => { wrap.querySelectorAll('.cl, .fx').forEach((e) => e.remove()); }, ms); }
+let tTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(tTimer);
+  tTimer = setTimeout(() => { t.style.opacity = '0'; }, 1500);
+}
+
+const PLAYERS = {
+  /* 1 RGB 三通道爆散 */
+  1: (wrap) => {
+    baseHide(wrap);
+    const dirs = [[80, -55, 8], [-70, 45, -7], [0, 85, 0]];
+    const tints = ['rgba(255,45,85,.5)', 'rgba(45,255,120,.5)', 'rgba(45,120,255,.5)'];
+    dirs.forEach(([dx, dy, rot], i) => {
+      const c = cloneIn(wrap, tints[i]);
+      c.animate([
+        { transform: 'none', opacity: 0.9 },
+        { transform: `translate(${dx * 0.4}px, ${dy * 0.4}px) rotate(${rot * 0.5}deg)`, opacity: 0.8, offset: 0.35 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${rot}deg)`, opacity: 0 },
+      ], { duration: 430, easing: 'cubic-bezier(0.2,0,0,1)', fill: 'forwards' });
+    });
+    cleanup(wrap, 460);
+  },
+  /* 2 CRT 关机 */
+  2: (wrap) => {
+    baseHide(wrap);
+    const c = cloneIn(wrap);
+    c.style.transformOrigin = '50% 50%';
+    c.animate([
+      { transform: 'scaleY(1)', filter: 'brightness(1)' },
+      { transform: 'scaleY(0.28)', filter: 'brightness(1.6)', offset: 0.45 },
+      { transform: 'scaleY(0.006)', filter: 'brightness(4)', offset: 0.75 },
+      { transform: 'scaleY(0.004) scaleX(0.25)', filter: 'brightness(6)', opacity: 0 },
+    ], { duration: 480, easing: 'cubic-bezier(0.4,0,1,1)', fill: 'forwards' });
+    const line = document.createElement('div');
+    line.className = 'fx';
+    line.style.cssText = 'position:absolute;left:0;right:0;top:50%;height:2px;background:#eaffff;box-shadow:0 0 12px 2px #bfefff;transform:translateY(-50%)';
+    wrap.appendChild(line);
+    line.animate([
+      { opacity: 1, transform: 'translateY(-50%) scaleX(1)' },
+      { opacity: 1, transform: 'translateY(-50%) scaleX(0.12)', offset: 0.7 },
+      { opacity: 0, transform: 'translateY(-50%) scaleX(0)', },
+    ], { duration: 480, delay: 330, easing: 'cubic-bezier(0.4,0,1,1)', fill: 'forwards' });
+    cleanup(wrap, 840);
+  },
+  /* 3 VHS 走带失步 */
+  3: (wrap) => {
+    baseHide(wrap);
+    const a = cloneIn(wrap);
+    const b = cloneIn(wrap);
+    a.animate([
+      { transform: 'translateY(0)' },
+      { transform: 'translateY(-46px)', offset: 0.5 },
+      { transform: 'translateY(-136px)' },
+    ], { duration: 620, easing: 'steps(6,end)', fill: 'forwards' });
+    b.style.transform = 'translateY(136px)';
+    b.animate([
+      { transform: 'translateY(136px)' },
+      { transform: 'translateY(90px)', offset: 0.5 },
+      { transform: 'translateY(0px)' },
+    ], { duration: 620, easing: 'steps(6,end)', fill: 'forwards' });
+    const band = document.createElement('div');
+    band.className = 'fx';
+    band.style.cssText = 'position:absolute;left:0;right:0;height:26px;background:linear-gradient(rgba(255,255,255,0), rgba(255,255,255,.28) 45%, rgba(255,255,255,0)), repeating-linear-gradient(0deg, rgba(0,0,0,.5) 0 2px, transparent 2px 5px)';
+    wrap.appendChild(band);
+    band.animate([
+      { top: '-30px' },
+      { top: '136px' },
+    ], { duration: 620, easing: 'linear', fill: 'forwards' });
+    setTimeout(() => { wrap.querySelectorAll('.cl, .fx').forEach(e => e.remove()); }, 660);
+  },
+  /* 4 玻璃碎裂 */
+  4: (wrap) => {
+    baseHide(wrap);
+    const polys = [
+      'polygon(0 0, 42% 0, 24% 100%, 0 100%)',
+      'polygon(42% 0, 74% 0, 58% 100%, 24% 100%)',
+      'polygon(74% 0, 100% 0, 100% 48%, 58% 100%)',
+      'polygon(100% 48%, 100% 100%, 58% 100%)',
+      'polygon(24% 100%, 58% 100%, 42% 62%, 24% 62%)',
+    ];
+    const falls = [[-26, 90, -30], [18, 110, 24], [50, 130, 40], [-14, 120, 12], [6, 150, -18]];
+    polys.forEach((poly, i) => {
+      const c = cloneIn(wrap);
+      c.style.clipPath = poly;
+      const [dx, dy, rot] = falls[i];
+      c.animate([
+        { transform: 'none', opacity: 1 },
+        { transform: `translate(${dx * 0.3}px, ${dy * 0.35}px) rotate(${rot * 0.4}deg)`, opacity: 1, offset: 0.3 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${rot}deg)`, opacity: 0 },
+      ], { duration: 620, delay: i * 45, easing: 'cubic-bezier(0.5,0,0.8,0.4)', fill: 'forwards' });
+    });
+    cleanup(wrap, 900);
+  },
+  /* 5 像素溶解 */
+  5: (wrap) => {
+    baseHide(wrap);
+    const cols = 6, rows = 5;
+    const order = [];
+    for (let i = 0; i < cols * rows; i += 1) order.push(i);
+    order.sort(() => Math.random() - 0.5);
+    order.forEach((idx, k) => {
+      const col = idx % cols, row = (idx / cols) | 0;
+      const c = cloneIn(wrap);
+      c.style.clipPath = `inset(${row * 20}% ${(cols - 1 - col) * (100 / cols)}% ${(rows - 1 - row) * 20}% ${col * (100 / cols)}%)`;
+      c.animate([
+        { opacity: 1 },
+        { opacity: 1, offset: 0.4 + Math.random() * 0.2 },
+        { opacity: 0 },
+      ], { duration: 640, delay: k * 6, easing: 'steps(3,end)', fill: 'forwards' });
+    });
+    cleanup(wrap, 1000);
+  },
+  /* 6 熔化下滴 */
+  6: (wrap) => {
+    baseHide(wrap);
+    const cols = 8;
+    for (let j = 0; j < cols; j += 1) {
+      const c = cloneIn(wrap);
+      c.style.clipPath = `inset(0 ${(cols - 1 - j) * (100 / cols)}% 0 ${j * (100 / cols)}%)`;
+      c.style.transformOrigin = '50% 0';
+      const drop = 26 + Math.random() * 70;
+      c.animate([
+        { transform: 'translateY(0) scaleY(1)', opacity: 1 },
+        { transform: `translateY(${drop * 0.45}px) scaleY(1.35)`, opacity: 0.95, offset: 0.55 },
+        { transform: `translateY(${drop}px) scaleY(1.9)`, opacity: 0 },
+      ], { duration: 640, delay: j * 28, easing: 'cubic-bezier(0.6,0,0.9,0.6)', fill: 'forwards' });
+    }
+    cleanup(wrap, 1000);
+  },
+  /* 7 烧灼扫描 */
+  7: (wrap) => {
+    baseHide(wrap);
+    const c = cloneIn(wrap);
+    c.animate([
+      { clipPath: 'inset(0 0 0 0)' },
+      { clipPath: 'inset(100% 0 0 0)' },
+    ], { duration: 560, easing: 'linear', fill: 'forwards' });
+    const bar = document.createElement('div');
+    bar.className = 'fx';
+    bar.style.cssText = 'position:absolute;left:-6px;right:-6px;height:14px;background:linear-gradient(rgba(255,138,45,0), rgba(255,138,45,.85) 55%, rgba(255,230,150,.95) 72%, rgba(255,138,45,.4));filter:blur(.5px);top:-16px';
+    wrap.appendChild(bar);
+    bar.animate([
+      { top: '-16px' },
+      { top: '132px' },
+    ], { duration: 560, easing: 'linear', fill: 'forwards' });
+    cleanup(wrap, 620);
+  },
+  /* 8 黑洞吸入 */
+  8: (wrap) => {
+    baseHide(wrap);
+    const hole = document.createElement('div');
+    hole.className = 'fx';
+    hole.style.cssText = 'position:absolute;inset:0;background:radial-gradient(circle at 50% 50%, #000 0%, #000 42%, rgba(0,0,0,0) 70%)';
+    hole.style.transform = 'scale(0)';
+    wrap.appendChild(hole);
+    hole.animate([
+      { transform: 'scale(0)' },
+      { transform: 'scale(1.05)' },
+    ], { duration: 560, easing: 'cubic-bezier(0.6,0,0.9,0.3)', fill: 'forwards' });
+    const c = cloneIn(wrap);
+    c.style.transformOrigin = '50% 50%';
+    c.animate([
+      { transform: 'rotate(0deg) scale(1)', opacity: 1 },
+      { transform: 'rotate(300deg) scale(0.5)', opacity: 1, offset: 0.6 },
+      { transform: 'rotate(560deg) scale(0)', opacity: 0 },
+    ], { duration: 560, easing: 'cubic-bezier(0.7,0,0.9,0.4)', fill: 'forwards' });
+    cleanup(wrap, 620);
+  },
+  /* 9 代码雨擦除 */
+  9: (wrap) => {
+    baseHide(wrap);
+    const cols = 6;
+    for (let j = 0; j < cols; j += 1) {
+      const rain = document.createElement('div');
+      rain.className = 'fx';
+      rain.style.cssText = `position:absolute;top:-132px;bottom:0;left:${j * (100 / cols)}%;width:${100 / cols}%;background:repeating-linear-gradient(180deg, rgba(45,255,120,.85) 0 6px, rgba(45,255,120,.15) 6px 14px, transparent 14px 26px)`;
+      wrap.appendChild(rain);
+      rain.animate([
+        { transform: 'translateY(0)' },
+        { transform: 'translateY(280px)' },
+      ], { duration: 460, delay: j * 55, easing: 'linear', fill: 'forwards' });
+      const c = cloneIn(wrap);
+      c.style.clipPath = `inset(0 ${(cols - 1 - j) * (100 / cols)}% 0 ${j * (100 / cols)}%)`;
+      c.animate([
+        { opacity: 1 },
+        { opacity: 0 },
+      ], { duration: 210, delay: 55 + j * 55 + 190, fill: 'forwards' });
+    }
+    cleanup(wrap, 1050);
+  },
+  /* 10 方块爆飞 */
+  10: (wrap) => {
+    baseHide(wrap);
+    const cols = 4, rows = 4;
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const c = cloneIn(wrap);
+        c.style.clipPath = `inset(${row * 25}% ${(cols - 1 - col) * 25}% ${(rows - 1 - row) * 25}% ${col * 25}%)`;
+        const dx = (col - (cols - 1) / 2) * (46 + Math.random() * 30);
+        const dy = (row - (rows - 1) / 2) * (38 + Math.random() * 26);
+        const rot = (Math.random() - 0.5) * 90;
+        c.animate([
+          { transform: 'none', opacity: 1 },
+          { transform: `translate(${dx * 0.35}px, ${dy * 0.35}px) rotate(${rot * 0.4}deg)`, opacity: 1, offset: 0.3 },
+          { transform: `translate(${dx}px, ${dy + 46}px) rotate(${rot}deg)`, opacity: 0 },
+        ], { duration: 540, delay: (row + col) * 22, easing: 'cubic-bezier(0.45,0,0.8,0.4)', fill: 'forwards' });
+      }
+    }
+    cleanup(wrap, 900);
+  },
+};
+
+/* 中键 */
+const mock = document.getElementById('mockMid');
+mock.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+mock.addEventListener('auxclick', (e) => {
+  if (e.button !== 1) return;
+  e.preventDefault();
+  showToast('已进入「钉钉」编辑（中键）');
+  document.getElementById('midLog').textContent = '刚才按了中键 → 直接进入编辑 ✓';
+  mock.style.borderColor = '#1785c4';
+  setTimeout(() => { mock.style.borderColor = ''; }, 500);
+});
+</script>
+</body>
+</html>

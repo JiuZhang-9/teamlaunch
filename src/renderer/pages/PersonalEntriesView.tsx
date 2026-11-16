@@ -2,7 +2,9 @@
  * V-02 个人入口页 —— 本机可编辑，**永不跨设备同步**。
  * 因此本页工具栏没有 SyncIndicator，也不得出现任何"同步中/已同步"字样。
  */
-import { EllipsisVertical, FolderPlus, Layers, Plus, ScanSearch } from 'lucide-react';
+import { Copy, CopyPlus, EllipsisVertical, ExternalLink, FolderInput, FolderPlus, Layers, ListChecks, ListMinus, ListPlus, MapPin, Pencil, Play, Plus, ScanSearch, Star, StarOff, Trash2, X } from 'lucide-react';
+import { glitchRemoveCards } from '../lib/card-removal.ts';
+import type { DeleteFx } from '../lib/card-removal.ts';
 import { useEffect, useState } from 'react';
 import { api } from '../bridge/index.ts';
 import { useEntryPicker } from '../hooks/useEntryPicker.ts';
@@ -122,22 +124,25 @@ export function PersonalEntriesView() {
       {
         id: 'batch-open',
         label: `打开 ${n} 项`,
+        icon: Play,
         /* 与连锁启动同一条链路：逐个打开、间隔 chainIntervalMs、失败汇总不中断。 */
         onSelect: () => void launchChain(settings.chainIntervalMs),
       },
-      { id: 'batch-copy', label: `复制 ${n} 项链接/路径`, onSelect: () => void copyManyTargets(items) },
+      { id: 'batch-copy', label: `复制 ${n} 项链接/路径`, icon: Copy, onSelect: () => void copyManyTargets(items) },
       {
         id: 'batch-favorite',
         label: `${allFav ? '取消收藏' : '收藏'} ${n} 项`,
+        icon: allFav ? StarOff : Star,
         onSelect: () => {
           void setFavoriteMany(ids, !allFav);
           push({ title: allFav ? `已取消收藏 ${n} 项` : `已收藏 ${n} 项`, tone: 'info' });
         },
       },
-      { id: 'batch-move', label: `移动到分组…（${n} 项）`, onSelect: () => setMovingBatch(items) },
+      { id: 'batch-move', label: `移动到分组…（${n} 项）`, icon: FolderInput, onSelect: () => setMovingBatch(items) },
       {
         id: 'batch-copy-entry',
         label: `创建 ${n} 个副本`,
+        icon: CopyPlus,
         // 副本也是新增入口，撞上限时禁用并给出原因（与单条「创建副本」同规矩）。
         disabled: Boolean(capacityReason),
         onSelect: () => {
@@ -146,16 +151,17 @@ export function PersonalEntriesView() {
           });
         },
       },
-      { id: 'batch-delete', label: `删除 ${n} 项`, destructive: true, onSelect: () => setPendingBatch(items) },
+      { id: 'batch-delete', label: `删除 ${n} 项`, icon: Trash2, destructive: true, onSelect: () => setPendingBatch(items) },
       {
         id: 'batch-select-group',
         label: '全选本组',
+        icon: ListChecks,
         disabled: !group,
         onSelect: () => {
           if (group) addSelected(group.entries);
         },
       },
-      { id: 'batch-clear', label: '清空清单', onSelect: () => clearSelected() },
+      { id: 'batch-clear', label: '清空清单', icon: X, onSelect: () => clearSelected() },
     ];
     return list;
   };
@@ -164,33 +170,35 @@ export function PersonalEntriesView() {
     if (selected.length >= 2 && selected.some((e) => e.id === entry.id)) return batchMenuFor(entry);
     const fromGroup = groups.find((g) => g.entries.some((e) => e.id === entry.id));
     const items: ContextMenuItem[] = [
-      { id: 'open', label: '打开', onSelect: () => void openEntry(entry) },
-      { id: 'copy', label: entry.type === 'web' ? '复制链接' : '复制路径', onSelect: () => void copyTarget(entry) },
+      { id: 'open', label: '打开', icon: Play, onSelect: () => void openEntry(entry) },
+      { id: 'copy', label: entry.type === 'web' ? '复制链接' : '复制路径', icon: Copy, onSelect: () => void copyTarget(entry) },
       /* 重编辑取代单纯重命名（用户要求）：与创建时同一套编辑器，路径/网址/说明/名字都能改。 */
-      { id: 'edit', label: '重编辑', onSelect: () => openEntryEditor({ mode: 'edit', entry, scope: 'personal' }) },
-      { id: 'chain', label: selected.some((e) => e.id === entry.id) ? '从连锁清单移出' : '加入连锁清单', onSelect: () => toggleSelected(entry) },
-      { id: 'favorite', label: isFavorite(entry.id) ? '取消收藏' : '收藏', onSelect: () => void toggleFavorite(entry.id) },
+      { id: 'edit', label: '重编辑', icon: Pencil, onSelect: () => openEntryEditor({ mode: 'edit', entry, scope: 'personal' }) },
+      { id: 'chain', label: selected.some((e) => e.id === entry.id) ? '从连锁清单移出' : '加入连锁清单', icon: selected.some((e) => e.id === entry.id) ? ListMinus : ListPlus, onSelect: () => toggleSelected(entry) },
+      { id: 'favorite', label: isFavorite(entry.id) ? '取消收藏' : '收藏', icon: isFavorite(entry.id) ? StarOff : Star, onSelect: () => void toggleFavorite(entry.id) },
     ];
     if (entry.type === 'web') {
       items.push({
         id: 'browser',
         label: '在浏览器中打开',
+        icon: ExternalLink,
         onSelect: () => void api.entries.openExternal(entry.url),
       });
     }
     // 应用类入口的本机解析可能找不到/找错：重新定位常驻右键，选一次即覆盖本机缓存（2026-10-05 用户拍板）。
     if (entry.type === 'app') {
-      items.push({ id: 'relocate', label: '在本机重新定位…', onSelect: () => void relocateEntry(entry) });
+      items.push({ id: 'relocate', label: '在本机重新定位…', icon: MapPin, onSelect: () => void relocateEntry(entry) });
     }
 
     // 移动到分组：此前入口只能留在创建时的分组里，没有任何迁移手段。
     if (groups.length > 1 && fromGroup) {
-      items.push({ id: 'move', label: '移动到分组…', onSelect: () => setMoving({ entry, fromGroupId: fromGroup.id }) });
+      items.push({ id: 'move', label: '移动到分组…', icon: FolderInput, onSelect: () => setMoving({ entry, fromGroupId: fromGroup.id }) });
     }
     items.push(
       {
         id: 'duplicate',
         label: '创建副本',
+        icon: CopyPlus,
         // 副本也是新增入口，撞上限时禁用并给出原因，不做"点了没反应"
         disabled: Boolean(capacityReason),
         onSelect: () => {
@@ -201,7 +209,7 @@ export function PersonalEntriesView() {
           void addCopy(entry.id);
         },
       },
-      { id: 'delete', label: '删除', destructive: true, onSelect: () => setPending({ kind: 'delete', entry }) },
+      { id: 'delete', label: '删除', icon: Trash2, destructive: true, onSelect: () => setPending({ kind: 'delete', entry }) },
     );
     return items;
   };
@@ -351,7 +359,8 @@ export function PersonalEntriesView() {
           destructive
           onCancel={() => setPending(null)}
           onConfirm={() => {
-            void removeEntry(pending.entry.id);
+            /* glitch 过渡（1.9.0）：卡片先撕裂消散，动画走完才真删（store 提交在 helper 里）。 */
+            glitchRemoveCards([pending.entry.id], () => void removeEntry(pending.entry.id), settings.deleteFx as DeleteFx);
             setPending(null);
             push({ title: `已删除「${pending.entry.name}」`, tone: 'info' });
           }}
@@ -371,7 +380,12 @@ export function PersonalEntriesView() {
           onConfirm={() => {
             const list = pendingBatch;
             setPendingBatch(null);
-            void removeEntries(list.map((e) => e.id));
+            /* glitch 批量错峰消散，走完再批量提交（1.9.0）。 */
+            glitchRemoveCards(
+              list.map((e) => e.id),
+              () => void removeEntries(list.map((e) => e.id)),
+              settings.deleteFx as DeleteFx,
+            );
             push({ title: `已删除 ${list.length} 项`, tone: 'info' });
           }}
         />

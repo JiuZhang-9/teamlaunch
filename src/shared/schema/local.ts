@@ -113,6 +113,23 @@ export const SettingsSchema = z.object({
    */
   searchBackdrop: z.enum(['dim', 'frost']).default('dim'),
   /**
+   * 团队 / 个人页横幅的撤回延迟（2026-11-15 用户拍板）：鼠标移开后等这么久再收起横幅
+   * （自动收起的 1.7s 倒计时不变）。设置·通用四档可选，夹紧 0.5–2s 不放开。
+   */
+  pageHintLeaveMs: z.int().min(500).max(2000).default(1000),
+  /**
+   * 老连锁一次性迁入收藏的标记（1.9.0）：1.9.0 之前保存的连锁没有收藏记录，
+   * 升级后第一次跑把还没进收藏的连锁补进收藏，然后置 true——
+   * 用户之后手动取消的收藏不会被再次补回。
+   */
+  chainFavoritesMigrated: z.boolean().default(false),
+  /**
+   * 卡片删除动效（2026-11-15 用户从 10 机制演示中选定 6 种做成设置项）：
+   * dissolve=像素溶解（默认，30 小块乱序闪烁消失）／rgb=RGB 三通道爆散／crt=CRT 关机压扁亮线／
+   * melt=熔化下滴／burn=烧灼扫描／tiles=方块爆飞。作用于个人与团队编辑态的删除。
+   */
+  deleteFx: z.enum(['dissolve', 'rgb', 'crt', 'melt', 'burn', 'tiles']).default('dissolve'),
+  /**
    * 应用内快捷键覆盖表：动作 id → 加速器串（如 'Ctrl+Shift+E'）。
    * 只存**用户改过**的动作，未出现的动作跟随内置默认（shared/app-hotkeys.ts）；
    * 空串 = 用户显式解绑。格式由录制器保证，匹配在渲染层完成。

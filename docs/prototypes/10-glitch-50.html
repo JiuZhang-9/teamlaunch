@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>50 个条带式 glitch · 点卡片播放</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Inter","Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif; background:#0f0f0f; color:#f0f0f0; padding:24px 18px 60px; }
+.wrap { max-width:1150px; margin:0 auto; }
+h1 { font-size:18px; font-weight:600; }
+.sub { font-size:12.5px; color:#9a9a9a; line-height:1.8; margin-top:6px; }
+.sub b { color:#e8e8e8; }
+.toolbar { position:sticky; top:0; z-index:50; background:rgba(15,15,15,.92); padding:10px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+#lastPlayed { font-size:12.5px; color:#a2d0ec; }
+button.ctl { font:inherit; font-size:12px; padding:5px 12px; border-radius:9999px; cursor:pointer; border:1px solid #404040; background:transparent; color:#b8b8b8; }
+button.ctl:hover { background:#22262b; color:#f0f0f0; }
+.grid { display:grid; grid-template-columns:repeat(5, 168px); gap:16px; margin-top:14px; }
+.cell { border:1px solid #2b2b2b; border-radius:12px; padding:10px; background:#151515; cursor:pointer; transition:border-color 120ms; }
+.cell:hover { border-color:#1785c4; }
+.cell .no { font-size:11px; color:#1785c4; font-weight:700; }
+.cell .lbl { font-size:10.5px; color:#8c8c8c; line-height:1.5; margin-bottom:6px; min-height:32px; }
+.gwrap { position:relative; width:148px; height:120px; }
+.gcard { width:148px; height:120px; border-radius:10px; background:#1b1b1b; border:1px solid #2b2b2b; padding:10px; position:relative; display:flex; flex-direction:column; overflow:hidden; }
+.gcard .ibox { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; background:#26313a; color:#c7d6e2; }
+.gcard .nm { margin-top:8px; font-size:12px; font-weight:600; color:#f0f0f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gcard .sb { margin-top:2px; font-size:10px; color:#8c8c8c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* 条带层：每条 = 独立 clip 的横带，内容在其中左右横移 */
+.strip { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+.strip .cl { position:absolute; inset:0; padding:10px; }
+.strip .cl > .gcard { background: transparent !important; border: none !important; }
+.strip .cl.gr { background:rgba(255,45,85,.2); }
+.strip .cl.gc { background:rgba(45,220,255,.2); }
+.gl-noise { position:absolute; inset:0; pointer-events:none; display:none; }
+.mockcard { width:152px; height:132px; border-radius:12px; background:#1b1b1b; border:1px solid #2b2b2b; padding:12px; display:flex; flex-direction:column; user-select:none; }
+.mockcard .ibox { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:600; background:#26313a; color:#c7d6e2; }
+.mockcard .nm { margin-top:10px; font-size:13px; font-weight:600; color:#f0f0f0; }
+.mockcard .sb { margin-top:2px; font-size:11px; color:#8c8c8c; }
+.cap { font-size:12px; color:#b8b8b8; margin-top:10px; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <h1>50 个条带式 glitch</h1>
+    <span id="lastPlayed">点卡片播放 · 卡片会被切成 N 条，每条各自左右抖 · 回我编号</span>
+    <button class="ctl" id="playAll">顺序全播</button>
+    <button class="ctl" id="stopAll">停止</button>
+  </div>
+  <div class="sub">
+    这版全部基于<b>切条架构</b>：卡片切成 2~9 条横带，<b>每条独立左右横移（方向/幅度互不相同）</b>，
+    条带内再叠红/青色散残影，彩色雪花噪点盖面；50 个设计在 条数/切法/方向模式/色板/噪点/频率/时长/收尾 全部错开。
+    中键进编辑的确认样在页面最底部。
+  </div>
+  <div class="grid" id="grid"></div>
+
+  <div class="sec" style="border:1px solid #2b2b2b;border-radius:16px;background:#1b1b1b;padding:18px 20px;margin-top:26px">
+    <h2 style="font-size:15px;font-weight:600">中键进入编辑（已确认的实现样）</h2>
+    <p style="font-size:12.5px;color:#9a9a9a;line-height:1.7;margin:6px 0 12px">按一下鼠标中键 = 直接进编辑；左键仍是打开。应用里挡掉默认滚轮滚动，对所有入口卡生效。</p>
+    <div class="mockcard" id="mockMid"><div class="ibox">钉</div><div class="nm">钉钉</div><div class="sb">dingtalk.com</div></div>
+    <div class="cap" id="midLog">（还没按过中键）</div>
+  </div>
+</div>
+<div class="toast" id="toast" style="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#1b1b1b;border:1px solid #404040;border-radius:10px;padding:9px 16px;font-size:12.5px;color:#f0f0f0;z-index:99;opacity:0;transition:opacity 200ms;pointer-events:none"></div>
+<script>
+/* ============ 内容模板 ============ */
+const CARD_HTML = '<div class="gcard"><div class="ibox">钉</div><div class="nm">钉钉</div><div class="sb">dingtalk.com</div></div>';
+
+/* ============ 50 个设计 ============
+   [条数, 方向模式, 幅度, 色板idx, 噪点{kind,tint,a}, 时长, 步数, 收尾, 特殊]
+   方向模式: alt=奇偶反向 | shear=同向阶梯 | center=中间最大 | rand=每条随机 | mirror=对称 | out=从中心裂开
+   色板idx: 0红青 1品红绿 2橙蓝 3黄紫 4酸绿 5蒸汽波 6熔橙 7冰蓝 8绿粉 9黑白 10金紫 11薄荷红
+   噪点kind: snow彩色雪花 | snowm单色雪 | blocks方块 | scan扫描线 | band条带 | none */
+const PALETTES = [
+  ['#ff2d55', '#2ddcff'], ['#ff2dd0', '#2dff9e'], ['#ff8a2d', '#2d9eff'], ['#ffe14d', '#b44dff'],
+  ['#a3ff2d', '#2dffd7'], ['#ff7ad7', '#7ad7ff'], ['#ff5a2d', '#ffce2d'], ['#9adfff', '#ffffff'],
+  ['#2dff6a', '#ff5aa0'], ['#ffffff', '#888888'], ['#ffce54', '#8e44ff'], ['#54ff9f', '#ff5470'],
+];
+const NOISE = [
+  { kind: 'snow', tint: 'multi', a: 0.45 }, { kind: 'snowm', tint: '#ffffff', a: 0.45 },
+  { kind: 'blocks', tint: 'multi', a: 0.4 }, { kind: 'scan', tint: 'multi', a: 0.42 },
+  { kind: 'band', tint: 'multi', a: 0.4 }, { kind: 'none', tint: '', a: 0 },
+];
+const D = [
+  { s:4, m:'alt',    amp:6, p:0, n:NOISE[0], dur:320, st:10, end:'fade' },
+  { s:6, m:'shear',  amp:5, p:1, n:NOISE[1], dur:520, st:8,  end:'fade' },
+  { s:3, m:'alt',    amp:11, p:2, n:NOISE[2], dur:380, st:6, end:'snap' },
+  { s:8, m:'alt',    amp:1.5, p:9, n:NOISE[1], dur:300, st:14, end:'fade' },
+  { s:5, m:'center', amp:7, p:5, n:NOISE[0], dur:480, st:9,  end:'fade' },
+  { s:2, m:'alt',    amp:13, p:4, n:NOISE[2], dur:440, st:6,  end:'snap' },
+  { s:6, m:'rand',   amp:6, p:'rainbow', n:NOISE[0], dur:460, st:10, end:'seq' },
+  { s:5, m:'alt',    amp:5, p:2, n:NOISE[3], dur:460, st:9,  end:'fade' },
+  { s:4, m:'shear',  amp:7, p:8, n:NOISE[1], dur:500, st:8,  end:'fade' },
+  { s:7, m:'center', amp:4, p:3, n:NOISE[2], dur:420, st:12, end:'fade' },
+  { s:4, m:'out',    amp:8, p:0, n:NOISE[3], dur:400, st:8,  end:'snap' },
+  { s:6, m:'rand',   amp:3, p:3, n:NOISE[4], dur:520, st:10, end:'fade' },
+  { s:3, m:'shear',  amp:9, p:1, n:NOISE[0], dur:440, st:7,  end:'fade' },
+  { s:8, m:'center', amp:2, p:7, n:NOISE[1], dur:560, st:13, end:'fade' },
+  { s:5, m:'mirror', amp:6, p:2, n:NOISE[2], dur:440, st:9,  end:'fade' },
+  { s:4, m:'alt',    amp:4, p:6, n:NOISE[4], dur:400, st:10, end:'fade' },
+  { s:9, m:'rand',   amp:4, p:9, n:NOISE[1], dur:340, st:16, end:'fade' },
+  { s:2, m:'shear',  amp:10, p:5, n:NOISE[0], dur:480, st:6, end:'fade' },
+  { s:6, m:'out',    amp:5, p:1, n:NOISE[3], dur:460, st:9,  end:'seq' },
+  { s:5, m:'alt',    amp:8, p:0, n:NOISE[2], dur:380, st:9,  end:'snap' },
+  { s:7, m:'shear',  amp:3, p:4, n:NOISE[1], dur:520, st:11, end:'fade' },
+  { s:4, m:'rand',   amp:9, p:3, n:NOISE[0], dur:420, st:8,  end:'fade' },
+  { s:6, m:'center', amp:6, p:6, n:NOISE[4], dur:500, st:10, end:'fade' },
+  { s:3, m:'mirror', amp:12, p:2, n:NOISE[1], dur:400, st:6, end:'snap' },
+  { s:8, m:'alt',    amp:2, p:8, n:NOISE[3], dur:460, st:14, end:'fade' },
+  { s:5, m:'out',    amp:7, p:10, n:NOISE[0], dur:440, st:9, end:'seq' },
+  { s:4, m:'shear',  amp:5, p:11, n:NOISE[2], dur:480, st:8, end:'fade' },
+  { s:6, m:'mirror', amp:5, p:7, n:NOISE[1], dur:500, st:10, end:'fade' },
+  { s:9, m:'center', amp:3, p:0, n:NOISE[0], dur:380, st:15, end:'fade' },
+  { s:2, m:'out',    amp:14, p:9, n:NOISE[2], dur:420, st:6,  end:'snap' },
+  { s:7, m:'rand',   amp:5, p:5, n:NOISE[4], dur:520, st:12, end:'fade' },
+  { s:4, m:'center', amp:10, p:1, n:NOISE[1], dur:400, st:8,  end:'snap' },
+  { s:6, m:'alt',    amp:3, p:10, n:NOISE[0], dur:540, st:11, end:'fade' },
+  { s:9, m:'shear',  amp:2, p:3, n:NOISE[2], dur:560, st:14, end:'fade' },
+  { s:3, m:'rand',   amp:13, p:7, n:NOISE[1], dur:360, st:7,  end:'snap' },
+  { s:5, m:'mirror', amp:8, p:0, n:NOISE[3], dur:460, st:9,  end:'seq' },
+  { s:8, m:'out',    amp:4, p:8, n:NOISE[4], dur:520, st:13, end:'fade' },
+  { s:4, m:'shear',  amp:8, p:5, n:NOISE[1], dur:420, st:8,  end:'snap' },
+  { s:6, m:'rand',   amp:2, p:2, n:NOISE[0], dur:580, st:12, end:'fade' },
+  { s:2, m:'mirror', amp:15, p:4, n:NOISE[3], dur:400, st:6,  end:'snap' },
+  { s:9, m:'alt',    amp:1.5, p:11, n:NOISE[1], dur:640, st:16, end:'fade' },
+  { s:5, m:'shear',  amp:6, p:9, n:NOISE[2], dur:440, st:9,  end:'seq' },
+  { s:7, m:'center', amp:5, p:1, n:NOISE[3], dur:500, st:11, end:'fade' },
+  { s:3, m:'alt',    amp:7, p:6, n:NOISE[0], dur:440, st:7,  end:'fade' },
+  { s:6, m:'out',    amp:6, p:9, n:NOISE[4], dur:480, st:10, end:'seq' },
+  { s:9, m:'mirror', amp:2, p:6, n:NOISE[1], dur:560, st:14, end:'fade' },
+  { s:4, m:'rand',   amp:6, p:7, n:NOISE[2], dur:400, st:8,  end:'snap' },
+  { s:6, m:'shear',  amp:4, p:4, n:NOISE[0], dur:540, st:11, end:'fade' },
+  { s:9, m:'rand',   amp:3, p:5, n:NOISE[3], dur:600, st:15, end:'fade' },
+  { s:8, m:'out',    amp:5, p:2, n:NOISE[0], dur:620, st:13, end:'seq' },
+];
+const LABELS = ['红青快频','品红阶梯','橙蓝大 tear','黑白细抖','蒸汽波中裂','酸绿对半','彩虹逐条消','橙蓝扫线','绿粉阶梯','黄紫中带','红青裂开','黄紫随机','品红阶梯大','冰蓝细频','橙蓝镜像','熔橙条带','黑白细频大数','蒸汽波对半','品红绿逐条','红青大 snap','酸绿阶梯','黄紫随机大','熔橙中带','橙蓝镜像大','绿粉细频','金紫裂开','薄荷红阶梯','冰蓝镜像','红青细频大数','黑白对半 snap','蒸汽波随机','品红中裂 snap','金紫慢频','黄紫阶梯大数','蒸汽波随机大','红青镜像逐条','冰蓝裂开','薄荷红阶梯大','蒸汽波 shear snap','橙蓝慢频细','酸绿对半 snap','薄荷红长频','黑白逐条','品红中带','黑白裂开','熔橙镜像','黄紫随机 snap','酸绿慢频','蒸汽波随机长','橙蓝裂开最长'];
+
+/* ============ 纹理 ============ */
+function noiseCanvas(kind, tint) {
+  const w = 140, h = 100;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const multi = tint === 'multi';
+  const trgb = (tint && tint[0] === '#') ? [parseInt(tint.slice(1,3),16), parseInt(tint.slice(3,5),16), parseInt(tint.slice(5,7),16)] : [255,255,255];
+  for (let i = 0; i < w * h; i += 1) {
+    const x = i % w, y = (i / w) | 0, r = Math.random();
+    let fill = null;
+    if (kind === 'snow' && r > 0.6) fill = multi ? rgba(rand255(), rand255(), rand255(), 0.5 + Math.random() * 0.5) : rgba(trgb[0], trgb[1], trgb[2], 0.4 + Math.random() * 0.6);
+    else if (kind === 'snowm' && r > 0.5) { const v = 120 + Math.random() * 135 | 0; fill = rgba(v, v, v, 0.4 + Math.random() * 0.6); }
+    else if (kind === 'blocks' && r > 0.87) fill = multi ? rgba(rand255(), rand255(), rand255(), 0.45) : rgba(trgb[0], trgb[1], trgb[2], 0.4 + Math.random() * 0.4);
+    else if (kind === 'scan' && y % 4 === 0) fill = multi ? rgba(rand255(), rand255(), rand255(), 0.4) : rgba(trgb[0], trgb[1], trgb[2], 0.35 + Math.random() * 0.3);
+    else if (kind === 'band' && (x + y * 2) % 9 === 0) fill = multi ? rgba(rand255(), rand255(), rand255(), 0.35) : rgba(trgb[0], trgb[1], trgb[2], 0.35 + Math.random() * 0.3);
+    if (fill) { ctx.fillStyle = fill; ctx.fillRect(x, y, 1, 1); }
+  }
+  return c.toDataURL();
+  function rgba(r, g, b, a) { return `rgba(${r|0},${g|0},${b|0},${a.toFixed(2)})`; }
+  function rand255() { return Math.random() * 255 | 0; }
+}
+const NOISE_CACHE = {};
+function noiseURL(kind, tint) {
+  const key = kind + '|' + tint;
+  if (!NOISE_CACHE[key]) NOISE_CACHE[key] = noiseCanvas(kind, tint);
+  return NOISE_CACHE[key];
+}
+
+/* ============ 网格 ============ */
+const grid = document.getElementById('grid');
+D.forEach((d, i) => {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.innerHTML = `
+    <div class="no">#${i + 1}</div>
+    <div class="lbl">${LABELS[i]} · ${d.s}条 · ${d.m} · ${d.dur}ms</div>
+    <div class="gwrap" data-i="${i}">${CARD_HTML}<div class="gl-noise"></div></div>`;
+  cell.addEventListener('click', () => play(i, cell));
+  grid.appendChild(cell);
+  if (d.n.kind !== 'none') {
+    const nz = cell.querySelector('.gl-noise');
+    nz.style.backgroundImage = `url(${noiseURL(d.n.kind, d.n.tint)})`;
+    nz.style.opacity = d.n.a;
+  }
+});
+
+/* ============ 条带构建与播放 ============ */
+function stripOffsets(m, j, n, amp, i) {
+  const dir = { alt: (j % 2 ? 1 : -1), shear: -1, center: 0, rand: (Math.sin((i + 1) * (j + 3) * 7.7) > 0 ? 1 : -1), mirror: (j < n / 2 ? 1 : -1), out: (Math.abs(j - (n - 1) / 2) < n / 4 ? -1 : 1) }[m];
+  let k = 1;
+  if (m === 'center') k = 1 - Math.abs(j - (n - 1) / 2) / ((n - 1) / 2 || 1);
+  if (m === 'out') k = Math.abs(j - (n - 1) / 2) / ((n - 1) / 2 || 1);
+  const base = { alt: 1, shear: (j + 1) / n, center: k, rand: 0.5 + Math.abs(Math.sin((i + 1) * (j + 5) * 3.3)), mirror: 1 - Math.abs(j - (n - 1) / 2) / ((n - 1) / 2 || 1), out: k }[m];
+  return dir * Math.max(0.25, base) * amp;
+}
+function play(idx, cell) {
+  const d = D[idx];
+  const wrap = cell.querySelector('.gwrap');
+  const base = wrap.querySelector('.gcard');
+  wrap.querySelectorAll('.strip').forEach((e) => e.remove());
+  document.getElementById('lastPlayed').textContent = `正在播放 #${idx + 1} · ${LABELS[idx]}`;
+  const rgb = PALETTES[d.p];
+  const dur = d.dur, n = d.st;  // st = 步数（d.n 是噪点配置，之前变量遮蔽导致动画全程空关键帧）
+  /* 条带层 */
+  const strips = [];
+  const ROWS = [0, 0.36, 0.66, 0.84, 1];
+  const bounds = [];
+  for (let j = 0; j <= d.s; j += 1) {
+    const p = j / d.s;
+    const seg = Math.min(ROWS.length - 2, Math.floor(p * (ROWS.length - 1)));
+    const local = p * (ROWS.length - 1) - seg;
+    bounds.push(Math.min(1, Math.max(0, ROWS[seg] + (ROWS[seg + 1] - ROWS[seg]) * local)));
+  }
+  const uniq = [...new Set(bounds.map((b) => Math.round(b * 1000) / 1000))].sort((a, b) => a - b);
+  let top = 0;
+  for (let j = 0; j < uniq.length - 1; j += 1) {
+    top = uniq[j] * 100;
+    const bottom = Math.max(0, 100 - uniq[j + 1] * 100);
+    const s = document.createElement('div');
+    s.className = 'strip';
+    s.style.clipPath = `inset(${top.toFixed(1)}% 0 ${bottom.toFixed(1)}% 0)`;
+    const rainbow = d.p === 'rainbow';
+    const hue = (j * 47 + idx * 13) % 360;
+    const tint = rainbow ? `hsla(${hue},80%,60%,.22)` : (j % 2 ? `rgba(${hexA(rgb[1])},.2)` : `rgba(${hexA(rgb[0])},.2)`);
+    s.innerHTML = `<div class="cl main">${CARD_HTML}</div><div class="cl gr" style="background:${tint}"></div><div class="cl gc" style="background:rgba(${hexA(rgb[1])},.16)"></div>`;
+    wrap.appendChild(s);
+    strips.push({ el: s, j });
+  }
+  base.style.visibility = 'hidden';
+  const dx = (j) => stripOffsets(d.m, j, d.s, d.amp * 2.2, idx);
+  const ghostDx = 2.5;
+  strips.forEach(({ el, j }) => {
+    const main = el.querySelector('.main'), gr = el.querySelector('.gr'), gc = el.querySelector('.gc');
+    const kf = [];
+    for (let i = 0; i <= n; i += 1) {
+      const p = i / n;
+      const sign = i % 2 ? 1 : -1;
+      const w = 0.5 + Math.abs(Math.sin((idx + 1) * (j + 1) * i * 0.9)) * 0.8;
+      const seq = d.end === 'seq' && p > 0.55 + (j / d.s) * 0.4;
+      kf.push({
+        transform: `translateX(${(dx(j) * sign * w).toFixed(1)}px)`,
+        opacity: seq ? 0 : (i % 3 === 2 && d.end !== 'fade' ? 0.75 : 1),
+        /* 步进挂在每帧之间：整段动画才会逐帧跳变（挂全局会把全程钉在第一帧） */
+        easing: i < n ? 'steps(1,end)' : 'linear',
+      });
+    }
+    window.__dbgKf = { len: kf.length, first: kf[0] ? JSON.parse(JSON.stringify(kf[0])) : null, n, dur };
+    const a = main.animate(kf, { duration: dur, easing: 'linear', fill: 'forwards' });
+    a.onfinish = () => { el.getAnimations().forEach(x => x.cancel()); el.remove(); };
+    if (d.end === 'collapse') {
+      el.animate([{ transform: 'translateX(0)' }], { duration: dur * 0.25, delay: dur * 0.75, fill: 'forwards', composite: 'add' });
+    }
+  });
+  /* 红青残影：整幅两层，各自横移（与条带方向无关，制造色散差） */
+  const grAll = document.createElement('div');
+  grAll.className = 'strip';
+  grAll.style.clipPath = 'inset(0 0 0 0)';
+  grAll.style.background = `linear-gradient(rgba(${hexA(rgb[0])},.14), rgba(${hexA(rgb[1])},.14))`;
+  wrap.appendChild(grAll);
+  const gkf = [];
+  for (let i = 0; i <= n; i += 1) {
+    gkf.push({ transform: `translateX(${(i % 2 ? 1 : -1) * ((d.amp * 0.5 + 1.5) * 2) * (d.m === 'shear' ? -1 : 1)}px)`, opacity: i % 2 ? 0.5 : 0, easing: i < n ? 'steps(1,end)' : 'linear' });
+  }
+  const ga = grAll.animate(gkf, { duration: dur, easing: 'linear', fill: 'forwards' });
+  ga.onfinish = () => { grAll.remove(); };
+  /* 雪花 */
+  if (d.n.kind !== 'none') {
+    const nz = wrap.querySelector('.gl-noise');
+    nz.style.display = 'block';
+    const nkf = [];
+    const mm = Math.max(6, n);
+    for (let i = 0; i <= mm; i += 1) {
+      nkf.push({ opacity: i === mm ? 0 : d.n.a * (0.55 + Math.sin(i * 2.1) * 0.45), transform: `translate(${(Math.sin(i * 9.7) * 26) | 0}px, ${(Math.cos(i * 5.3) * 20) | 0}px)`, easing: i < mm ? 'steps(1,end)' : 'linear' });
+    }
+    const na = nz.animate(nkf, { duration: dur, easing: 'linear', fill: 'forwards' });
+    na.onfinish = () => { nz.getAnimations().forEach(x => x.cancel()); nz.style.display = 'none'; };
+  }
+}
+function hexA(hx) {
+  if (!hx || hx[0] !== '#') return '255, 255, 255';
+  return `${parseInt(hx.slice(1, 3), 16)}, ${parseInt(hx.slice(3, 5), 16)}, ${parseInt(hx.slice(5, 7), 16)}`;
+}
+document.getElementById('playAll').addEventListener('click', async () => {
+  const cells = [...grid.children];
+  for (let i = 0; i < cells.length; i += 1) {
+    play(i, cells[i]);
+    await new Promise((r) => setTimeout(r, D[i].dur + 120));
+  }
+});
+document.getElementById('stopAll').addEventListener('click', () => {
+  document.querySelectorAll('.gwrap .strip').forEach((e) => e.remove());
+  document.querySelectorAll('.gwrap .gcard').forEach((e) => { e.style.visibility = ''; });
+  document.getAnimations().forEach((a) => a.cancel());
+});
+
+/* ============ 中键演示 ============ */
+const mock = document.getElementById('mockMid');
+let tTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(tTimer);
+  tTimer = setTimeout(() => { t.style.opacity = '0'; }, 1600);
+}
+mock.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+mock.addEventListener('auxclick', (e) => {
+  if (e.button !== 1) return;
+  e.preventDefault();
+  showToast('已进入「钉钉」编辑（中键）');
+  document.getElementById('midLog').textContent = '刚才按了中键 → 直接进入编辑 ✓';
+  mock.style.borderColor = '#1785c4';
+  setTimeout(() => { mock.style.borderColor = ''; }, 500);
+});
+</script>
+</body>
+</html>

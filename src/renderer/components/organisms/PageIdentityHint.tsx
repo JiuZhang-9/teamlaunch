@@ -14,9 +14,11 @@ export interface PageIdentityHintProps {
   tab: 'team' | 'personal';
   count: number;
   editing?: boolean;
+  /** 鼠标移开后再等多久收起（1.9.0 进设置·通用，默认 1s；0 默认值仅为兼容旧调用）。 */
+  leaveDelayMs?: number;
 }
 
-export function PageIdentityHint({ tab, count, editing = false }: PageIdentityHintProps) {
+export function PageIdentityHint({ tab, count, editing = false, leaveDelayMs = 160 }: PageIdentityHintProps) {
   const [open, setOpen] = useState(false);
   const hovering = useRef(false);
   const hideTimer = useRef<number | null>(null);
@@ -52,7 +54,7 @@ export function PageIdentityHint({ tab, count, editing = false }: PageIdentityHi
     if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => {
       if (!hovering.current) setOpen(false);
-    }, 160);
+    }, leaveDelayMs);
   };
 
   return (

@@ -8,7 +8,7 @@
  * 右下角类型水印（2026-11-08 G1，低对比辅助，不替代前两者）。
  */
 import { forwardRef, useRef, type KeyboardEvent, type MouseEvent } from 'react';
-import { GripVertical, MessageSquareWarning, Pencil, Star, TriangleAlert, Trash } from 'lucide-react';
+import { MessageSquareWarning, Pencil, Star, TriangleAlert, Trash } from 'lucide-react';
 import type { Entry } from '../../../shared/schema/entry.ts';
 import { TYPE_META, failureSubtitleOf, subtitleOf, targetFull } from '../../lib/entry.ts';
 import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
@@ -102,6 +102,9 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       /* 框选多选的命中锚（2026-10-18）：选框按视口坐标与它相交判定，
          不依赖任何层级结构——以后换网格容器也不会悄悄失效。 */
       data-tl-card-id={entry.id}
+      /* 已选中（在连锁清单里）＝与框选光圈完全同款的边框点亮（1.9.0 复测反馈：
+         松手后光圈不该消失，也不能换一套新效果——就是同一个光圈一直在）。 */
+      data-tl-selected={selectionOrder != null ? 'true' : undefined}
       /* 多选态同样可拖（整块移动由调用方处理）——此前 selecting 时彻底禁拖。 */
       draggable={drag?.draggable}
       onDragStart={drag?.onDragStart}
@@ -128,6 +131,17 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       }}
       onContextMenu={onContextMenu}
       onKeyDown={onKeyDown}
+      /* 中键进入编辑（1.9.0 复测确认）：中键点卡片 = 直接进编辑；
+          mousedown 阶段挡掉浏览器默认的滚轮自动滚动。onEdit 不存在的页（只读团队页）不生效。 */
+      onMouseDown={(e) => {
+        if (e.button === 1 && onEdit) e.preventDefault();
+      }}
+      onAuxClick={(e) => {
+        if (e.button === 1 && onEdit) {
+          e.preventDefault();
+          onEdit();
+        }
+      }}
       title={targetFull(entry)}
       aria-label={`${entry.name}，${meta.label}，${source === 'team' ? '团队入口' : '个人入口'}`}
       className={[
@@ -136,7 +150,8 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         /* 背景/静置阴影走类：内联会压过 hover:/focus-visible:/active: 的同名规则，
            悬浮亮度、悬浮阴影、键盘焦点环全部失效（2026-10-03 实测定位）。 */
         flatCard ? 'bg-[var(--card-bg)]' : 'bg-[var(--card-bg)] shadow-[var(--card-elev)]',
-        'transition-[background-color,border-color,box-shadow,transform] duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
+        /* outline-color 在清单里（1.9.0）：框选光圈点亮/松手淡出都走过渡，不再瞬变。 */
+        'transition-[background-color,border-color,box-shadow,transform,outline-color] duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
         'focus-visible:shadow-[var(--ring-focus)]',
         disabled ? 'cursor-not-allowed' : 'cursor-pointer',
         'active:bg-[var(--card-bg-active)]',
@@ -221,18 +236,8 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
           style={{ background: 'var(--accent)' }}
         />
       )}
-      {/* 编辑态：左上常驻句柄（"这张卡能拖"的持续信号，不靠 hover） */}
-      {editing && (
-        <span
-          aria-hidden
-          className="absolute left-0.5 top-1 z-10 text-[var(--meta)]"
-          style={{ width: 24, height: 24, display: 'grid', placeItems: 'center' }}
-        >
-          <GripVertical size={16} strokeWidth={2} />
-        </span>
-      )}
-
-      {/* 右上操作区：编辑态常驻；个人页 hover/focus 出现。命中区 24×24，视觉 16。 */}
+      {/* 右上操作区：编辑态常驻；个人页 hover/focus 出现。命中区 24×24，视觉 16。
+          1.9.0 复测反馈：六点拖拽柄整体移除（整卡可拖，句柄没有信息量还挡图标）。 */}
       {(editing || mode === 'personal') && (
         <span
           className={[
@@ -242,15 +247,6 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
             'transition-opacity duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
           ].join(' ')}
         >
-          {mode === 'personal' && (
-            <span
-              aria-hidden
-              className="grid text-[var(--meta)]"
-              style={{ width: 24, height: 24, placeItems: 'center' }}
-            >
-              <GripVertical size={16} strokeWidth={2} />
-            </span>
-          )}
           {onEdit && (
             <span
               role="button"

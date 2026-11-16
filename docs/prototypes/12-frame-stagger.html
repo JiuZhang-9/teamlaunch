@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>框选光圈点亮速度 · 六档演示</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Inter","Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif; background:#0f0f0f; color:#f0f0f0; padding:24px 18px 60px; }
+.wrap { max-width:1150px; margin:0 auto; }
+h1 { font-size:18px; font-weight:600; }
+.sub { font-size:12.5px; color:#9a9a9a; line-height:1.8; margin-top:6px; }
+.sub b { color:#e8e8e8; }
+.sec { border:1px solid #2b2b2b; border-radius:16px; background:#1b1b1b; padding:16px 18px; margin-top:18px; }
+.sec h2 { font-size:14px; font-weight:600; margin-bottom:2px; }
+.sec .d { font-size:11.5px; color:#9a9a9a; margin-bottom:10px; line-height:1.6; }
+.sec .d b { color:#e8e8e8; }
+.grid { display:grid; grid-template-columns:repeat(6, 110px); gap:10px; position:relative; user-select:none; }
+.gcard { width:110px; height:92px; border-radius:10px; background:#1b1b1b; border:1px solid #2b2b2b; padding:8px; position:relative; display:flex; flex-direction:column;
+  outline:2px solid transparent; outline-offset:2px;
+  transition:outline-color var(--lit-dur,400ms) cubic-bezier(0.25,0.1,0.25,1), box-shadow var(--lit-dur,400ms) cubic-bezier(0.25,0.1,0.25,1), background-color var(--lit-dur,400ms) cubic-bezier(0.25,0.1,0.25,1); }
+.gcard.hit { outline-color:#3890ce; box-shadow:0 0 18px 2px rgba(56,144,206,.35); background-color:rgba(56,144,206,.10); }
+.gcard .ibox { width:30px; height:30px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; background:#26313a; color:#c7d6e2; }
+.gcard .nm { margin-top:6px; font-size:11px; font-weight:600; color:#f0f0f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.marquee-rect { position:absolute; border:1px solid #3890ce; background:rgba(56,144,206,.12); border-radius:4px; pointer-events:none; z-index:5; display:none; }
+.cap { font-size:11px; color:#6e6e6e; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>框选光圈点亮速度 · 六档对比</h1>
+  <div class="sub">每个区域<b>按住拖一圈</b>（跟应用里一样的拖框），看边框点亮的先后与节奏。<b>六档互不相同</b>：点亮时长、错峰间隔、点亮顺序全部不同。选一档告诉我字母（S1~S6）。</div>
+
+  <div class="sec" data-cfg="per-card 40ms · lit 100ms · 近先亮">
+    <h2>S1 · 逐个（快）</h2>
+    <div class="d">错峰 <b>100ms/张</b> · 单张点亮 <b>300ms</b> · 近先亮 —— 能看出先后，节奏偏快</div>
+    <div class="grid"></div><div class="marquee-rect"></div>
+    <div class="cap">拖完松手可再拖。</div>
+  </div>
+  <div class="sec" data-cfg="per-card 80ms · lit 120ms · 近先亮">
+    <h2>S2 · 逐个（推荐）</h2>
+    <div class="d">错峰 <b>150ms/张</b> · 单张点亮 <b>400ms</b> · 近先亮 —— "一张缓缓亮完、下一张接着亮"最清楚的一档</div>
+    <div class="grid"></div><div class="marquee-rect"></div>
+    <div class="cap">12 张约 2.2s 依次缓缓点亮。</div>
+  </div>
+  <div class="sec" data-cfg="per-card 130ms · lit 140ms · 近先亮">
+    <h2>S3 · 逐个（最慢）</h2>
+    <div class="d">错峰 <b>250ms/张</b> · 单张点亮 <b>600ms</b> · 近先亮 —— 最慢，每张都能看清"从暗到亮"的全程（12 张约 3.4s）</div>
+    <div class="grid"></div><div class="marquee-rect"></div>
+    <div class="cap">最有"逐张缓缓亮起"的仪式感。</div>
+  </div>
+  <div class="sec" data-cfg="per-100px 30ms · lit 120ms · 近先亮">
+    <h2>S4 · 距离渐变快</h2>
+    <div class="d">错峰按<b>离指针的距离</b>（100ms/100px）· 点亮 <b>450ms</b> —— 近的先开始缓缓亮，远的紧跟着</div>
+    <div class="grid"></div><div class="marquee-rect"></div>
+    <div class="cap">连续扫动时没有分段感，像光扫过。</div>
+  </div>
+  <div class="sec" data-cfg="per-100px 70ms · lit 120ms · 近先亮">
+    <h2>S5 · 距离渐变慢</h2>
+    <div class="d">错峰按<b>距离</b>（180ms/100px）· 点亮 <b>600ms</b> —— 拖得越远亮得越迟，光波感最强</div>
+    <div class="grid"></div><div class="marquee-rect"></div>
+    <div class="cap">大范围框选时"光波"感最强。</div>
+  </div>
+  <div class="sec" data-cfg="wave 双向 60ms · lit 120ms">
+    <h2>S6 · 双向波浪</h2>
+    <div class="d">从选框<b>起点向两侧</b>对称点亮（120ms/级）· 点亮 <b>400ms</b> —— 左右对称的涟漪感</div>
+    <div class="grid"></div><div class="marquee-rect"></div>
+    <div class="cap">起点上方先亮，向两端扩散。</div>
+  </div>
+</div>
+<script>
+const CARDS = [
+  ['钉','钉钉','dingtalk.com'],['微','企业微信','WeCom'],['O','OA 系统','oa.corp'],['人','人事系统','hr.corp'],
+  ['共','共享文件夹','\\\\fs01'],['报','报销工具','BaoXiao'],['G','GitLab','git.corp'],['财','财务软件','Finance'],
+  ['部','部门文档','\\\\fs01'],['W','Wiki','wiki.corp'],['客','客户列表','\\\\fs01'],['周','周报模板','Docs'],
+];
+const cfgs = {
+  s1: { per: 100, dist: 0, lit: 300 },
+  s2: { per: 150, dist: 0, lit: 400 },
+  s3: { per: 250, dist: 0, lit: 600 },
+  s4: { per: 0, dist: 100, lit: 450 },
+  s5: { per: 0, dist: 180, lit: 600 },
+  s6: { per: 120, dist: 0, wave: true, lit: 400 },
+};
+document.querySelectorAll('.sec').forEach((sec, si) => {
+  const gridEl = sec.querySelector('.grid');
+  const rectEl = sec.querySelector('.marquee-rect');
+  const cfg = cfgs['s' + (si + 1)];
+  gridEl.style.setProperty('--lit-dur', cfg.lit + 'ms');
+  gridEl.innerHTML = CARDS.map((c, i) => `<div class="gcard" data-i="${i}"><div class="ibox">${c[0]}</div><div class="nm">${c[1]}</div></div>`).join('');
+  gridEl.appendChild(rectEl);
+  const cards = [...gridEl.querySelectorAll('.gcard')];
+  let origin = null, dragging = false, sx = 0, sy = 0;
+  gridEl.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    dragging = true; origin = { x: e.clientX, y: e.clientY };
+    const g = gridEl.getBoundingClientRect();
+    sx = e.clientX - g.left; sy = e.clientY - g.top;
+    gridEl.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  gridEl.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const g = gridEl.getBoundingClientRect();
+    rectEl.style.display = 'block';
+    rectEl.style.left = Math.min(sx, e.clientX - g.left) + 'px';
+    rectEl.style.top = Math.min(sy, e.clientY - g.top) + 'px';
+    rectEl.style.width = Math.abs(e.clientX - g.left - sx) + 'px';
+    rectEl.style.height = Math.abs(e.clientY - g.top - sy) + 'px';
+    const box = { l: Math.min(e.clientX, origin.x), t: Math.min(e.clientY, origin.y), r: Math.max(e.clientX, origin.x), b: Math.max(e.clientY, origin.y) };
+    cards.forEach((c) => {
+      const r = c.getBoundingClientRect();
+      const inside = r.right > box.l && r.left < box.r && r.bottom > box.t && r.top < box.b;
+      if (inside && !c.classList.contains('hit')) {
+        let delay;
+        if (cfg.wave) {
+          const d0 = Math.hypot(r.left + r.width / 2 - origin.x, r.top + r.height / 2 - origin.y);
+          delay = Math.min(240, d0 * 0.25);
+        } else if (cfg.dist) {
+          const d = Math.hypot(r.left + r.width / 2 - e.clientX, r.top + r.height / 2 - e.clientY);
+          delay = Math.min(300, (d / 100) * cfg.dist);
+        } else {
+          const d = Math.hypot(r.left + r.width / 2 - origin.x, r.top + r.height / 2 - origin.y);
+          delay = Math.min(1600, d * (cfg.per / 60));
+        }
+        c.style.transitionDelay = delay.toFixed(0) + 'ms';
+        c.classList.add('hit');
+      } else if (!inside && c.classList.contains('hit')) {
+        c.classList.remove('hit');
+        c.style.transitionDelay = '0ms';
+      }
+    });
+  });
+  const stop = () => { dragging = false; rectEl.style.display = 'none'; };
+  gridEl.addEventListener('pointerup', stop);
+  gridEl.addEventListener('pointercancel', stop);
+});
+</script>
+</body>
+</html>

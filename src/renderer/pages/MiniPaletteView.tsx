@@ -29,6 +29,8 @@ import {
 } from '../lib/palette-source.ts';
 import { usePrograms } from '../lib/programs.ts';
 import { useRecentOpenIds } from '../lib/recentOpens.ts';
+import { useChains } from '../store/chainStore.tsx';
+import { CHAIN_FAV_PREFIX } from '../lib/palette-source.ts';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
 import { useSync } from '../store/syncStore.tsx';
@@ -50,8 +52,9 @@ export function MiniPaletteView({
 }) {
   const { snapshot } = useSync();
   const { config: personal } = usePersonal();
-  const { openEntry, quickAddFromText } = useWorkbench();
+  const { openEntry, quickAddFromText, runSavedChain } = useWorkbench();
   const { push } = useToasts();
+  const { chains, resolve: resolveChain } = useChains();
   const programs = usePrograms();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
@@ -96,8 +99,19 @@ export function MiniPaletteView({
   );
 
   const hits = useMemo(
-    () => buildHits({ candidates, clip, query: debounced, favoriteIds, recentIds, programHits, scope, sectionMax: PALETTE_SECTION_MAX }),
-    [candidates, clip, debounced, favoriteIds, recentIds, programHits, scope],
+    () =>
+      buildHits({
+        candidates,
+        clip,
+        query: debounced,
+        favoriteIds,
+        recentIds,
+        programHits,
+        chains: chains.map((c) => ({ id: c.id, name: c.name, steps: c.entryIds.length })),
+        scope,
+        sectionMax: PALETTE_SECTION_MAX,
+      }),
+    [candidates, clip, debounced, favoriteIds, recentIds, programHits, scope, chains],
   );
 
   /* 图标只为**当前可见的命中**取（面板窗口常驻预热：关着时不取、也不为整份清单预取——
@@ -149,6 +163,24 @@ export function MiniPaletteView({
       onOpen={(hit) => {
         // Enter 后立刻关闭面板，不等待打开结果
         onClose();
+        if (hit.kind === 'chain') {
+          /* 收藏的连锁（1.9.0）：与主页连锁同一启动器；面板已收起，启动照常进行。 */
+          const chain = chains.find((c) => `${CHAIN_FAV_PREFIX}${c.id}` === hit.entry.id);
+          if (!chain) {
+            push({ title: '这条连锁已被删除，它的收藏会随之失效', tone: 'warn' });
+            return;
+          }
+          const res = resolveChain(chain, candidates.map((c) => c.entry), []);
+          if (res.entries.length === 0) {
+            push({ title: '这条连锁里的入口都已不存在，删掉它或重新保存一条', tone: 'warn' });
+            return;
+          }
+          void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length, (entry) => {
+            if (entry.type === 'web') return;
+            void api.windowLayout.apply(chain.id, entry.id);
+          });
+          return;
+        }
         if (hit.kind === 'system') {
           /* 系统程序直接开（用户拍板：未添加的程序也直接启动）。
              失败必须说出来——被卸载/没有权限时不能表现成"点了没反应"。 */

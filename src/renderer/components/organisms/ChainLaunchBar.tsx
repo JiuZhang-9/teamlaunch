@@ -1,8 +1,9 @@
 /**
- * ChainLaunchBar —— 多选连锁启动的操作条（2026-10-05；2026-10-19 加「保存为连锁」）。
+ * ChainLaunchBar —— 多选连锁启动的操作条（2026-10-05；2026-10-19 加「保存为连锁」，
+ * 1.9.0 按用户要求改名「收藏」：保存即进收藏，搜索 / 快捷窗口里可一键启动）。
  *
  * 多选模式 + 清单非空时浮现在内容区底部：显示已选数量与启动间隔，
- * 提供 启动 / 保存为连锁 / 清空 / 退出。按钮点击都会先落到调用方，不会自动消失。
+ * 提供 启动 / 收藏 / 清空 / 退出。按钮点击都会先落到调用方，不会自动消失。
  */
 import { BookmarkPlus, ListChecks, X } from 'lucide-react';
 import { Button } from '../atoms/Button.tsx';
@@ -12,7 +13,7 @@ export interface ChainLaunchBarProps {
   intervalMs: number;
   launching?: boolean;
   onLaunch(): void;
-  /** 保存为一条可复用的连锁（2026-10-19 用户要求"支持收藏连锁操作，以便记忆"）。 */
+  /** 收藏为一条可复用的连锁（1.9.0 起保存即收藏；语义与 2026-10-19 的「保存为连锁」相同）。 */
   onSave(): void;
   onClear(): void;
   onExit(): void;
@@ -34,7 +35,7 @@ export function ChainLaunchBar({ count, intervalMs, launching = false, onLaunch,
         启动连锁
       </Button>
       <Button tone="secondary" size="sm" icon={BookmarkPlus} softDisabled={count === 0 || launching} onClick={onSave}>
-        保存为连锁
+        收藏
       </Button>
       <Button tone="ghost" size="sm" onClick={onClear}>
         清空

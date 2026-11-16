@@ -5,7 +5,7 @@
  *   剪贴板置顶行 → 收藏行（图标格）→ 最近打开行（图标格）→ 入口结果 → 本机程序。
  * 主窗口只是把它放进内容区，并关掉右键收藏与 Alt 序号（C4 不做）。
  */
-import { AppWindow, LayoutGrid, Plus, RotateCcwClock, Search, Star, X } from 'lucide-react';
+import { AppWindow, LayoutGrid, Plus, RotateCcwClock, Search, Star, X, Zap } from 'lucide-react';
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Button } from '../atoms/Button.tsx';
 import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
@@ -45,9 +45,12 @@ export interface PaletteResultsProps {
   /** 结果行图标尺寸：面板 16/24，主窗口 24/24。 */
   rowGlyphSize?: 16 | 24;
   rowIconSize?: 16 | 24;
-  /** 图标格列数与高度：面板 7 列 × 104px，主窗口 6 列 × 86px。 */
+  /** 图标格列数与高度：面板 7 列 × 104px，主窗口方格 86px（tileSquare）自适应列。 */
   tileColumns?: 6 | 7;
   tileHeight?: number;
+  /** 方格模式（1.9.0 主窗口搜索）：每格宽=高（86px），列数按容器宽度自适应——
+      同样一行能放更多内容；快捷窗口面板保持固定列数不变。 */
+  tileSquare?: boolean;
   /** 图标格间距与图标尺寸：面板 8px / 36px，主窗口 6px / 32px。 */
   tileGap?: number;
   tileIconSize?: number;
@@ -77,6 +80,7 @@ export function PaletteResults({
   rowIconSize = 24,
   tileColumns = 6,
   tileHeight = 86,
+  tileSquare = false,
   tileGap = 6,
   tileIconSize = 32,
   phaseFor,
@@ -111,10 +115,12 @@ export function PaletteResults({
   }, [menu]);
 
   const clipHits = hits.filter(isClipboardHit);
-  const favoriteHits = hits.filter((h) => h.kind === 'favorite');
+  /* 连锁 hit（1.9.0）归入收藏行展示；搜索结果里也走入口结果的行/格——
+     kind='chain' 若不显式进桶，会从所有渲染分支漏掉（复测实测：磁盘收藏正确、界面不显示）。 */
+  const favoriteHits = hits.filter((h) => h.kind === 'favorite' || h.kind === 'chain');
   const recentHits = hits.filter((h) => h.kind === 'recent');
   const systemHits = hits.filter((h) => h.kind === 'system');
-  const resultHits = hits.filter((h) => !isClipboardHit(h) && (h.kind === undefined || h.kind === 'result'));
+  const resultHits = hits.filter((h) => !isClipboardHit(h) && (h.kind === undefined || h.kind === 'result' || h.kind === 'chain'));
   const hitIndex = (hit: PaletteHit): number => hits.indexOf(hit);
   const emptyQuery = query.length === 0;
   const programScope = scope === 'programs';
@@ -152,8 +158,8 @@ export function PaletteResults({
         role="button"
         tabIndex={-1}
         aria-current={selected ? 'true' : undefined}
-        aria-label={`${hit.entry.name}（${hit.source}）`}
-        title={`${hit.entry.name}\n${hit.subtitle}${enableFavoriteMenu ? `\n右键：${favorited ? '取消收藏' : '收藏'}` : ''}`}
+        aria-label={`${hit.entry.name}（${hit.kind === 'chain' ? `连锁 · ${hit.chainSteps} 步` : hit.source}）`}
+        title={`${hit.entry.name}\n${hit.subtitle}${enableFavoriteMenu && hit.kind !== 'chain' ? `\n右键：${favorited ? '取消收藏' : '收藏'}` : ''}`}
         onClick={() => onOpen(hit)}
         onMouseEnter={() => setHoverIndex(i)}
         onMouseLeave={() => setHoverIndex((current) => (current === i ? null : current))}
@@ -161,6 +167,8 @@ export function PaletteResults({
         className="group relative flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--radius-md)] border px-1 pt-2 transition-colors duration-[var(--motion-fast)]"
         style={{
           height: tileHeight,
+          /* 方格模式（1.9.0）：宽=高，固定 86px 不拉伸；列数由 tileGrid 的 auto-fill 决定。 */
+          width: tileSquare ? tileHeight : undefined,
           gap: tileGap,
           borderColor: selected
             ? 'var(--accent)'
@@ -202,7 +210,8 @@ export function PaletteResults({
             className="absolute -bottom-1 -right-1 grid place-items-center rounded-[3px] border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
             style={{ width: 12, height: 12 }}
           >
-            <Glyph icon={meta.icon} size={12} micro />
+            {/* 连锁格子用 [连锁] 徽标代替类型徽标（1.9.0）：来源一眼可辨。 */}
+            <Glyph icon={hit.kind === 'chain' ? Zap : meta.icon} size={12} micro />
           </span>
         </span>
         {/* 两行名（超出裁掉）：中文名 6~8 字一行，两行够放绝大多数入口名。 */}
@@ -232,7 +241,11 @@ export function PaletteResults({
   const tileGrid = (list: PaletteHit[], favorited: boolean) => (
     <div
       className={['grid gap-1.5 px-2 pb-1.5 pt-1', tileColumns === 7 ? 'grid-cols-7' : 'grid-cols-6'].join(' ')}
-      style={{ gap: tileGap }}
+      style={{
+        gap: tileGap,
+        /* 方格模式（1.9.0 主窗口）：固定 86px 一格、列数按容器宽度自适应（内联覆盖 grid-cols 类）。 */
+        gridTemplateColumns: tileSquare ? `repeat(auto-fill, ${tileHeight}px)` : undefined,
+      }}
     >
       {list.map((hit) => renderTile(hit, favorited))}
     </div>
@@ -250,13 +263,15 @@ export function PaletteResults({
         iconUrl={iconFor(hit.entry.id)}
         glyphSize={rowGlyphSize}
         iconSize={rowIconSize}
+        glyphIcon={hit.kind === 'chain' ? Zap : undefined}
         selected={i === selectedIndex}
         phase={phaseFor?.(hit.entry.id) ?? 'idle'}
         onOpen={() => onOpen(hit)}
         onContextMenu={(e) => openMenu(e, hit)}
         trailing={
           <span className="flex shrink-0 items-center gap-2">
-            <SourceTag source={hit.source} />
+            {/* 连锁行的来源标签是「连锁」而不是「本机」（1.9.0）：来源必须如实。 */}
+            <SourceTag source={hit.kind === 'chain' ? '连锁' : hit.source} />
             {hit.kind === 'system' && (
               <Button
                 tone="ghost"

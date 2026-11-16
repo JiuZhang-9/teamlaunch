@@ -8,7 +8,7 @@
  *  - 有缓存但配置里 0 个入口 → 正常空状态，不是故障；
  *  - 没有缓存（OFFLINE_EMPTY / NEVER_SYNCED）→ 「暂时无法获取团队入口」+ 手动刷新 + 个人入口。
  */
-import { CloudOff, LayoutGrid } from 'lucide-react';
+import { CloudOff, Copy, ExternalLink, LayoutGrid, ListChecks, ListMinus, ListPlus, MapPin, MessageSquareWarning, Play, Star, StarOff, X } from 'lucide-react';
 import { api } from '../bridge/index.ts';
 import { Button } from '../components/atoms/Button.tsx';
 import { CardStatsBar } from '../components/molecules/CardStatsBar.tsx';
@@ -64,11 +64,12 @@ export function TeamEntriesView() {
     const allFav = items.every((e) => isFavorite(e.id));
     const group = groups.find((g) => g.entries.some((e) => e.id === entry.id));
     return [
-      { id: 'batch-open', label: `打开 ${n} 项`, onSelect: () => void launchChain(settings.chainIntervalMs) },
-      { id: 'batch-copy', label: `复制 ${n} 项链接/路径`, onSelect: () => void copyManyTargets(items) },
+      { id: 'batch-open', label: `打开 ${n} 项`, icon: Play, onSelect: () => void launchChain(settings.chainIntervalMs) },
+      { id: 'batch-copy', label: `复制 ${n} 项链接/路径`, icon: Copy, onSelect: () => void copyManyTargets(items) },
       {
         id: 'batch-favorite',
         label: `${allFav ? '取消收藏' : '收藏'} ${n} 项`,
+        icon: allFav ? StarOff : Star,
         onSelect: () => {
           void setFavoriteMany(items.map((e) => e.id), !allFav);
           push({ title: allFav ? `已取消收藏 ${n} 项` : `已收藏 ${n} 项`, tone: 'info' });
@@ -77,43 +78,47 @@ export function TeamEntriesView() {
       {
         id: 'batch-select-group',
         label: '全选本组',
+        icon: ListChecks,
         disabled: !group,
         onSelect: () => {
           if (group) addSelected(group.entries);
         },
       },
-      { id: 'batch-clear', label: '清空清单', onSelect: () => clearSelected() },
+      { id: 'batch-clear', label: '清空清单', icon: X, onSelect: () => clearSelected() },
     ];
   };
 
   const menuFor = (entry: Entry): ContextMenuItem[] => {
     if (selected.length >= 2 && selected.some((e) => e.id === entry.id)) return batchMenuFor(entry);
     const items: ContextMenuItem[] = [
-      { id: 'open', label: '打开', onSelect: () => void openEntry(entry) },
-      { id: 'copy', label: entry.type === 'web' ? '复制链接' : '复制路径', onSelect: () => void copyTarget(entry) },
+      { id: 'open', label: '打开', icon: Play, onSelect: () => void openEntry(entry) },
+      { id: 'copy', label: entry.type === 'web' ? '复制链接' : '复制路径', icon: Copy, onSelect: () => void copyTarget(entry) },
     ];
     if (entry.type === 'web') {
       items.push({
         id: 'browser',
         label: '在浏览器中打开',
+        icon: ExternalLink,
         onSelect: () => void api.entries.openExternal(entry.url),
       });
     }
     if (entry.type === 'app') {
       // 员工机上团队应用入口的安装位置常与管理员不同：重新定位是本机自愈的主通道。
-      items.push({ id: 'relocate', label: '在本机重新定位…', onSelect: () => void relocateEntry(entry) });
+      items.push({ id: 'relocate', label: '在本机重新定位…', icon: MapPin, onSelect: () => void relocateEntry(entry) });
     }
     items.push({
       id: 'chain',
       label: selected.some((e) => e.id === entry.id) ? '从连锁清单移出' : '加入连锁清单',
+      icon: selected.some((e) => e.id === entry.id) ? ListMinus : ListPlus,
       onSelect: () => toggleSelected(entry),
     });
     items.push({
       id: 'favorite',
       label: isFavorite(entry.id) ? '取消收藏' : '收藏',
+      icon: isFavorite(entry.id) ? StarOff : Star,
       onSelect: () => void toggleFavorite(entry.id),
     });
-    items.push({ id: 'feedback', label: '反馈给管理员', onSelect: () => openFeedback(entry.id) });
+    items.push({ id: 'feedback', label: '反馈给管理员', icon: MessageSquareWarning, onSelect: () => openFeedback(entry.id) });
     return items;
   };
 

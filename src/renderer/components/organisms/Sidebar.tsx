@@ -17,7 +17,7 @@
  *
  * 底部固定（2026-10-17）：工作区条/设置永远可见——**中段（分组）整段用 ScrollArea 吸收高度**。
  */
-import { CircleHelp, Download, RefreshCw, RotateCw, ScrollText, Settings, Stethoscope, SunMoon } from 'lucide-react';
+import { CircleHelp, Download, House, RefreshCw, RotateCw, ScrollText, Settings, Stethoscope, SunMoon } from 'lucide-react';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -45,6 +45,8 @@ export interface SidebarProps {
   tab: TabKey;
   mode: SidebarMode;
   onTabChange(t: TabKey): void;
+  /** 主页开关（1.9.0）：主页改为"态"，从页签里摘除，由这颗独立按钮进入 / 退出。 */
+  onToggleHome?(): void;
   /**
    * 编辑态锁（2026-10-17 用户要求）：编辑中「个人入口」页签置灰、点不动。
    * 逻辑拦截的唯一真源在 workbenchStore.setTab（连 Ctrl+E 与粘贴跳转一起管住），
@@ -94,7 +96,7 @@ function SectionCap({ children }: { children: ReactNode }) {
 
 export function Sidebar(props: SidebarProps) {
   const {
-    tab, mode, onTabChange, groups, snapshot, actions, onOpenSettings, onOpenDiagnostics, onRefresh,
+    tab, mode, onTabChange, onToggleHome, groups, snapshot, actions, onOpenSettings, onOpenDiagnostics, onRefresh,
     collapsed = false, editLocked = false, onGroupAction,
     update = null, updateSignal = 0, onInstallUpdate, onCheckUpdate, updateChecking = false,
     onOpenHelp, onOpenChangelog, onDeleteGroups,
@@ -207,9 +209,31 @@ export function Sidebar(props: SidebarProps) {
             orientation="vertical"
             value={tab}
             onChange={onTabChange}
+            hiddenKeys={['home']}
             disabledKeys={editLocked ? ['personal'] : undefined}
             disabledTitle="编辑中：先退出编辑模式再切换页面"
           />
+          {/* 主页开关（1.9.0）：与团队/个人入口分开——仅一条分隔线，按钮几何与上面页签完全一致
+              （同高/同内边距/同字号），不做任何偏移。点它 = 进入 / 退出主页态。 */}
+          <div className="mx-3 my-1 h-px bg-[var(--border-subtle)]" />
+          <button
+            type="button"
+            id="tl-tab-home"
+            aria-selected={tab === 'home'}
+            aria-controls="tl-panel-home"
+            onClick={() => onToggleHome?.()}
+            title={tab === 'home' ? '退出主页，回到上次的页面' : '进入主页（收藏与连锁 / 公告）'}
+            className={[
+              'flex h-[var(--sidebar-nav-h)] w-full items-center gap-2 rounded-[var(--radius-sm)] px-3',
+              't-sm transition-colors duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
+              tab === 'home'
+                ? 'bg-[var(--accent-tint)] text-[var(--fg)] w-emph'
+                : 'text-[var(--fg-2)] hover:bg-[var(--bg-surface-hover)]',
+            ].join(' ')}
+          >
+            <House size={16} strokeWidth={2} aria-hidden className="shrink-0" />
+            主页
+          </button>
         </nav>
 
         {/* 中段只剩分组锚点（1.3.0）：窗口小或分组多时由它让出空间，

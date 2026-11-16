@@ -60,7 +60,11 @@ export function useMarqueeSelect({ containerRef, onSelect, onEmptyClick, enabled
   onEmptyClickRef.current = onEmptyClick;
 
   const clearHits = useCallback(() => {
-    for (const el of lastHits.current) el.removeAttribute('data-tl-marquee-hit');
+    for (const el of lastHits.current) {
+      el.removeAttribute('data-tl-marquee-hit');
+      /* 光圈的错峰延迟是拖框期间逐卡写入的；取消命中时一并清掉，淡出不被旧延迟拖住。 */
+      el.style.transitionDelay = '';
+    }
     lastHits.current = [];
   }, []);
 
@@ -82,12 +86,24 @@ export function useMarqueeSelect({ containerRef, onSelect, onEmptyClick, enabled
         height: Math.abs(y1 - y0),
       });
       const container = containerRef.current;
+      /* 新命中卡才写错峰延迟：已亮着的卡重复写可能推迟仍在延迟期的那几张，造成抖动。 */
+      const prevHits = new Set(lastHits.current);
       clearHits();
       if (!container) return;
       const hit: HTMLElement[] = [];
       for (const el of container.querySelectorAll<HTMLElement>('[data-tl-card-id]')) {
         if (intersect(el.getBoundingClientRect(), box)) {
           el.setAttribute('data-tl-marquee-hit', 'true');
+          /* 光圈错峰（1.9.0 复测收紧）：以**当前指针**（选框前缘）为基准，离指针越近越先亮——
+             快速扫动时沿扫动方向依次点亮；首版按选框起点算，快扫时全部挤在同一时刻完成，
+             看起来是"停住才突然全亮"。 */
+          if (!prevHits.has(el)) {
+            const r = el.getBoundingClientRect();
+            const d = Math.hypot(r.left + r.width / 2 - x1, r.top + r.height / 2 - y1);
+            /* S5 距离节奏（2026-11-15 用户选定）：离指针 100px 迟 180ms，上限 300ms——
+               拖得越远亮得越迟，光波感最强。 */
+            el.style.transitionDelay = `${Math.min(300, Math.round((d / 100) * 180))}ms`;
+          }
           hit.push(el);
         }
       }

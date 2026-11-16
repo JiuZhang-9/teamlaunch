@@ -8,7 +8,7 @@
  *  - `onClose` 为空表示不可关闭（隐私说明门用）。
  */
 import { X } from 'lucide-react';
-import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 
 export interface DialogProps {
   title: string;
@@ -37,6 +37,19 @@ export function Dialog({
   children,
 }: DialogProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  /* 关闭缓动（1.9.0）：内部触发的关闭（Esc / 右上角 X）先播反向动画再真关；
+     外部程序化关闭（发布成功等）不经过这里，立即收起——不打断业务节奏。 */
+  const [closing, setClosing] = useState(false);
+  const closeTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+  }, []);
+
+  const requestClose = (): void => {
+    if (!onClose || closing) return;
+    setClosing(true);
+    closeTimer.current = window.setTimeout(onClose, 170);
+  };
 
   useEffect(() => {
     const target = initialFocus?.current ?? panelRef.current;
@@ -46,7 +59,7 @@ export function Dialog({
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape' && onClose) {
       e.stopPropagation();
-      onClose();
+      requestClose();
       return;
     }
     if (e.key !== 'Tab') return;
@@ -72,7 +85,10 @@ export function Dialog({
   return (
     // flex（而非 grid）居中：flex item 的百分比 max-height 有确定解析，
     // 容器变小（缩放放大/窗口缩小）时对话框收缩而不是溢出被裁。
-    <div className="absolute inset-0 z-[var(--z-dialog-backdrop)] flex items-center justify-center p-[var(--space-6)]">
+    <div
+      className="tl-dialog-backdrop absolute inset-0 z-[var(--z-dialog-backdrop)] flex items-center justify-center p-[var(--space-6)]"
+      data-closing={closing || undefined}
+    >
       <div
         aria-hidden
         className="absolute inset-0"
@@ -86,14 +102,14 @@ export function Dialog({
         aria-describedby={describedBy}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className="relative z-[var(--z-dialog)] flex max-h-[min(640px,100%)] flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-subtle)]"
+        className="tl-dialog-panel relative z-[var(--z-dialog)] flex max-h-[min(640px,100%)] flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-subtle)]"
         style={{ width: WIDTH[width], maxWidth: '100%', background: 'var(--bg-overlay)', boxShadow: 'var(--elev-3)' }}
       >
         <header className="flex shrink-0 items-center gap-2 px-[var(--space-6)] pt-[var(--space-6)] pb-2">
           <h2 id={titleId} className="t-title flex-1 truncate-1 text-[var(--fg)]">
             {title}
           </h2>
-          {onClose && <CloseButton onClose={onClose} />}
+          {onClose && <CloseButton onClose={requestClose} />}
         </header>
         <div className={bodyClassName ?? 'tl-scroll min-h-0 flex-1 overflow-y-auto px-[var(--space-6)] pb-2'}>
           {children}

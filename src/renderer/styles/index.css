@@ -282,9 +282,32 @@ html.tl-marquee * {
   background: var(--accent-tint);
   border-radius: var(--radius-sm);
 }
-[data-tl-marquee-hit='true'] {
-  outline: 2px solid var(--accent);
+/* 框选光圈（1.9.0 用户定稿，2026-11-15 复测收紧）：命中 = 边框亮起 + 柔和光晕。
+   过渡时长收紧到 motion-fast（120ms）＋错峰 ≤80ms（首版 240ms+150ms 在快速扫动时
+   来不及亮完，看起来是"停住才突然全亮"）；过渡本体挂在卡片自己的 transition 清单上
+   （EntryCard 的 tailwind transition 列表含 outline-color），松手取消命中也有淡出。 */
+[data-tl-card-id] {
+  outline: 2px solid transparent;
   outline-offset: 2px;
+}
+[data-tl-marquee-hit='true'][data-tl-card-id] {
+  outline-color: var(--accent);
+  box-shadow: 0 0 16px 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* 已选中的卡片（在连锁清单里）＝与框选命中完全同一条光圈规则（1.9.0 复测反馈：
+   框完之后边框光圈要一直在，而不是消失后换一套新效果）。 */
+[data-tl-selected='true'][data-tl-card-id] {
+  outline-color: var(--accent);
+  box-shadow: 0 0 16px 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* 点亮过渡 600ms（1.9.0 复测二轮选定 S5 距离节奏）：只在拖框期间与已选卡上生效，
+   平时卡片交互（悬浮阴影等）走组件自己的 120ms 过渡不受影响。
+   错峰延迟由 useMarqueeSelect 按离指针距离写入（180ms/100px，上限 300ms）。 */
+html.tl-marquee [data-tl-card-id],
+[data-tl-selected='true'][data-tl-card-id] {
+  transition-property: outline-color, box-shadow;
+  transition-duration: 600ms;
+  transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 /* 拖拽添加的落点分组高亮（2026-10-19）：外壳在 dragover 时给命中的分组 section 加上这个属性，
@@ -293,6 +316,77 @@ html.tl-marquee * {
   outline: 2px dashed var(--accent);
   outline-offset: 4px;
   border-radius: var(--radius-md);
+}
+
+/* 应用内双色品牌标（1.9.0）：形状 = 源图实算的 alpha 遮罩（gen-icon.cjs 派生，暗/亮主题各一张、
+   极性相反），颜色 = 主题色走 CSS mask——主题色与亮暗主题切换即时生效。
+   半透档（30%）透出背景；高对比度模式由系统接管颜色，品牌标用 Highlight 保住可见性。 */
+.tl-brand-mark {
+  display: block;
+  flex-shrink: 0;
+  background: var(--accent);
+  mask-image: url('../assets/brand-mask-light.png');
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+:root[data-theme='dark'] .tl-brand-mark {
+  mask-image: url('../assets/brand-mask-dark.png');
+}
+@media (forced-colors: active) {
+  .tl-brand-mark {
+    background: Highlight;
+  }
+}
+
+/* 卡片删除动效（1.9.0 复测定稿）：六种机制（RGB 爆散/CRT 关机/像素溶解/熔化下滴/烧灼扫描/方块爆飞）
+   全部走 Web Animations API 在 lib/card-removal.ts 内驱动（克隆真实卡片 DOM 的动效层），
+   不再使用 CSS keyframes——机制与档位由 settings.deleteFx 控制。 */
+
+/* 主页面板容器（tabIndex=-1 的 tabpanel）不参与焦点环（1.9.0 复测反馈：
+   Tab 翻页后容器四周出现主题色边框）。容器不是控件，聚焦不画环。 */
+[role='tabpanel'][tabindex='-1']:focus-visible {
+  box-shadow: none;
+}
+
+/* 弹窗缓动（1.9.0）：打开 = 淡入 + 上浮 10px + scale 0.96→1（240ms ease-emphasis），
+   关闭反向 160ms；遮罩同步淡入淡出。reduced-motion 由全局规则压成瞬时。 */
+.tl-dialog-backdrop {
+  animation: tl-dialog-fade var(--motion-base) var(--ease-standard);
+}
+.tl-dialog-backdrop[data-closing='true'] {
+  animation: tl-dialog-fade var(--motion-fast) var(--ease-standard) reverse forwards;
+}
+@keyframes tl-dialog-fade {
+  from {
+    opacity: 0;
+  }
+}
+/* 主窗口搜索浮层入场（1.9.0 复测反馈"弹出生硬"）：结果卡自上而下 + 从中心轻微缩放挤出，
+   遮罩同步淡入（复用弹窗的 fade）。只在挂载时播一次。 */
+.tl-search-card-in {
+  animation: tl-search-card-in 200ms var(--ease-emphasis);
+}
+@keyframes tl-search-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+}
+.tl-search-backdrop-in {
+  animation: tl-dialog-fade var(--motion-base) var(--ease-standard);
+}
+.tl-dialog-panel {
+  animation: tl-dialog-in var(--motion-slow) var(--ease-emphasis);
+}
+.tl-dialog-backdrop[data-closing='true'] .tl-dialog-panel {
+  animation: tl-dialog-in var(--motion-fast) var(--ease-standard) reverse forwards;
+}
+@keyframes tl-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
 }
 
 /* 入口类型水印（2026-11-08 G1 用户定稿）：右下出血 + -14°，只露局部。

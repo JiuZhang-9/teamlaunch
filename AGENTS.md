@@ -39,7 +39,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 `docs/design-system/`｜分发与现场排障 `docs/DELIVERY.md`｜开发细节 `docs/DEVELOPMENT.md`｜
 决策与待办登记 `docs/decisions/OPEN-DECISIONS.md` + `docs/decisions/ADR-001..008`
 
-## 当前状态（2026-11-15）
+## 当前状态（2026-11-15，工作区 1.9.0 已实现待实测）
 
 - v1.0.13 起逐版发布到 **v1.8.6**（latest = v1.8.6；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
@@ -84,7 +84,16 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   1.8.4 号被 %TEMP% QA 实例占用作废，跳号发布——同号不同内容对更新器不可见）、
   v1.8.6（应用内品牌标同步换企鹅：BrandMark 组件渲染图标方图，标题栏/关于页与系统图标统一）、
   v1.8.7（主窗口搜索改「顶部结果浮层卡（上限面板 50%）＋底部遮罩透出当前页」，点遮罩即退出；
-  遮罩档位进设置：默认变暗，可选毛玻璃＋变暗；搜索态停用框选与 Ctrl+A，被遮内容 inert）
+  遮罩档位进设置：默认变暗，可选毛玻璃＋变暗；搜索态停用框选与 Ctrl+A，被遮内容 inert）、
+  v1.9.0（八项合一：任务栏/托盘图标圆角 24% ＋ 应用内企鹅双色标（gen-icon 源图实算 alpha 遮罩
+  brand-mask-dark/light，T=113 半透 30%，CSS mask 上主题色）；框选改光圈渐亮（600ms）＋距离错峰（180ms/100px 上限 300ms，三轮定稿 S5——
+  前两版被否：快扫来不及亮完 / 读不出缓缓变亮）；
+  删除动效六机制＋FLIP 补位（lib/card-removal.ts）；弹窗开合缓动；搜索图标格 86×86 方格自适应列
+  （sectionMax 8）；连锁可收藏（chain: 前缀进 favorites，保存即收藏、搜索/快捷窗可开、删除撤收藏，
+  ChainLaunchBar 改名「收藏」）；横幅撤回延迟进设置（pageHintLeaveMs 0.5–2s 默认 1s）；
+  卡片页 Tab/Shift+Tab 翻页一屏；顶栏常驻「检测更新」按钮；
+  复测二轮：删除动效改六机制进设置（deleteFx：RGB 爆散/CRT 关机/像素溶解默认/熔化下滴/烧灼扫描/方块爆飞）、
+  搜索浮层入场缓动、右键菜单图标、卡片中键进编辑、六点柄移除、主页改开关式态且侧栏对齐）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、

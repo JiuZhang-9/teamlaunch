@@ -18,6 +18,7 @@ import { api } from '../bridge/index.ts';
 import { renderMarkdown } from '../lib/markdown.ts';
 import { useChains } from '../store/chainStore.tsx';
 import { useEdit } from '../store/editStore.tsx';
+import { CHAIN_FAV_PREFIX } from '../lib/palette-source.ts';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
 import { useSettings } from '../store/settingsStore.tsx';
@@ -32,7 +33,7 @@ export function HomePageView() {
   const { config: personal } = usePersonal();
   const { settings } = useSettings();
   const edit = useEdit();
-  const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const { favorites, toggleFavorite, isFavorite, setFavoriteMany } = useFavorites();
   const { runtime, openEntry, openDialog, runSavedChain } = useWorkbench();
   const { push } = useToasts();
   const { chains, resolve: resolveChain, rename: renameChain, remove: removeChain } = useChains();
@@ -377,6 +378,8 @@ export function HomePageView() {
                 void removeChain(target.id)
                   .then(() => api.windowLayout.clear(target.id))
                   .then(() => push({ title: `已删除连锁「${target.name}」`, tone: 'info' }));
+                /* 连锁删了，它的收藏也要跟着撤（1.9.0 保存即收藏），否则搜索里留着一条死收藏。 */
+                void setFavoriteMany([`${CHAIN_FAV_PREFIX}${target.id}`], false);
               },
             },
           ]}

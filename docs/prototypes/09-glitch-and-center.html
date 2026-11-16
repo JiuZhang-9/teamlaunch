@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>提案 · 真·glitch（横移色散＋彩色雪花）＋ 中键进入编辑</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Inter","Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif; background:#0f0f0f; color:#f0f0f0; padding:26px 20px 60px; }
+.wrap { max-width:1000px; margin:0 auto; display:flex; flex-direction:column; gap:26px; }
+h1 { font-size:19px; font-weight:600; }
+.sub { font-size:13px; color:#9a9a9a; line-height:1.8; margin-top:6px; }
+.sub b { color:#e8e8e8; }
+.sec { border:1px solid #2b2b2b; border-radius:16px; background:#1b1b1b; padding:18px 20px; }
+.sec h2 { font-size:15px; font-weight:600; margin-bottom:4px; }
+.sec p { font-size:12.5px; color:#9a9a9a; line-height:1.7; margin-bottom:12px; }
+.row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+.gcard-wrap { position:relative; width:152px; height:132px; }
+.gcard { width:152px; height:132px; border-radius:12px; background:#1b1b1b; border:1px solid #2b2b2b; padding:12px; position:relative; display:flex; flex-direction:column; overflow:hidden; }
+.gcard .ibox { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:600; background:#26313a; color:#c7d6e2; }
+.gcard .nm { margin-top:10px; font-size:13px; font-weight:600; color:#f0f0f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gcard .sb { margin-top:2px; font-size:11px; color:#8c8c8c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* RGB 色散层：内容克隆，左右横移 */
+.gl-layer { position:absolute; inset:0; pointer-events:none; display:none; }
+.gl-layer .inner { position:absolute; inset:0; padding:12px; }
+.gl-layer.r .inner { transform:translateX(-4px); }
+.gl-layer.c .inner { transform:translateX(4px); }
+.gl-layer.r { background:rgba(255,45,85,.24); }
+.gl-layer.c { background:rgba(45,220,255,.24); }
+/* 彩色雪花层 */
+.gl-noise { position:absolute; inset:0; pointer-events:none; display:none; opacity:.55; }
+/* 本体横移切片 */
+.gl-playing .gcard { animation:gl-main 460ms steps(1,end) forwards; }
+@keyframes gl-main {
+  0% { transform:translateX(0); filter:none; }
+  12% { transform:translateX(-3px); }
+  24% { transform:translateX(4px); }
+  36% { transform:translateX(-2px) skewX(-2deg); }
+  48% { transform:translateX(2px); }
+  60% { transform:translateX(-1px) skewX(2deg); }
+  72% { transform:translateX(1px); }
+  100% { transform:translateX(0); opacity:0; filter:brightness(1.4); }
+}
+.gl-playing.r-on .gl-layer.r { display:block; animation:gl-r 460ms steps(1,end) forwards; }
+.gl-playing.r-on .gl-layer.c { display:block; animation:gl-c 460ms steps(1,end) forwards; }
+@keyframes gl-r {
+  0% { display:none; }
+  12% { display:block; clip-path:inset(10% 0 70% 0); }
+  30% { display:block; clip-path:inset(40% 0 40% 0); }
+  48% { display:block; clip-path:inset(65% 0 12% 0); }
+  66% { display:block; clip-path:inset(20% 0 55% 0); }
+  84% { display:block; clip-path:inset(50% 0 30% 0); }
+  100% { display:none; }
+}
+@keyframes gl-c {
+  0% { display:none; }
+  16% { display:block; clip-path:inset(30% 0 45% 0); }
+  34% { display:block; clip-path:inset(5% 0 75% 0); }
+  52% { display:block; clip-path:inset(55% 0 18% 0); }
+  70% { display:block; clip-path:inset(15% 0 60% 0); }
+  88% { display:block; clip-path:inset(60% 0 22% 0); }
+  100% { display:none; }
+}
+.gl-playing.n-on .gl-noise { display:block; animation:gl-noise 460ms steps(6,end) forwards; }
+@keyframes gl-noise {
+  0% { opacity:0; }
+  10% { opacity:.6; background-position:0 0; }
+  30% { opacity:.5; background-position:-37px 51px; }
+  50% { opacity:.55; background-position:64px -29px; }
+  70% { opacity:.45; background-position:-71px 13px; }
+  90% { opacity:.35; background-position:29px -60px; }
+  100% { opacity:0; }
+}
+button.ctl { font:inherit; font-size:12px; padding:5px 12px; border-radius:9999px; cursor:pointer; border:1px solid #404040; background:transparent; color:#b8b8b8; }
+button.ctl:hover { background:#22262b; color:#f0f0f0; }
+button.ctl.on { background:#1785c4; border-color:#1785c4; color:#fff; font-weight:600; }
+.cap { font-size:12px; color:#b8b8b8; margin-top:10px; line-height:1.7; }
+.cap b { color:#f0f0f0; }
+.mockcard { width:152px; height:132px; border-radius:12px; background:#1b1b1b; border:1px solid #2b2b2b; padding:12px; display:flex; flex-direction:column; user-select:none; }
+.mockcard .ibox { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:600; background:#26313a; color:#c7d6e2; }
+.mockcard .nm { margin-top:10px; font-size:13px; font-weight:600; color:#f0f0f0; }
+.mockcard .sb { margin-top:2px; font-size:11px; color:#8c8c8c; }
+.toast { position:fixed; left:50%; bottom:30px; transform:translateX(-50%); background:#1b1b1b; border:1px solid #404040; border-radius:10px; padding:9px 16px; font-size:12.5px; color:#f0f0f0; z-index:99; opacity:0; transition:opacity 200ms; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>真·glitch（左右横移色散＋彩色雪花）＋ 中键进入编辑</h1>
+    <div class="sub">
+      上轮理解错了两处，这版照你说的重做：<b>glitch = 本体左右横移 + 红青两层色散切片横移 + 彩色雪花噪点</b>（不是闪）；
+      <b>中键 = 鼠标中键点卡片直接进编辑</b>（不是卡片中央）。glitch 有轻/标准/强三档，点卡片试播选一档；中键在下面的卡上直接试。
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>glitch 删除效果 · 三档强度</h2>
+    <p>点卡片播放（会先色散横移＋雪花噪点，然后整卡消散）；选完告诉我档位。批量删除就是每张错峰各播一次。</p>
+    <div class="row" style="margin-bottom:14px">
+      <button class="ctl" data-i="light">轻（噪点少、色散 2px、320ms）</button>
+      <button class="ctl on" data-i="std">标准（推荐，460ms）</button>
+      <button class="ctl" data-i="heavy">强（色散 6px、雪花浓、560ms）</button>
+    </div>
+    <div class="row">
+      <div class="gcard-wrap gl-wrap" data-i="std">
+        <div class="gcard"><div class="ibox">钉</div><div class="nm">钉钉</div><div class="sb">dingtalk.com</div></div>
+        <div class="gl-layer r"><div class="inner"><div class="ibox">钉</div><div class="nm">钉钉</div><div class="sb">dingtalk.com</div></div></div>
+        <div class="gl-layer c"><div class="inner"><div class="ibox">钉</div><div class="nm">钉钉</div><div class="sb">dingtalk.com</div></div></div>
+        <div class="gl-noise"></div>
+      </div>
+      <div class="gcard-wrap gl-wrap" data-i="std">
+        <div class="gcard"><div class="ibox">微</div><div class="nm">企业微信</div><div class="sb">D:\Apps\WeCom</div></div>
+        <div class="gl-layer r"><div class="inner"><div class="ibox">微</div><div class="nm">企业微信</div><div class="sb">D:\Apps\WeCom</div></div></div>
+        <div class="gl-layer c"><div class="inner"><div class="ibox">微</div><div class="nm">企业微信</div><div class="sb">D:\Apps\WeCom</div></div></div>
+        <div class="gl-noise"></div>
+      </div>
+      <div class="gcard-wrap gl-wrap" data-i="std">
+        <div class="gcard"><div class="ibox">O</div><div class="nm">OA 系统</div><div class="sb">oa.corp.example.com</div></div>
+        <div class="gl-layer r"><div class="inner"><div class="ibox">O</div><div class="nm">OA 系统</div><div class="sb">oa.corp.example.com</div></div></div>
+        <div class="gl-layer c"><div class="inner"><div class="ibox">O</div><div class="nm">OA 系统</div><div class="sb">oa.corp.example.com</div></div></div>
+        <div class="gl-noise"></div>
+      </div>
+    </div>
+    <div class="cap">实现口径（进应用时）：色散层=卡片内容克隆两层（红/青薄纱）按横带 clip-path 左右横移，雪花=canvas 生成的彩色噪点纹理 steps 跳变，本体=小幅横移＋消散。批量删除每张错峰 70ms。</div>
+  </div>
+
+  <div class="sec">
+    <h2>中键进入编辑</h2>
+    <p>在这张卡上<b>按一下鼠标中键</b>（滚轮）试试——中键点卡片 = 直接进编辑；左键点仍然是打开。应用里会对所有入口卡生效，并挡掉浏览器默认的滚轮自动滚动。</p>
+    <div class="mockcard" id="mockMid"><div class="ibox">钉</div><div class="nm">钉钉</div><div class="sb">dingtalk.com</div></div>
+    <div class="cap" id="midLog">（还没按过中键）</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+/* 雪花纹理：canvas 生成彩色噪点 */
+function makeNoise() {
+  const c = document.createElement('canvas');
+  c.width = 160; c.height = 120;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(160, 120);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = Math.random();
+    if (v > 0.72) {
+      img.data[i] = 60 + Math.random() * 195 | 0;
+      img.data[i + 1] = 60 + Math.random() * 195 | 0;
+      img.data[i + 2] = 60 + Math.random() * 195 | 0;
+      img.data[i + 3] = 140 + Math.random() * 115 | 0;
+    } else {
+      img.data[i + 3] = 0;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL();
+}
+const NOISE = makeNoise();
+document.querySelectorAll('.gl-noise').forEach((n) => { n.style.backgroundImage = `url(${NOISE})`; });
+
+/* 强度档位 */
+let intensity = 'std';
+const P = {
+  light: { dur: 320, dx: 2, noise: 0.32 },
+  std:   { dur: 460, dx: 4, noise: 0.55 },
+  heavy: { dur: 560, dx: 6, noise: 0.72 },
+};
+document.querySelectorAll('button[data-i]').forEach((b) => b.addEventListener('click', () => {
+  intensity = b.dataset.i;
+  document.querySelectorAll('button[data-i]').forEach((x) => x.classList.toggle('on', x === b));
+  applyIntensity();
+}));
+function applyIntensity() {
+  const p = P[intensity];
+  document.querySelectorAll('.gl-wrap').forEach((w) => {
+    w.querySelector('.gcard').style.setProperty('animation-duration', p.dur + 'ms');
+    w.querySelector('.gl-layer.r').querySelector('.inner').style.transform = `translateX(${-p.dx}px)`;
+    w.querySelector('.gl-layer.c').querySelector('.inner').style.transform = `translateX(${p.dx}px)`;
+    w.querySelector('.gl-noise').style.opacity = p.noise;
+  });
+}
+applyIntensity();
+
+/* 播放 */
+document.querySelectorAll('.gl-wrap').forEach((w) => {
+  w.addEventListener('click', () => playGlitch(w));
+});
+function playGlitch(w) {
+  w.classList.remove('gl-playing');
+  void w.offsetWidth;
+  applyIntensity();
+  w.classList.add('gl-playing', 'r-on', 'n-on');
+  const dur = P[intensity].dur;
+  setTimeout(() => w.classList.remove('gl-playing', 'r-on', 'n-on'), dur + 60);
+}
+
+/* 中键进入编辑 */
+const toast = document.getElementById('toast');
+let tTimer = null;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(tTimer);
+  tTimer = setTimeout(() => { toast.style.opacity = '0'; }, 1600);
+}
+const mock = document.getElementById('mockMid');
+mock.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });
+mock.addEventListener('auxclick', (e) => {
+  if (e.button !== 1) return;
+  e.preventDefault();
+  showToast('已进入「钉钉」编辑（中键）');
+  document.getElementById('midLog').textContent = '刚才按了中键 → 直接进入编辑 ✓';
+  mock.style.borderColor = '#1785c4';
+  setTimeout(() => { mock.style.borderColor = ''; }, 500);
+});
+</script>
+</body>
+</html>

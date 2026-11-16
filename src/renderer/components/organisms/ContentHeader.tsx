@@ -56,12 +56,14 @@ export interface ContentHeaderProps {
   onSearchEscape?(): void;
   /** 搜索框后的页面切换按钮（1.5.1 用户要求：不按快捷键也能换主页/团队/个人）。 */
   onSwitchTab?(tab: TabKey): void;
+  /** 主页态开关（1.9.0）：小房子 = 进入 / 退出主页；不给则回退旧的"跳到主页"行为。 */
+  onToggleHome?(): void;
 }
 
 export function ContentHeader(props: ContentHeaderProps) {
   const {
     tab, mode, query, onQueryChange, snapshot, onRefresh, typeFilter, onToggleTypeFilter, onClearTypeFilter,
-    selecting, onToggleSelecting, actions = [], onSearchFocus, onSearchBlur, onSearchEscape, onSwitchTab,
+    selecting, onToggleSelecting, actions = [], onSearchFocus, onSearchBlur, onSearchEscape, onSwitchTab, onToggleHome,
   } = props;
   const searchRef = useRef<HTMLInputElement | null>(null);
   const actionsRef = useRef<HTMLDivElement | null>(null);
@@ -149,14 +151,18 @@ export function ContentHeader(props: ContentHeaderProps) {
       className="relative flex h-[var(--content-header-h)] shrink-0 items-center gap-2 border-b border-[var(--border-subtle)] px-[var(--space-6)]"
       style={{ background: 'var(--bg-surface)' }}
     >
-      {/* 搜索框前的「主页」小房子（1.5.3 用户要求：不用快捷键也能回主页）。 */}
+      {/* 搜索框前的「主页」小房子（1.5.3 引入；1.9.0 起是主页态的开关——点它进入主页，
+          在主页里点它退出。不再只是"跳到主页"的导航。） */}
       <Button
         tone="ghost"
         icon={House}
         iconSize={20}
         aria-label="主页"
-        title="回到主页"
-        onClick={() => onSwitchTab?.('home')}
+        title="进入主页（收藏与连锁 / 公告）"
+        onClick={() => {
+          if (onToggleHome) onToggleHome();
+          else onSwitchTab?.('home');
+        }}
       />
 
       <div data-tl-search-surface className="min-w-[160px] max-w-[420px] flex-1">

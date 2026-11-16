@@ -26,15 +26,19 @@ export interface PageTabsProps {
   disabledKeys?: TabKey[];
   /** 禁用项的统一提示（title 与 aria 说明为什么要先退出编辑）。 */
   disabledTitle?: string;
+  /** 隐藏页（1.9.0）：主页改为"态"后从侧栏页签里摘除，由独立的开关按钮承担——
+      不渲染、不参与方向键循环，避免它看起来和团队/个人入口同级。 */
+  hiddenKeys?: TabKey[];
 }
 
-export function PageTabs({ value, onChange, orientation = 'horizontal', disabledKeys = [], disabledTitle }: PageTabsProps) {
+export function PageTabs({ value, onChange, orientation = 'horizontal', disabledKeys = [], disabledTitle, hiddenKeys = [] }: PageTabsProps) {
   const vertical = orientation === 'vertical';
   const isDisabled = (key: TabKey) => disabledKeys.includes(key);
+  const tabs = TABS.filter((t) => !hiddenKeys.includes(t.key));
   const trackRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [indicator, setIndicator] = useState({ offset: 0, size: 0 });
-  const index = TABS.findIndex((t) => t.key === value);
+  const index = tabs.findIndex((t) => t.key === value);
 
   /** 指示器的视觉尺寸 = 项尺寸 − 16，居中（横=宽，竖=高）。 */
   const measure = useCallback(() => {
@@ -59,11 +63,11 @@ export function PageTabs({ value, onChange, orientation = 'horizontal', disabled
 
   /** 方向键在「未禁用」的页签之间循环（禁用项直接跳过，不聚焦、不切换）。 */
   const move = (delta: -1 | 1) => {
-    const enabled = TABS.map((t, i) => (isDisabled(t.key) ? -1 : i)).filter((i) => i >= 0);
+    const enabled = tabs.map((t, i) => (isDisabled(t.key) ? -1 : i)).filter((i) => i >= 0);
     if (enabled.length === 0) return;
     const pos = enabled.indexOf(index);
     const next = pos < 0 ? enabled[0] : enabled[(pos + delta + enabled.length) % enabled.length];
-    onChange(TABS[next].key);
+    onChange(tabs[next].key);
     tabRefs.current[next]?.focus();
   };
 
@@ -87,16 +91,16 @@ export function PageTabs({ value, onChange, orientation = 'horizontal', disabled
         } else if (e.key === prevKey) {
           e.preventDefault();
           move(-1);
-        } else if (e.key === 'Home' && !isDisabled('home')) {
+        } else if (e.key === 'Home' && tabs.some((t) => t.key === 'home') && !isDisabled('home')) {
           e.preventDefault();
           onChange('home');
-        } else if (e.key === 'End' && !isDisabled('personal')) {
+        } else if (e.key === 'End' && tabs.some((t) => t.key === 'personal') && !isDisabled('personal')) {
           e.preventDefault();
           onChange('personal');
         }
       }}
     >
-      {TABS.map((t, i) => {
+      {tabs.map((t, i) => {
         const selected = t.key === value;
         const locked = isDisabled(t.key);
         const Glyph = t.icon;

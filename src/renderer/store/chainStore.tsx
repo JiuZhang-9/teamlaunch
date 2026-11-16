@@ -34,8 +34,8 @@ export interface ChainResolution {
 
 interface ChainCtx {
   chains: SavedChain[];
-  /** 保存一条新连锁（名称由调用方保证非空、不重名）。 */
-  save(name: string, entries: Entry[], intervalMs: number): Promise<{ ok: boolean; reason?: string }>;
+  /** 保存一条新连锁（名称由调用方保证非空、不重名）；成功带回 id（1.9.0：保存即收藏要用）。 */
+  save(name: string, entries: Entry[], intervalMs: number): Promise<{ ok: boolean; reason?: string; id?: string }>;
   rename(id: string, name: string): Promise<void>;
   remove(id: string): Promise<void>;
   /** 把一条连锁的 id 解析成当下存在的入口（团队 + 本机）。 */
@@ -68,7 +68,7 @@ export function ChainProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const save = useCallback(
-    async (name: string, entries: Entry[], intervalMs: number): Promise<{ ok: boolean; reason?: string }> => {
+    async (name: string, entries: Entry[], intervalMs: number): Promise<{ ok: boolean; reason?: string; id?: string }> => {
       if (chains.length >= CHAIN_LIMIT) {
         return { ok: false, reason: `最多保存 ${CHAIN_LIMIT} 条连锁，请先删掉不用的` };
       }
@@ -84,7 +84,7 @@ export function ChainProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       };
       await commit([...chains, chain]);
-      return { ok: true };
+      return { ok: true, id: chain.id };
     },
     [chains, commit],
   );

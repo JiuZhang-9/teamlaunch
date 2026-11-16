@@ -5,14 +5,17 @@
  * 落在这一层；信号 2（侧栏徽标）与信号 3（EditActionBar）由外壳渲染。
  * 四重缺一不可：管理员滚到页面中段、看不到侧栏和底栏时，也必须知道自己还在编辑态。
  */
-import { EllipsisVertical, Megaphone, Plus } from 'lucide-react';
+import { Copy, EllipsisVertical, ListMinus, ListPlus, MapPin, Megaphone, Pencil, Play, Plus, Star, StarOff, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '../components/atoms/Button.tsx';
 import { Banner } from '../components/molecules/Banner.tsx';
 import { GroupSections } from '../components/organisms/GroupSections.tsx';
 import { GroupActionsDialog } from '../components/organisms/GroupActionsDialog.tsx';
 import type { ContextMenuItem } from '../components/molecules/ContextMenu.tsx';
+import { glitchRemoveCards } from '../lib/card-removal.ts';
+import type { DeleteFx } from '../lib/card-removal.ts';
 import { useEdit } from '../store/editStore.tsx';
+import { useSettings } from '../store/settingsStore.tsx';
 import { useFeedback } from '../store/feedbackStore.tsx';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
@@ -24,6 +27,7 @@ import { CAPACITY } from '../../shared/schema/common.ts';
 
 export function AdminEditView() {
   const { draft, removeEntry, moveEntry, moveEntriesToGroup, renameGroup, moveGroup, removeGroup, sortEntriesInGroup } = useEdit();
+  const { settings } = useSettings();
   const { runtime, openEntry, copyTarget, openEntryEditor, relocateEntry, openDialog, selected, toggleSelected } = useWorkbench();
   const { pendingIds } = useFeedback();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -36,16 +40,16 @@ export function AdminEditView() {
   const nearLimit = groups.length >= CAPACITY.MAX_GROUPS - 1 || total >= CAPACITY.MAX_ENTRIES - 20;
 
   const menuFor = (entry: Entry): ContextMenuItem[] => [
-    { id: 'open', label: '打开', onSelect: () => void openEntry(entry) },
-    { id: 'copy', label: entry.type === 'web' ? '复制链接' : '复制路径', onSelect: () => void copyTarget(entry) },
+    { id: 'open', label: '打开', icon: Play, onSelect: () => void openEntry(entry) },
+    { id: 'copy', label: entry.type === 'web' ? '复制链接' : '复制路径', icon: Copy, onSelect: () => void copyTarget(entry) },
     // 重编辑取代"重命名 + 编辑类型与目标"两项（用户要求）：与创建时同一套编辑器，
     // 名字/说明/类型/路径/网址一次改全。上下移动已由拖拽与 Alt+↑/↓ 承担。
-    { id: 'edit', label: '重编辑', onSelect: () => openEntryEditor({ mode: 'edit', entry, scope: 'team' }) },
-    { id: 'chain', label: selected.some((e) => e.id === entry.id) ? '从连锁清单移出' : '加入连锁清单', onSelect: () => toggleSelected(entry) },
-    { id: 'favorite', label: isFavorite(entry.id) ? '取消收藏' : '收藏', onSelect: () => void toggleFavorite(entry.id) },
+    { id: 'edit', label: '重编辑', icon: Pencil, onSelect: () => openEntryEditor({ mode: 'edit', entry, scope: 'team' }) },
+    { id: 'chain', label: selected.some((e) => e.id === entry.id) ? '从连锁清单移出' : '加入连锁清单', icon: selected.some((e) => e.id === entry.id) ? ListMinus : ListPlus, onSelect: () => toggleSelected(entry) },
+    { id: 'favorite', label: isFavorite(entry.id) ? '取消收藏' : '收藏', icon: isFavorite(entry.id) ? StarOff : Star, onSelect: () => void toggleFavorite(entry.id) },
     // 应用类入口的本机解析可能找不到/找错：重新定位常驻右键，选一次即覆盖本机缓存（2026-10-05 用户拍板）。
-    { id: 'relocate', label: '在本机重新定位…', onSelect: () => void relocateEntry(entry) },
-    { id: 'remove', label: '删除', destructive: true, onSelect: () => removeEntry(entry.id) },
+    { id: 'relocate', label: '在本机重新定位…', icon: MapPin, onSelect: () => void relocateEntry(entry) },
+    { id: 'remove', label: '删除', icon: Trash2, destructive: true, onSelect: () => glitchRemoveCards([entry.id], () => removeEntry(entry.id), settings.deleteFx as DeleteFx) },
   ];
 
   const headerExtra = (group: Group) => (
@@ -95,7 +99,7 @@ export function AdminEditView() {
         runtime={runtime}
         onOpen={(entry) => void openEntry(entry)}
         onEdit={(entry) => openEntryEditor({ mode: 'edit', entry, scope: 'team' })}
-        onDelete={(entry) => removeEntry(entry.id)}
+        onDelete={(entry) => glitchRemoveCards([entry.id], () => removeEntry(entry.id), settings.deleteFx as DeleteFx)}
         menuFor={menuFor}
         headerExtra={headerExtra}
         onReorder={(entry, delta) => moveEntry(entry.id, delta)}

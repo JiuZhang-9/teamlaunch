@@ -1,13 +1,16 @@
 /**
  * 卡片右键菜单。团队只读态 4 项 / 个人入口 6 项 / 编辑态 7 项，由调用方注入 items。
  * 菜单本身只负责定位、分层与关闭时机（outside click / Esc / 选中后）。
+ * 1.9.0 用户要求：每项前面带图标（由调用方注入，不传就没有图标位）。
  */
+import type { LucideIcon } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MenuItem } from './MenuItem.tsx';
 
 export interface ContextMenuItem {
   id: string;
   label: string;
+  icon?: LucideIcon;
   onSelect(): void;
   disabled?: boolean;
   destructive?: boolean;
@@ -70,6 +73,7 @@ export function ContextMenu({ x, y, items, note, onClose }: ContextMenuProps) {
           key={it.id}
           role="menuitem"
           label={it.label}
+          icon={it.icon}
           disabled={it.disabled}
           destructive={it.destructive}
           onSelect={() => {

@@ -201,6 +201,29 @@ export function TitleBar({
         </div>
       )}
 
+      {/* 检测更新常驻按钮（1.9.0 用户反馈：原来只有检测到更新才出现胶囊，没更新时顶栏无处可点）。
+          空闲 = 随时可点；点击后转圈（结果 toast 由外壳说清）；发现新版本时本按钮让位给更新胶囊。 */}
+      {update === null && onCheckUpdate && (
+        <button
+          type="button"
+          aria-label="检测更新"
+          title="检测更新"
+          aria-disabled={updateChecking || undefined}
+          disabled={updateChecking}
+          onClick={() => onCheckUpdate()}
+          className="flex h-7 shrink-0 select-none items-center gap-1.5 rounded-[var(--radius-pill)] border border-[var(--border-strong)] px-2.5 t-2xs text-[var(--fg-2)] transition-colors duration-[var(--motion-fast)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--fg)]"
+          style={NO_DRAG}
+        >
+          <RefreshCw
+            size={12}
+            strokeWidth={2}
+            aria-hidden
+            className={updateChecking ? 'animate-spin' : ''}
+          />
+          {updateChecking ? '检测中…' : '检测更新'}
+        </button>
+      )}
+
       {onOpenHelp && (
         <button
           type="button"

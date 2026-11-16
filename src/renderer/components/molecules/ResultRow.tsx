@@ -22,6 +22,8 @@ export interface ResultRowProps {
   iconSize?: 16 | 24;
   selected?: boolean;
   phase?: 'idle' | 'opening' | 'failed';
+  /** 类型徽标字形覆写（1.9.0 连锁行用 [连锁] 代替应用窗）；不传走 TYPE_META。 */
+  glyphIcon?: typeof TriangleAlert;
   trailing?: ReactNode;
   onOpen(): void;
   onContextMenu?(e: MouseEvent<HTMLDivElement>): void;
@@ -36,13 +38,14 @@ export function ResultRow({
   iconSize = 24,
   selected = false,
   phase = 'idle',
+  glyphIcon,
   trailing,
   onOpen,
   onContextMenu,
   id,
 }: ResultRowProps) {
   const meta = TYPE_META[entry.type];
-  const Glyph = meta.icon;
+  const Glyph = glyphIcon ?? meta.icon;
   const failed = phase === 'failed';
 
   return (
