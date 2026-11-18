@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>最近打开 · 扩展方案原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-page: #0b0b0b;
+    --bg-canvas: #151515;
+    --bg-surface: #1b1b1b;
+    --bg-surface-2: #222222;
+    --bg-overlay: #0f0f0f;
+    --border-subtle: #222222;
+    --border-default: #2b2b2b;
+    --border-strong: #404040;
+    --fg: #efefef;
+    --fg-2: #b8b8b8;
+    --muted: #8c8c8c;
+    --meta: #6e6e6e;
+    --accent: #3890ce;
+    --accent-hover: #1780bc;
+    --accent-on: #0f0f0f;
+    --accent-tint: #12222e;
+    --accent-border: #1e3a4b;
+    --folder-bg: #332c20;
+    --folder-fg: #e2cfae;
+    --web-bg: #1c2c33;
+    --web-fg: #b3d4df;
+    --app1-bg: #26313a; --app1-fg: #c7d6e2;
+    --app2-bg: #2d2431; --app2-fg: #d6bfdc;
+    --app3-bg: #22301f; --app3-fg: #bfd6b7;
+    --chain-bg: #12222e; --chain-fg: #4fa8dc;
+    --elev-3: 0 16px 40px rgba(0,0,0,.62), 0 2px 6px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06);
+    --elev-2: 0 4px 12px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --font: "Inter", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  }
+
+  body {
+    font-family: var(--font);
+    background:
+      radial-gradient(900px 500px at 20% -10%, rgba(56,144,206,.10), transparent 60%),
+      var(--bg-page);
+    color: var(--fg);
+    padding: 26px 22px 70px;
+    min-height: 100vh;
+  }
+
+  .wrap { max-width: 1240px; margin: 0 auto; }
+
+  .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  h1 { font-size: 19px; font-weight: 590; letter-spacing: -.01em; }
+  .sub { margin-top: 7px; max-width: 760px; font-size: 12.5px; line-height: 1.85; color: var(--muted); }
+  .sub b { color: var(--fg-2); font-weight: 510; }
+  .sub .em { color: var(--accent); }
+
+  .viewswitch { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border-default); border-radius: 11px; background: var(--bg-surface); }
+  .viewswitch button {
+    appearance: none; border: 0; background: transparent; color: var(--muted);
+    font: inherit; font-size: 12px; padding: 7px 13px; border-radius: 8px; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .viewswitch button:hover { color: var(--fg-2); background: var(--bg-surface-2); }
+  .viewswitch button.active { color: var(--fg); background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent-border); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 318px; gap: 20px; margin-top: 22px; align-items: start; }
+  @media (max-width: 980px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  .stage { min-width: 0; }
+  .stagehead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 10px; }
+  .stagehead .label { font-size: 12px; color: var(--muted); }
+  .stagehead .label b { color: var(--fg-2); font-weight: 510; }
+  .stagehead .tip { font-size: 11px; color: var(--meta); }
+
+  /* ---------- quick palette ---------- */
+  .palette {
+    width: 720px; max-width: 100%;
+    background: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--elev-3);
+    padding: 8px 10px 6px;
+    margin: 0 auto;
+  }
+  .handle { height: 13px; display: flex; align-items: center; justify-content: center; }
+  .handle i { width: 40px; height: 4px; border-radius: 99px; background: var(--border-strong); }
+
+  .searchbox {
+    height: 38px; margin-top: 2px; display: flex; align-items: center; gap: 9px;
+    padding: 0 12px; border: 1px solid var(--border-default); border-radius: 9px;
+    background: var(--bg-surface); color: var(--meta); font-size: 13px;
+  }
+  .searchbox svg { flex: 0 0 auto; }
+  .caret { width: 1px; height: 16px; background: var(--accent); animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .hr { height: 1px; background: var(--border-subtle); margin: 9px 0 2px; }
+
+  /* ---------- sections ---------- */
+  .section { padding: 4px 0 5px; }
+  .sechead { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 8px 5px; min-height: 28px; }
+  .seclabel { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .01em; color: var(--muted); }
+  .seclabel svg { opacity: .9; }
+  .count { font-size: 10.5px; color: var(--meta); }
+  .recenttoggle { display: inline-flex; align-items: center; gap: 7px; }
+  .recenttoggle .togglelabel { font-size: 10.5px; color: var(--meta); transition: color .15s; }
+  .recenttoggle.on .togglelabel { color: var(--muted); }
+  .recenttoggle.off .togglelabel { color: var(--meta); }
+
+  .grid { display: grid; gap: 8px; padding: 0 4px; }
+  .grid.cols7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .grid.cols8 { grid-template-columns: repeat(auto-fill, 86px); }
+
+  .tile {
+    appearance: none; border: 1px solid var(--border-subtle); background: var(--bg-surface);
+    border-radius: var(--radius-md); cursor: pointer; font: inherit; color: inherit;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; min-width: 0; height: 104px; padding: 8px 4px 6px;
+    transition: background .13s, border-color .13s, transform .13s;
+    position: relative;
+  }
+  .tile:hover { background: var(--bg-surface-2); border-color: var(--border-strong); }
+  .tile:active { transform: scale(.985); }
+  .tile.square { width: 86px; height: 86px; gap: 5px; padding: 6px 3px 5px; }
+
+  .ibox {
+    position: relative; width: 36px; height: 36px; border-radius: 9px;
+    background: var(--ibg); color: var(--ifg);
+    display: grid; place-items: center; flex: 0 0 auto;
+  }
+  .tile.square .ibox { width: 32px; height: 32px; border-radius: 8px; }
+  .ibox .letter { font-size: 14px; font-weight: 590; line-height: 1; }
+  .tile.square .ibox .letter { font-size: 12px; }
+
+  .typebadge {
+    position: absolute; right: -5px; bottom: -5px; width: 14px; height: 14px;
+    border-radius: 4px; border: 1px solid var(--border-subtle);
+    background: var(--bg-surface); color: var(--muted);
+    display: grid; place-items: center;
+  }
+  .tile.square .typebadge { width: 12px; height: 12px; right: -4px; bottom: -4px; }
+
+  .nm {
+    width: 100%; font-size: 11px; line-height: 14px; text-align: center; color: var(--fg-2);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    word-break: break-word;
+  }
+  .tile.square .nm { font-size: 10.5px; line-height: 13px; }
+
+  .hiddenhint, .emptyhint {
+    margin: 6px 8px 2px; padding: 8px 10px; border-radius: 9px;
+    border: 1px dashed var(--border-default); background: rgba(255,255,255,.018);
+    font-size: 11px; line-height: 1.6; color: var(--meta);
+  }
+  .hiddenhint b { color: var(--fg-2); font-weight: 510; }
+
+  .palette-footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-top: 7px; padding: 8px 8px 3px; border-top: 1px solid var(--border-subtle);
+    font-size: 10.5px; color: var(--meta);
+  }
+  .palette-footer kbd { font-family: var(--font); color: var(--muted); }
+
+  /* ---------- main window search mock ---------- */
+  .searchstage {
+    position: relative; width: 100%; min-height: 520px; border-radius: var(--radius-lg);
+    overflow: hidden; border: 1px solid var(--border-default); background: var(--bg-canvas);
+  }
+  .fauxpage { position: absolute; inset: 0; padding: 18px 20px; opacity: .5; }
+  .fauxbar { display: flex; gap: 8px; align-items: center; margin-bottom: 15px; }
+  .fauxbar .b { height: 10px; border-radius: 99px; background: var(--border-default); }
+  .fauxbar .b1 { width: 120px; } .fauxbar .b2 { width: 60px; } .fauxbar .b3 { width: 84px; }
+  .fauxgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .fauxcard { height: 92px; border-radius: 10px; border: 1px solid var(--border-default); background: var(--bg-surface); padding: 11px; }
+  .fauxcard i { display: block; height: 8px; border-radius: 99px; background: var(--border-default); margin-bottom: 8px; }
+  .fauxcard i:nth-child(1) { width: 46%; } .fauxcard i:nth-child(2) { width: 72%; } .fauxcard i:nth-child(3) { width: 58%; }
+  .scrim {
+    position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,.62) 0%, rgba(0,0,0,.48) 34%, rgba(0,0,0,.30) 62%, rgba(0,0,0,.12) 100%);
+  }
+  .searchcard {
+    position: relative; z-index: 2; margin: 18px 18px 0;
+    background: var(--bg-surface); border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg); box-shadow: var(--elev-2);
+    padding: 12px 12px 8px;
+  }
+  .searchcard .hintline { padding: 0 8px 7px; font-size: 11px; color: var(--meta); }
+  .searchcard .searchbox { margin: 0 0 9px; }
+
+  /* ---------- side ---------- */
+  .side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 18px; }
+  .card { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: 14px 15px; }
+  .card h2 { font-size: 12.5px; font-weight: 590; letter-spacing: .01em; }
+  .card .cardhint { margin-top: 4px; font-size: 11px; color: var(--meta); line-height: 1.65; }
+
+  .srow { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-top: 11px; }
+  .stitle { font-size: 12.5px; font-weight: 510; color: var(--fg); }
+  .sdesc { margin-top: 4px; font-size: 11px; line-height: 1.65; color: var(--muted); }
+  .sdivider { height: 1px; background: var(--border-subtle); margin: 12px 0 2px; }
+  .statusline { font-size: 11px; line-height: 1.7; color: var(--meta); }
+  .statusline b { color: var(--fg-2); font-weight: 510; }
+  .statusline .accent { color: var(--accent); }
+
+  .inspector { margin-top: 10px; padding: 10px 11px; border-radius: 9px; border: 1px dashed var(--border-default); background: rgba(255,255,255,.018); min-height: 68px; }
+  .inspector .ititle { font-size: 12px; color: var(--fg-2); font-weight: 510; }
+  .inspector .isub { margin-top: 4px; font-size: 11px; line-height: 1.65; color: var(--meta); }
+  .inspector .itag { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; font-size: 10px; color: var(--accent); background: var(--accent-tint); border: 1px solid var(--accent-border); border-radius: 99px; padding: 2px 7px; }
+
+  .notes ul { margin: 9px 0 0 16px; }
+  .notes li { font-size: 11px; line-height: 1.75; color: var(--muted); margin-bottom: 5px; }
+  .notes li b { color: var(--fg-2); font-weight: 510; }
+  .notes li .em { color: var(--accent); }
+
+  /* ---------- switch ---------- */
+  .switch {
+    appearance: none; border: 0; padding: 0; flex: 0 0 auto;
+    width: 36px; height: 20px; border-radius: 99px; background: var(--border-strong);
+    position: relative; cursor: pointer; transition: background .15s;
+  }
+  .switch[aria-checked="true"] { background: var(--accent); }
+  .switch span {
+    position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 99px;
+    background: var(--accent-on); transition: transform .15s;
+  }
+  .switch[aria-checked="true"] span { transform: translateX(16px); }
+  .switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ---------- toast ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; z-index: 50;
+    transform: translate(-50%, 10px); opacity: 0; pointer-events: none;
+    background: var(--bg-surface-2); color: var(--fg); border: 1px solid var(--border-strong);
+    border-radius: 10px; padding: 9px 14px; font-size: 12px; box-shadow: var(--elev-2);
+    transition: opacity .18s, transform .18s; max-width: min(560px, 90vw);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  .footnote { margin-top: 18px; font-size: 10.5px; color: var(--meta); line-height: 1.8; }
+  .footnote b { color: var(--muted); font-weight: 510; }
+
+  @media (max-width: 760px) {
+    .grid.cols7 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .fauxgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>最近打开 · 扩展方案原型</h1>
+      <p class="sub">
+        现在「最近打开」只显示<b>手动加过的入口</b>。这个原型演示扩展后的口径：通过 TeamLaunch 打开过的
+        <span class="em">本机程序 / 文件夹 / 网页 / 整条连锁</span> 也会进入最近打开，
+        但<b>不会自动加入入口清单</b>。开关默认开启，设置与「最近打开」标题行两处同步。
+      </p>
+    </div>
+    <div class="viewswitch" role="tablist" aria-label="预览窗口">
+      <button type="button" class="active" data-view="quick" role="tab" aria-selected="true">快捷面板</button>
+      <button type="button" data-view="main" role="tab" aria-selected="false">主窗口搜索</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main class="stage">
+      <div class="stagehead">
+        <div class="label" id="stageLabel">快捷面板 · 空查询时显示 <b>收藏 → 最近打开</b></div>
+        <div class="tip">悬停看图块来源 · 点图块试「移到最前」</div>
+      </div>
+      <div id="panelHost"></div>
+    </main>
+
+    <aside class="side">
+      <section class="card">
+        <h2>设置 · 通用</h2>
+        <div class="cardhint">新开关放在现有设置面板里，与「开机自启 / 托盘 / 公告提醒」同一层级。</div>
+        <div class="srow">
+          <div>
+            <div class="stitle">最近打开记录</div>
+            <div class="sdesc">
+              开启后，通过快捷搜索直接打开的本机程序、文件夹、网页与整条连锁也会进入「最近打开」；
+              不会加入入口清单，仅本机保存、不同步。
+            </div>
+          </div>
+          <button type="button" class="switch" data-settings-switch role="switch" aria-checked="true" aria-label="最近打开包含未加入入口的项目"><span></span></button>
+        </div>
+        <div class="sdivider"></div>
+        <div class="statusline" id="statusLine"></div>
+      </section>
+
+      <section class="card">
+        <h2>图块来源</h2>
+        <div class="cardhint">真实界面里图块只显示名称；来源放在悬停提示与副标题里，避免同一行里再挤标签。</div>
+        <div class="inspector" id="inspector">
+          <div class="ititle">把鼠标移到左侧图块上</div>
+          <div class="isub">会显示「入口 / 未加入入口」与程序、文件夹、网页、连锁的具体来源。</div>
+        </div>
+      </section>
+
+      <section class="card notes">
+        <h2>口径</h2>
+        <ul>
+          <li>只记<b>通过 TeamLaunch 打开成功</b>的对象；不监听资源管理器或其它软件。</li>
+          <li>不自动加入入口，<b>不写 personal.json</b>，不跨机同步；最近记录仍只存本机。</li>
+          <li>网页标题与添加入口同一逻辑：打开未加入入口的网页时取一次 <b>&lt;title&gt;</b>，失败回落域名。</li>
+          <li>连锁是<b>一条记录 = 一整条连锁</b>，不拆步骤；点击重跑整条连锁。</li>
+          <li>关闭开关：未加入入口的记录（含连锁）<b>立即隐藏并停止新增</b>；已记录的保留，重新开启后恢复。</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+
+  <p class="footnote">
+    说明：已收藏的连锁仍在「收藏」行；按现有去重规则，它不会在「最近打开」里重复出现。
+    原型里的图块点击只弹提示，不会启动真实程序。
+  </p>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+  /* ---------- icons ---------- */
+  const ICON = {
+    app: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>',
+    folder: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>',
+    web: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z"/></svg>',
+    chain: '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2 4.6 13.2a.7.7 0 0 0 .56 1.12H10l-1 7.68 8.4-11.2a.7.7 0 0 0-.56-1.12H13l1-7.68Z"/></svg>',
+    star: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.4l6.1-.9L12 3Z"/></svg>',
+    clock: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l2.5 1.5"/></svg>',
+    search: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'
+  };
+
+  /* ---------- data ---------- */
+  const STAR = [
+    { id: 'fav-report',  name: '报价系统',   kind: 'app',    entry: true,  tone: ['var(--app1-bg)', 'var(--app1-fg)'], source: '入口 · 应用',      sub: '应用 · 报价系统.lnk' },
+    { id: 'fav-share',   name: '共享盘',     kind: 'folder', entry: true,  tone: ['var(--folder-bg)', 'var(--folder-fg)'], source: '入口 · 文件夹',    sub: '文件夹 · \\\\fs01\\交付' },
+    { id: 'fav-weekly',  name: '周报模板',   kind: 'web',    entry: true,  tone: ['var(--web-bg)', 'var(--web-fg)'], source: '入口 · 网页',      sub: '网页 · wiki.corp/周报' },
+    { id: 'fav-chain',   name: '每日巡检',   kind: 'chain',  entry: true,  tone: ['var(--chain-bg)', 'var(--chain-fg)'], steps: 3, source: '收藏的连锁 · 3 步', sub: '连锁 · 3 步' }
+  ];
+
+  let recent = [
+    { id: 'r-customer', name: '客户资料',                      kind: 'folder', entry: true,  tone: ['var(--folder-bg)', 'var(--folder-fg)'], source: '入口 · 文件夹',        sub: '文件夹 · 客户资料' },
+    { id: 'r-note',     name: '记事本',                        kind: 'app',    entry: false, tone: ['var(--app1-bg)',   'var(--app1-fg)'],   source: '未加入入口 · 本机程序', sub: '程序 · notepad.exe' },
+    { id: 'r-project',  name: '项目资料',                      kind: 'folder', entry: false, tone: ['var(--folder-bg)', 'var(--folder-fg)'], source: '未加入入口 · 文件夹',   sub: '文件夹 · D:\\项目资料' },
+    { id: 'r-github',   name: 'GitHub · JiuZhang-9/teamlaunch', kind: 'web',    entry: false, tone: ['var(--web-bg)',    'var(--web-fg)'],    source: '未加入入口 · 网页',     sub: '网页 · 标题取自页面 <title>' },
+    { id: 'r-chain',    name: '日常上班',                      kind: 'chain',  entry: false, tone: ['var(--chain-bg)',  'var(--chain-fg)'],  steps: 4, source: '未加入入口 · 连锁', sub: '连锁 · 4 步' },
+    { id: 'r-finance',  name: '财务系统',                      kind: 'app',    entry: true,  tone: ['var(--app2-bg)',   'var(--app2-fg)'],   source: '入口 · 应用',          sub: '应用 · 财务系统.lnk' },
+    { id: 'r-archive',  name: '归档 2026',                     kind: 'folder', entry: true,  tone: ['var(--app3-bg)',   'var(--app3-fg)'],   source: '入口 · 文件夹',        sub: '文件夹 · \\\\fs01\\归档' }
+  ];
+
+  /* ---------- state ---------- */
+  let includeUnlisted = true;
+  let view = 'quick';
+  let toastTimer = null;
+
+  const panelHost = document.getElementById('panelHost');
+  const stageLabel = document.getElementById('stageLabel');
+  const inspector = document.getElementById('inspector');
+  const statusLine = document.getElementById('statusLine');
+  const toast = document.getElementById('toast');
+
+  /* ---------- helpers ---------- */
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function tile(item, square) {
+    const unlisted = item.entry === false;
+    const letter = item.kind === 'chain' ? '' : (item.name.trim()[0] || '?');
+    const iconInner = item.kind === 'chain' ? ICON.chain : `<span class="letter">${esc(letter)}</span>`;
+    return `
+      <button type="button" class="tile${square ? ' square' : ''}" data-id="${esc(item.id)}" data-from="${item.entry ? 'fav' : 'recent'}" data-unlisted="${unlisted ? '1' : '0'}" style="--ibg:${item.tone[0]};--ifg:${item.tone[1]}"
+        aria-label="${esc(item.name)}（${esc(item.source)}）" title="${esc(item.name)}\n${esc(item.sub)}">
+        <span class="ibox">${iconInner}<span class="typebadge">${ICON[item.kind]}</span></span>
+        <span class="nm">${esc(item.name)}</span>
+      </button>`;
+  }
+
+  function sectionHead(label, icon, withToggle) {
+    const toggle = withToggle ? `
+      <span class="recenttoggle ${includeUnlisted ? 'on' : 'off'}">
+        <span class="togglelabel">含未加入入口</span>
+        <button type="button" class="switch" data-inline-switch role="switch" aria-checked="${includeUnlisted}"
+          aria-label="最近打开包含未加入入口的项目" title="关闭后只显示入口记录；已记录的未加入入口项目保留但不显示"><span></span></button>
+      </span>` : '';
+    return `<div class="sechead"><span class="seclabel">${icon}${label}</span>${toggle}</div>`;
+  }
+
+  function renderSections(square) {
+    const cols = square ? 'cols8' : 'cols7';
+    const visible = recent.filter((r) => includeUnlisted || r.entry);
+    const hiddenCount = recent.filter((r) => !r.entry).length;
+    const recentGrid = visible.length
+      ? `<div class="grid ${cols}">${visible.map((r) => tile(r, square)).join('')}</div>`
+      : '';
+    const empty = visible.length === 0 ? `<div class="emptyhint">最近打开里还没有入口记录。</div>` : '';
+    const hidden = !includeUnlisted && hiddenCount > 0
+      ? `<div class="hiddenhint">已隐藏 <b>${hiddenCount}</b> 条未加入入口的最近记录（含程序 / 文件夹 / 网页 / 连锁）。重新开启后恢复显示。</div>`
+      : '';
+    return `
+      <div class="section">
+        ${sectionHead('收藏', ICON.star, false)}
+        <div class="grid ${cols}">${STAR.map((s) => tile(s, square)).join('')}</div>
+      </div>
+      <div class="section">
+        ${sectionHead('最近打开', ICON.clock, true)}
+        ${recentGrid}${empty}${hidden}
+      </div>`;
+  }
+
+  function render() {
+    if (view === 'quick') {
+      stageLabel.innerHTML = '快捷面板 · 空查询时显示 <b>收藏 → 最近打开</b>';
+      panelHost.innerHTML = `
+        <div class="palette">
+          <div class="handle"><i></i></div>
+          <div class="searchbox">${ICON.search}<span>搜索入口、程序或路径</span><span class="caret"></span></div>
+          <div class="hr"></div>
+          ${renderSections(false)}
+          <div class="palette-footer">
+            <span><kbd>↑↓</kbd> 选择 · <kbd>Enter</kbd> 打开 · <kbd>Esc</kbd> 收起</span>
+            <span><kbd>Ctrl</kbd>+<kbd>Tab</kbd> 主窗口</span>
+          </div>
+        </div>`;
+    } else {
+      stageLabel.innerHTML = '主窗口搜索 · 浮层卡（当前页在下方透出）· 86×86 方格';
+      panelHost.innerHTML = `
+        <div class="searchstage">
+          <div class="fauxpage" aria-hidden="true">
+            <div class="fauxbar"><span class="b b1"></span><span class="b b2"></span><span class="b b3"></span></div>
+            <div class="fauxgrid">
+              ${Array.from({ length: 8 }, () => '<div class="fauxcard"><i></i><i></i><i></i></div>').join('')}
+            </div>
+          </div>
+          <div class="scrim" aria-hidden="true"></div>
+          <div class="searchcard">
+            <div class="searchbox">${ICON.search}<span>搜索入口和本机程序</span><span class="caret"></span></div>
+            <div class="hintline">输入名称搜索入口和本机程序</div>
+            ${renderSections(true)}
+          </div>
+        </div>`;
+    }
+    syncSwitches();
+  }
+
+  function syncSwitches() {
+    document.querySelectorAll('[data-inline-switch], [data-settings-switch]').forEach((el) => {
+      el.setAttribute('aria-checked', String(includeUnlisted));
+    });
+    const unlistedCount = recent.filter((r) => !r.entry).length;
+    statusLine.innerHTML = includeUnlisted
+      ? `当前：<span class="accent">开启</span> · 最近记录 <b>${recent.length}</b> 条，其中未加入入口 <b>${unlistedCount}</b> 条。`
+      : `当前：<b>关闭</b> · 只显示入口记录；<b>${unlistedCount}</b> 条未加入入口的记录已隐藏（保留在本机）。`;
+  }
+
+  function showToast(text) {
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+
+  function setInspector(item) {
+    if (!item) {
+      inspector.innerHTML = `
+        <div class="ititle">把鼠标移到左侧图块上</div>
+        <div class="isub">会显示「入口 / 未加入入口」与程序、文件夹、网页、连锁的具体来源。</div>`;
+      return;
+    }
+    const unlisted = item.entry === false;
+    inspector.innerHTML = `
+      <div class="ititle">${esc(item.name)}</div>
+      <div class="isub">${esc(item.sub)}</div>
+      <div class="itag">${unlisted ? '未加入入口' : '入口记录'} · ${item.kind === 'chain' ? `连锁 ${item.steps} 步` : item.kind === 'app' ? '程序' : item.kind === 'folder' ? '文件夹' : '网页'}</div>`;
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', (e) => {
+    const viewBtn = e.target.closest('[data-view]');
+    if (viewBtn) {
+      view = viewBtn.dataset.view;
+      document.querySelectorAll('[data-view]').forEach((b) => {
+        const on = b === viewBtn;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', String(on));
+      });
+      render();
+      return;
+    }
+
+    if (e.target.closest('[data-inline-switch]') || e.target.closest('[data-settings-switch]')) {
+      includeUnlisted = !includeUnlisted;
+      render();
+      showToast(includeUnlisted ? '已开启：最近打开包含未加入入口的程序 / 文件夹 / 网页 / 连锁' : '已关闭：只显示入口记录；未加入入口的记录保留但不再显示');
+      return;
+    }
+
+    const tileEl = e.target.closest('.tile');
+    if (tileEl) {
+      const id = tileEl.dataset.id;
+      const fromRecent = tileEl.dataset.from === 'recent';
+      const item = recent.find((r) => r.id === id) || STAR.find((s) => s.id === id);
+      if (!item) return;
+      if (fromRecent) {
+        recent = [item, ...recent.filter((r) => r.id !== id)];
+        render();
+        showToast(`已打开「${item.name}」· 已移到最近打开第一位（原型不启动真实程序）`);
+      } else {
+        showToast(`已打开「${item.name}」（原型不启动真实程序）`);
+      }
+      return;
+    }
+  });
+
+  document.addEventListener('mouseover', (e) => {
+    const tileEl = e.target.closest('.tile');
+    if (!tileEl) return;
+    const item = recent.find((r) => r.id === tileEl.dataset.id) || STAR.find((s) => s.id === tileEl.dataset.id);
+    setInspector(item);
+  });
+
+  document.addEventListener('mouseout', (e) => {
+    const tileEl = e.target.closest('.tile');
+    if (!tileEl) return;
+    if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.tile')) return;
+    setInspector(null);
+  });
+
+  render();
+</script>
+</body>
+</html>

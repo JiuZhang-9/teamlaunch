@@ -72,7 +72,7 @@ export function HomePageView() {
       void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length, (entry) => {
         if (entry.type === 'web') return;
         void api.windowLayout.apply(chain.id, entry.id);
-      });
+      }, chain.id);
       void api.usage.bump({ kind: 'feature', key: 'savedChainRun' });
     },
     [personalEntries, push, resolveChain, runSavedChain, teamEntries],

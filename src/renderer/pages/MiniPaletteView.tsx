@@ -28,8 +28,9 @@ import {
   type ClipboardCandidate,
 } from '../lib/palette-source.ts';
 import { usePrograms } from '../lib/programs.ts';
-import { useRecentOpenIds } from '../lib/recentOpens.ts';
+import { recordDirectOpen, useRecentOpens } from '../lib/recentOpens.ts';
 import { useChains } from '../store/chainStore.tsx';
+import { useSettings } from '../store/settingsStore.tsx';
 import { CHAIN_FAV_PREFIX } from '../lib/palette-source.ts';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
@@ -64,7 +65,8 @@ export function MiniPaletteView({
   const debounced = useDebouncedValue(query, 120);
   /** 收藏与最近打开都是本机数据：面板开着时被主窗口更新，也要立刻跟着变。 */
   const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
-  const recentIds = useRecentOpenIds();
+  const recent = useRecentOpens();
+  const { settings, patch } = useSettings();
 
   const presentation = syncPresentation(snapshot);
   const teamGroups = presentation.renderable ? (snapshot.config?.groups ?? []) : [];
@@ -105,13 +107,14 @@ export function MiniPaletteView({
         clip,
         query: debounced,
         favoriteIds,
-        recentIds,
+        recent,
+        recentIncludeUnlisted: settings.recentIncludeUnlisted,
         programHits,
         chains: chains.map((c) => ({ id: c.id, name: c.name, steps: c.entryIds.length })),
         scope,
         sectionMax: PALETTE_SECTION_MAX,
       }),
-    [candidates, clip, debounced, favoriteIds, recentIds, programHits, scope, chains],
+    [candidates, clip, debounced, favoriteIds, recent, settings.recentIncludeUnlisted, programHits, scope, chains],
   );
 
   /* 图标只为**当前可见的命中**取（面板窗口常驻预热：关着时不取、也不为整份清单预取——
@@ -159,15 +162,19 @@ export function MiniPaletteView({
       teamUnavailable={!presentation.renderable && candidates.some((c) => c.source === '本机')}
       onToggleFavorite={(entryId) => void toggleFavorite(entryId)}
       isFavorite={isFavorite}
+      recentCount={recent.length}
+      recentIncludeUnlisted={settings.recentIncludeUnlisted}
+      onToggleRecentIncludeUnlisted={(next) => void patch({ recentIncludeUnlisted: next })}
       onClose={onClose}
       onOpen={(hit) => {
         // Enter 后立刻关闭面板，不等待打开结果
         onClose();
-        if (hit.kind === 'chain') {
-          /* 收藏的连锁（1.9.0）：与主页连锁同一启动器；面板已收起，启动照常进行。 */
+        if (hit.kind === 'chain' || hit.chainSteps !== undefined) {
+          /* 收藏/最近打开里的连锁（1.9.0 / 2026-11-18）：与主页连锁同一启动器；
+             面板已收起，启动照常进行。整条只记一条最近打开（runSavedChain 里做）。 */
           const chain = chains.find((c) => `${CHAIN_FAV_PREFIX}${c.id}` === hit.entry.id);
           if (!chain) {
-            push({ title: '这条连锁已被删除，它的收藏会随之失效', tone: 'warn' });
+            push({ title: '这条连锁已被删除，相关收藏和最近记录会随之失效', tone: 'warn' });
             return;
           }
           const res = resolveChain(chain, candidates.map((c) => c.entry), []);
@@ -178,14 +185,16 @@ export function MiniPaletteView({
           void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length, (entry) => {
             if (entry.type === 'web') return;
             void api.windowLayout.apply(chain.id, entry.id);
-          });
+          }, chain.id);
           return;
         }
         if (hit.kind === 'system') {
           /* 系统程序直接开（用户拍板：未添加的程序也直接启动）。
              失败必须说出来——被卸载/没有权限时不能表现成"点了没反应"。 */
           void api.entries.openObject(hit.entry).then((r) => {
-            if (!r.ok) {
+            if (r.ok) {
+              recordDirectOpen(hit.entry, settings.recentIncludeUnlisted);
+            } else {
               push({
                 title: `没能打开「${hit.entry.name}」，可能已被卸载或没有权限`,
                 tone: 'danger',
@@ -195,7 +204,8 @@ export function MiniPaletteView({
           });
           return;
         }
-        void openEntry(hit.entry);
+        /* 剪贴板新内容与最近打开里的未加入入口项：记录按描述走，不写假的入口 id。 */
+        void openEntry(hit.entry, hit.kind === 'clip-new' || hit.unlisted ? { record: 'direct' } : undefined);
       }}
       onAddToPersonal={(hit) => {
         /* 加为入口是**第二个动作**（Ctrl+回车 / 行尾按钮），和回车分开，避免误触编辑器。

@@ -16,6 +16,7 @@
  */
 import { PaletteResults } from '../components/organisms/PaletteResults.tsx';
 import type { PaletteHit } from '../lib/palette-source.ts';
+import { useSettings } from '../store/settingsStore.tsx';
 import type { EntryRuntime } from '../store/workbenchStore.tsx';
 
 export interface WindowSearchViewProps {
@@ -33,6 +34,8 @@ export interface WindowSearchViewProps {
   onOpen(hit: PaletteHit): void;
   /** 剪贴板新内容 / 本机程序行的「加为入口」。 */
   onAddToPersonal(hit: PaletteHit): void;
+  /** 最近打开记录总数（含被开关隐藏的直接项）：标题行与「已隐藏」提示用。 */
+  recentCount: number;
   onClear(): void;
   programScanning: boolean;
   programError: string | null;
@@ -40,9 +43,10 @@ export interface WindowSearchViewProps {
 }
 
 export function WindowSearchView({
-  query, hits, debouncing, quickAccess, tabLabel, icons, runtime, selectedIndex, onSelectIndex, onOpen, onAddToPersonal, onClear,
+  query, hits, debouncing, quickAccess, tabLabel, icons, runtime, selectedIndex, onSelectIndex, onOpen, onAddToPersonal, recentCount, onClear,
   programScanning, programError, teamUnavailable,
 }: WindowSearchViewProps) {
+  const { settings, patch } = useSettings();
   return (
     <div data-tl-search-surface className="flex min-h-0 flex-1 flex-col px-3 pb-1 pt-3">
       <p className="t-2xs mb-2 shrink-0 px-2 text-[var(--muted)]" aria-live="polite">
@@ -60,6 +64,9 @@ export function WindowSearchView({
         iconFor={(id) => icons[id] ?? null}
         onOpen={onOpen}
         onAddToPersonal={onAddToPersonal}
+        recentCount={recentCount}
+        recentIncludeUnlisted={settings.recentIncludeUnlisted}
+        onToggleRecentIncludeUnlisted={(next) => void patch({ recentIncludeUnlisted: next })}
         enableFavoriteMenu={false}
         showAltHints={false}
         scope="entries"

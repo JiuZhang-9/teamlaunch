@@ -18,6 +18,7 @@ import { MenuItem } from '../components/molecules/MenuItem.tsx';
 import type { ContextMenuItem } from '../components/molecules/ContextMenu.tsx';
 import { EmptyBlock } from '../components/molecules/EmptyBlock.tsx';
 import { Banner } from '../components/molecules/Banner.tsx';
+import { recordEntryOpen } from '../lib/recentOpens.ts';
 import { useFeedback } from '../store/feedbackStore.tsx';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
@@ -182,7 +183,11 @@ export function PersonalEntriesView() {
         id: 'browser',
         label: '在浏览器中打开',
         icon: ExternalLink,
-        onSelect: () => void api.entries.openExternal(entry.url),
+        onSelect: () => {
+          /* 外部打开没有成功回执：按用户动作记一次最近打开（网页入口 id）。 */
+          recordEntryOpen(entry.id);
+          void api.entries.openExternal(entry.url);
+        },
       });
     }
     // 应用类入口的本机解析可能找不到/找错：重新定位常驻右键，选一次即覆盖本机缓存（2026-10-05 用户拍板）。

@@ -49,7 +49,7 @@ import {
 } from '../../lib/palette-source.ts';
 import { usePrograms } from '../../lib/programs.ts';
 import { useFavorites } from '../../store/favoriteStore.tsx';
-import { useRecentOpenIds } from '../../lib/recentOpens.ts';
+import { recordDirectOpen, useRecentOpens } from '../../lib/recentOpens.ts';
 import { syncPresentation } from '../../services/syncCopy.ts';
 import { useEdit } from '../../store/editStore.tsx';
 import { useChains } from '../../store/chainStore.tsx';
@@ -240,7 +240,7 @@ export function MainWindowShell() {
   /* ---------- 主窗口搜索（1.4.0）：与快捷窗口共用候选/打分/去重 ---------- */
   const programs = usePrograms();
   const { favoriteIds, setFavoriteMany } = useFavorites();
-  const recentIds = useRecentOpenIds();
+  const recent = useRecentOpens();
   /** 全部候选（团队 + 本机）：收藏/最近/剪贴板去重用。团队侧用已发布配置，不用编辑草稿。 */
   const allCandidates = useMemo(
     () => buildCandidates(snapshot.config?.groups ?? [], personal.groups),
@@ -263,14 +263,15 @@ export function MainWindowShell() {
         clip,
         query: debouncedQuery,
         favoriteIds,
-        recentIds,
+        recent,
+        recentIncludeUnlisted: settings.recentIncludeUnlisted,
         programHits,
         chains: chains.map((c) => ({ id: c.id, name: c.name, steps: c.entryIds.length })),
         maxRows: MAX_WINDOW_ROWS,
         /* 方格 86px 一行 8 个（1.9.0）：收藏/最近行不再只给 6 个留位。 */
         sectionMax: WINDOW_SECTION_MAX,
       }),
-    [allCandidates, searchCandidates, clip, debouncedQuery, favoriteIds, recentIds, programHits, chains],
+    [allCandidates, searchCandidates, clip, debouncedQuery, favoriteIds, recent, settings.recentIncludeUnlisted, programHits, chains],
   );
 
   /* 搜索态：输入框聚焦（空查询 = 快速打开）或已有查询词；编辑态不参与搜索。 */
@@ -495,21 +496,20 @@ export function MainWindowShell() {
     push({ title: '团队入口由管理员维护，本机未开启管理员模式', tone: 'info' });
   }, [tab, editing, settings.role, openEntryEditor, toggleEdit, push]);
 
-  /** 主窗口搜索结果：系统程序直接开（不进最近打开），连锁走启动链路（1.9.0），其余走既有 openEntry（含失败解释）。 */
+  /** 主窗口搜索结果：系统程序直接开（成功记最近打开），连锁走启动链路（1.9.0），其余走既有 openEntry（含失败解释）。 */
   const handleSearchOpen = useCallback(
     (hit: PaletteHit) => {
       if (hit.kind === 'system') {
         void api.entries.openObject(hit.entry).then((r) => {
-          if (!r.ok) {
-            push({ title: `没能打开「${hit.entry.name}」，可能已被卸载或没有权限`, tone: 'danger', duration: 6000 });
-          }
+          if (r.ok) recordDirectOpen(hit.entry, settings.recentIncludeUnlisted);
+          else push({ title: `没能打开「${hit.entry.name}」，可能已被卸载或没有权限`, tone: 'danger', duration: 6000 });
         });
         return;
       }
-      if (hit.kind === 'chain') {
+      if (hit.kind === 'chain' || hit.chainSteps !== undefined) {
         const chain = chains.find((c) => `${CHAIN_FAV_PREFIX}${c.id}` === hit.entry.id);
         if (!chain) {
-          push({ title: '这条连锁已被删除，它的收藏会随之失效', tone: 'warn' });
+          push({ title: '这条连锁已被删除，相关收藏和最近记录会随之失效', tone: 'warn' });
           return;
         }
         const res = resolveChain(chain, allCandidates.map((c) => c.entry), []);
@@ -521,12 +521,14 @@ export function MainWindowShell() {
         void runSavedChain(res.entries, chain.intervalMs, chain.name, res.missing.length, (entry) => {
           if (entry.type === 'web') return;
           void api.windowLayout.apply(chain.id, entry.id);
-        });
+        }, chain.id);
         return;
       }
-      void openEntry(hit.entry);
+      /* 剪贴板新内容与最近打开里的未加入入口项：记录按描述走，不写假的入口 id。 */
+      const direct = hit.kind === 'clip-new' || hit.unlisted;
+      void openEntry(hit.entry, direct ? { record: 'direct' } : undefined);
     },
-    [allCandidates, chains, openEntry, push, resolveChain, runSavedChain],
+    [allCandidates, chains, openEntry, push, resolveChain, runSavedChain, settings.recentIncludeUnlisted],
   );
 
   /** 搜索结果里的「加为入口」：系统程序交 .lnk 路径，剪贴板新内容交原文，走粘贴添加同一条链路。 */
@@ -1253,6 +1255,7 @@ export function MainWindowShell() {
                       onSelectIndex={setSearchIndex}
                       onOpen={handleSearchOpen}
                       onAddToPersonal={handleSearchAdd}
+                      recentCount={recent.length}
                       onClear={() => setQuery('')}
                       programScanning={programs.scanning}
                       programError={programs.error}

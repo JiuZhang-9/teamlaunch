@@ -35,6 +35,11 @@ export interface MiniPaletteProps {
   onToggleFavorite(entryId: string): void;
   /** 该入口当前是否已收藏：右键菜单据此显示收藏 / 取消收藏。 */
   isFavorite(entryId: string): boolean;
+  /** 最近打开记录总数（含被开关隐藏的直接项），用于保留标题行与"已隐藏"提示。 */
+  recentCount?: number;
+  /** 最近打开是否包含未加入入口的程序/文件夹/网页/连锁。 */
+  recentIncludeUnlisted?: boolean;
+  onToggleRecentIncludeUnlisted?(next: boolean): void;
   /** 团队数据为空（从未成功同步）时追加一行说明 */
   teamUnavailable: boolean;
   /**
@@ -52,6 +57,7 @@ export interface MiniPaletteProps {
 export function MiniPalette(props: MiniPaletteProps) {
   const {
     open, query, onQueryChange, hits, selectedIndex, onSelectIndex, iconFor, onOpen, onAddToPersonal, onEnterMain, onClose, onToggleFavorite, isFavorite,
+    recentCount = 0, recentIncludeUnlisted = true, onToggleRecentIncludeUnlisted,
     teamUnavailable, docked = false, scope = 'entries', programScanning = false, programError = null,
   } = props;
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -198,6 +204,9 @@ export function MiniPalette(props: MiniPaletteProps) {
           onAddToPersonal={onAddToPersonal}
           onToggleFavorite={onToggleFavorite}
           isFavorite={isFavorite}
+          recentCount={recentCount}
+          recentIncludeUnlisted={recentIncludeUnlisted}
+          onToggleRecentIncludeUnlisted={onToggleRecentIncludeUnlisted}
           enableFavoriteMenu
           showAltHints
           scope={scope}

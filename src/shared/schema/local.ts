@@ -90,6 +90,13 @@ export const SettingsSchema = z.object({
    */
   announcementNotify: z.boolean().default(true),
   /**
+   * 「最近打开」是否包含未加入入口的打开项（2026-11-18）：
+   * 开（默认）= 通过 TeamLaunch 打开成功的本机程序、文件夹、网页与整条连锁也进最近打开；
+   * 关 = 只显示入口记录，且不再新增这类记录（已存的保留，重新开启后恢复）。
+   * 最近记录本身仍只存渲染层 localStorage，不进 settings.json、不跨机同步。
+   */
+  recentIncludeUnlisted: z.boolean().default(true),
+  /**
    * 自动检查更新（2026-10-17，O-07）：开（默认）= 启动约 8 秒后检查一次、此后每 15 分钟一次
    * （睡眠唤醒 / 网络恢复补查，10 分钟节流）；关 = 不再自动访问更新源（GitHub / 局域网镜像），
    * 只有手点「检查更新」才发请求。

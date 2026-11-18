@@ -9,6 +9,7 @@ import { AppWindow, LayoutGrid, Plus, RotateCcwClock, Search, Star, X, Zap } fro
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Button } from '../atoms/Button.tsx';
 import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
+import { Switch } from '../atoms/Switch.tsx';
 import { SourceTag } from '../atoms/Tag.tsx';
 import { EmptyBlock } from '../molecules/EmptyBlock.tsx';
 import { ContextMenu } from '../molecules/ContextMenu.tsx';
@@ -30,6 +31,11 @@ export interface PaletteResultsProps {
   onToggleFavorite?(entryId: string): void;
   /** 该入口当前是否已收藏：右键菜单要据此显示「收藏」还是「取消收藏」。 */
   isFavorite?(entryId: string): boolean;
+  /** 最近打开记录总数（含被开关隐藏的直接项）：>0 时标题行常驻，避免关闭后开关消失。 */
+  recentCount?: number;
+  /** 最近打开是否包含未加入入口的程序/文件夹/网页/连锁（与设置同一份）。 */
+  recentIncludeUnlisted?: boolean;
+  onToggleRecentIncludeUnlisted?(next: boolean): void;
   /** 右键收藏/取消收藏：主窗口 C4 不做，传 false。 */
   enableFavoriteMenu?: boolean;
   /** 行尾 Alt+序号：只有快捷窗口支持 Alt+1..9，主窗口不显示。 */
@@ -69,6 +75,9 @@ export function PaletteResults({
   onAddToPersonal,
   onToggleFavorite,
   isFavorite,
+  recentCount = 0,
+  recentIncludeUnlisted = true,
+  onToggleRecentIncludeUnlisted,
   enableFavoriteMenu = false,
   showAltHints = false,
   scope = 'entries',
@@ -120,9 +129,13 @@ export function PaletteResults({
   const favoriteHits = hits.filter((h) => h.kind === 'favorite' || h.kind === 'chain');
   const recentHits = hits.filter((h) => h.kind === 'recent');
   const systemHits = hits.filter((h) => h.kind === 'system');
-  const resultHits = hits.filter((h) => !isClipboardHit(h) && (h.kind === undefined || h.kind === 'result' || h.kind === 'chain'));
-  const hitIndex = (hit: PaletteHit): number => hits.indexOf(hit);
   const emptyQuery = query.length === 0;
+  /* 空查询时 kind='chain' 只属于收藏行；不能再进 resultHits，否则收藏的连锁会在
+     「收藏」和下面的回退网格里各画一次。搜索查询时 chain 仍走结果行/格。 */
+  const resultHits = hits.filter(
+    (h) => !isClipboardHit(h) && (h.kind === undefined || h.kind === 'result' || (h.kind === 'chain' && !emptyQuery)),
+  );
+  const hitIndex = (hit: PaletteHit): number => hits.indexOf(hit);
   const programScope = scope === 'programs';
 
   /** 右键菜单：收藏 / 取消收藏。剪贴板新内容与本机程序没有真实入口 id，不提供收藏。 */
@@ -141,6 +154,9 @@ export function PaletteResults({
     </div>
   );
 
+  /** 连锁命中：收藏行的 kind='chain'，最近打开里的连锁是 kind='recent' + chainSteps。 */
+  const isChainHit = (hit: PaletteHit): boolean => hit.kind === 'chain' || hit.chainSteps !== undefined;
+
   const renderTile = (hit: PaletteHit, favorited: boolean) => {
     const i = hitIndex(hit);
     const selected = i === selectedIndex;
@@ -158,8 +174,8 @@ export function PaletteResults({
         role="button"
         tabIndex={-1}
         aria-current={selected ? 'true' : undefined}
-        aria-label={`${hit.entry.name}（${hit.kind === 'chain' ? `连锁 · ${hit.chainSteps} 步` : hit.source}）`}
-        title={`${hit.entry.name}\n${hit.subtitle}${enableFavoriteMenu && hit.kind !== 'chain' ? `\n右键：${favorited ? '取消收藏' : '收藏'}` : ''}`}
+        aria-label={`${hit.entry.name}（${isChainHit(hit) ? `连锁 · ${hit.chainSteps} 步` : hit.source}）`}
+        title={`${hit.entry.name}\n${hit.subtitle}${enableFavoriteMenu && !isChainHit(hit) ? `\n右键：${favorited ? '取消收藏' : '收藏'}` : ''}`}
         onClick={() => onOpen(hit)}
         onMouseEnter={() => setHoverIndex(i)}
         onMouseLeave={() => setHoverIndex((current) => (current === i ? null : current))}
@@ -210,8 +226,8 @@ export function PaletteResults({
             className="absolute -bottom-1 -right-1 grid place-items-center rounded-[3px] border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
             style={{ width: 12, height: 12 }}
           >
-            {/* 连锁格子用 [连锁] 徽标代替类型徽标（1.9.0）：来源一眼可辨。 */}
-            <Glyph icon={hit.kind === 'chain' ? Zap : meta.icon} size={12} micro />
+            {/* 连锁格子用 [连锁] 徽标代替类型徽标（1.9.0；最近打开里的连锁同款）。 */}
+            <Glyph icon={isChainHit(hit) ? Zap : meta.icon} size={12} micro />
           </span>
         </span>
         {/* 两行名（超出裁掉）：中文名 6~8 字一行，两行够放绝大多数入口名。 */}
@@ -263,7 +279,7 @@ export function PaletteResults({
         iconUrl={iconFor(hit.entry.id)}
         glyphSize={rowGlyphSize}
         iconSize={rowIconSize}
-        glyphIcon={hit.kind === 'chain' ? Zap : undefined}
+        glyphIcon={isChainHit(hit) ? Zap : undefined}
         selected={i === selectedIndex}
         phase={phaseFor?.(hit.entry.id) ?? 'idle'}
         onOpen={() => onOpen(hit)}
@@ -271,7 +287,7 @@ export function PaletteResults({
         trailing={
           <span className="flex shrink-0 items-center gap-2">
             {/* 连锁行的来源标签是「连锁」而不是「本机」（1.9.0）：来源必须如实。 */}
-            <SourceTag source={hit.kind === 'chain' ? '连锁' : hit.source} />
+            <SourceTag source={isChainHit(hit) ? '连锁' : hit.source} />
             {hit.kind === 'system' && (
               <Button
                 tone="ghost"
@@ -304,7 +320,9 @@ export function PaletteResults({
         aria-label="搜索结果"
         onMouseDown={(e) => e.preventDefault()}
       >
-        {hits.length === 0 ? (
+        {/* 最近记录被开关全部隐藏时 hits 会是 0，但标题行与开关必须保留——
+            否则用户关掉后就地再也找不到开关。此时走下面的正常分支渲染提示。 */}
+        {hits.length === 0 && !(emptyQuery && !programScope && recentCount > 0) ? (
           programScope ? (
             <EmptyBlock
               compact
@@ -393,10 +411,33 @@ export function PaletteResults({
               </>
             )}
 
-            {emptyQuery && recentHits.length > 0 && (
+            {emptyQuery && (recentHits.length > 0 || recentCount > 0) && (
               <>
-                {sectionLabel('最近打开', RotateCcwClock)}
-                {tileGrid(recentHits, false)}
+                <div className="flex items-center justify-between gap-2 px-3 py-1">
+                  <div className="flex items-center gap-1.5 t-2xs text-[var(--muted)]">
+                    <RotateCcwClock size={16} strokeWidth={2} aria-hidden />
+                    最近打开
+                  </div>
+                  {onToggleRecentIncludeUnlisted && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="t-2xs text-[var(--meta)]">含未加入入口</span>
+                      <Switch
+                        checked={recentIncludeUnlisted}
+                        onChange={onToggleRecentIncludeUnlisted}
+                        ariaLabel="最近打开包含未加入入口的项目"
+                      />
+                    </div>
+                  )}
+                </div>
+                {recentHits.length > 0
+                  ? tileGrid(recentHits, false)
+                  : (
+                    <div className="mx-3 mb-1 rounded-[var(--radius-md)] border border-dashed border-[var(--border-default)] px-3 py-2 t-2xs leading-relaxed text-[var(--meta)]">
+                      {recentIncludeUnlisted
+                        ? '最近记录里的入口已不在当前清单中'
+                        : '已隐藏未加入入口的最近记录（程序 / 文件夹 / 网页 / 连锁）；重新开启后恢复显示'}
+                    </div>
+                  )}
               </>
             )}
 

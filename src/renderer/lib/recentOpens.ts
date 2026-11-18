@@ -1,63 +1,94 @@
 /**
- * 最近打开 —— 本机记忆（localStorage），面板空查询时的"最近打开"列表。
+ * 最近打开 —— 本机记忆（localStorage），面板空查询时的「最近打开」列表。
  *
- * 三条口径（与 PRD §8.4「最近使用」一致）：
+ * 2026-11-18 扩展：不再只记入口 id，而是记"通过 TeamLaunch 打开成功"的任何对象——
+ * 入口（仍只存 id，重命名跟随）、本机程序、文件夹、网页、整条连锁（一条记录，不拆步骤）。
+ * 未加入入口的直接项只用于最近打开显示，**永不写入 personal.json / 团队配置**。
+ *
+ * 三条口径：
  *  - **独立快捷区**：不改任何入口的官方排序，只影响面板空查询时先显示什么；
- *  - 只记 id 与时间，**不记任何内容**；上限 20 条、按 id 去重、最新在前；
- *  - 落盘的只有"这台机器"的一份（每台机器各记各的，不参与同步）。
+ *  - 只记这台机器的（不参与同步）；上限 20 条、同目标去重、最新在前；
+ *  - 开关 recentIncludeUnlisted 关闭时：入口记录照记，直接项/连锁不再新增且不显示
+ *    （已存记录保留，重新开启后恢复）。
  *
  * 注意：Chromium 对 localStorage 的落盘有延迟（实测数秒），
  * 强杀进程可能丢掉最后一次记录——这只是少一条"最近打开"，不影响别的功能。
  */
 import { useEffect, useState } from 'react';
+import { api } from '../bridge/index.ts';
+import type { Entry } from '../../shared/schema/entry.ts';
+import { CAPACITY } from '../../shared/schema/common.ts';
+import { defaultWebName } from '../../shared/web-name.ts';
+import {
+  RECENT_LIMIT,
+  directRecentInput,
+  makeRecent,
+  parseRecentRecords,
+  recentKey,
+  renameRecentTitle,
+  upsertRecent,
+  type RecentInput,
+  type RecentRecord,
+} from '../../shared/recent.ts';
 import { readMemoryString, subscribeMemory, writeMemoryString } from './localMemory.ts';
 
 const KEY = 'recentOpens';
-const MAX_STORED = 20;
-
-interface RecentRecord {
-  entryId: string;
-  at: string;
-}
 
 function readAll(): RecentRecord[] {
-  const raw = readMemoryString(KEY);
-  if (raw === null) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (r): r is RecentRecord =>
-        typeof r === 'object' && r !== null &&
-        typeof (r as RecentRecord).entryId === 'string' &&
-        typeof (r as RecentRecord).at === 'string',
-    );
-  } catch {
-    return [];
-  }
+  return parseRecentRecords(readMemoryString(KEY));
 }
 
-/** 记一次成功的打开（同一条重复打开只前移，不产生第二条）。 */
-export function pushRecentOpen(entryId: string): void {
+function writeAll(list: RecentRecord[]): void {
+  writeMemoryString(KEY, JSON.stringify(list.slice(0, RECENT_LIMIT)));
+}
+
+function pushInput(input: RecentInput): void {
+  writeAll(upsertRecent(readAll(), makeRecent(input)));
+}
+
+/** 真实入口打开成功：只记 id，显示时按当前清单解析（重命名跟随、删除即消失）。 */
+export function recordEntryOpen(entryId: string): void {
   if (entryId.length === 0) return;
-  const rest = readAll().filter((r) => r.entryId !== entryId);
-  const next: RecentRecord[] = [{ entryId, at: new Date().toISOString() }, ...rest].slice(0, MAX_STORED);
-  writeMemoryString(KEY, JSON.stringify(next));
-}
-
-/** 最近打开的 id（最新在前）。显示时再按当前清单过滤——被删掉的入口自然消失。 */
-export function recentOpenIds(): string[] {
-  return readAll().map((r) => r.entryId);
+  pushInput({ kind: 'entry', entryId });
 }
 
 /**
- * 最近打开的可订阅视图（2026-10-21）。
- *
- * 打开动作发生在主窗口，展示发生在快捷面板窗口：没有订阅时，"最近打开"要等面板
- * 重新挂载才更新。订阅的是本机记忆，不涉及任何跨机同步。
+ * 未加入入口的直接项打开成功：程序 / 文件夹 / 网页。
+ * 开关关闭时不再新增（已存记录保留，展示层也会过滤）。
  */
-export function useRecentOpenIds(): string[] {
-  const [ids, setIds] = useState<string[]>(recentOpenIds);
-  useEffect(() => subscribeMemory(KEY, () => setIds(recentOpenIds())), []);
-  return ids;
+export function recordDirectOpen(entry: Entry, enabled: boolean): void {
+  if (!enabled) return;
+  const input = directRecentInput(entry);
+  if (input === null) return;
+  pushInput(input);
+
+  /* 网页标题与"添加入口"同一逻辑：只在名称还是域名默认值时取一次标题；
+     失败静默保持域名（不打扰打开本身）。取到后按 key 回写，不覆盖后来解析出的入口名。 */
+  if (input.kind !== 'web') return;
+  const host = defaultWebName(input.url);
+  if (host === null) return;
+  if (input.name !== host.slice(0, CAPACITY.MAX_NAME_LEN)) return;
+  const key = recentKey(makeRecent(input));
+  void api.entries
+    .pageTitle(input.url)
+    .then((title) => {
+      if (title === null) return;
+      const current = readAll();
+      if (!current.some((r) => r.kind === 'web' && recentKey(r) === key)) return;
+      writeAll(renameRecentTitle(current, key, title));
+    })
+    .catch(() => undefined);
+}
+
+/** 已保存连锁启动：整条只记一条，不把每一步塞进最近打开。 */
+export function recordChainOpen(chainId: string, enabled: boolean): void {
+  if (!enabled || chainId.length === 0) return;
+  pushInput({ kind: 'chain', chainId });
+}
+
+/** 最近打开的可订阅视图：主窗口写入、面板窗口展示，跨窗口立即更新。 */
+export function useRecentOpens(): RecentRecord[] {
+  const [records, setRecords] = useState<RecentRecord[]>(readAll);
+  useEffect(() => subscribeMemory(KEY, () => setRecords(readAll())), []);
+  return records;
 }

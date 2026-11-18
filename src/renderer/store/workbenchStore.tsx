@@ -20,7 +20,8 @@ import { quickAddScope } from '../../shared/quick-add.ts';
 import { useToasts } from './toastStore.tsx';
 import { FAILURE_DETAIL, targetFull } from '../lib/entry.ts';
 import { readMemoryString, writeMemoryString } from '../lib/localMemory.ts';
-import { pushRecentOpen } from '../lib/recentOpens.ts';
+import { recordChainOpen, recordDirectOpen, recordEntryOpen } from '../lib/recentOpens.ts';
+import { useSettings } from './settingsStore.tsx';
 
 export type TabKey = 'home' | 'team' | 'personal';
 
@@ -90,7 +91,8 @@ interface WorkbenchCtx {
   query: string;
   setQuery(q: string): void;
   runtime: Record<string, EntryRuntime>;
-  openEntry(entry: Entry): Promise<void>;
+  /** record='direct'：未加入入口的合成项，最近记录按描述存而不是入口 id。 */
+  openEntry(entry: Entry, opts?: { record?: 'entry' | 'direct' }): Promise<void>;
   copyTarget(entry: Entry): Promise<void>;
   /** 多选批量复制：一次写入多行（每行一个目标）。 */
   copyManyTargets(entries: Entry[]): Promise<void>;
@@ -135,7 +137,15 @@ interface WorkbenchCtx {
   exitSelecting(): void;
   launchChain(intervalMs: number): Promise<void>;
   /** 启动一条收藏的连锁（2026-10-19）：按保存顺序打开，`missingCount` 用于如实汇报已失效的项。 */
-  runSavedChain(list: Entry[], intervalMs: number, name: string, missingCount: number, onStepOpened?: (entry: Entry) => void): Promise<void>;
+  runSavedChain(
+    list: Entry[],
+    intervalMs: number,
+    name: string,
+    missingCount: number,
+    onStepOpened?: (entry: Entry) => void,
+    /** 已保存连锁 id：整条记一条最近打开（不传 = 临时连锁，不记录）。 */
+    chainId?: string,
+  ): Promise<void>;
 }
 
 const Ctx = createContext<WorkbenchCtx | null>(null);
@@ -155,6 +165,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   /** 编辑态锁（见接口注释）：只由装配层同步，store 内部所有切换入口统一遵守。 */
   const [editingLock, setEditingLock] = useState(false);
   const { push } = useToasts();
+  const { settings } = useSettings();
 
   const toggleTypeFilter = useCallback((t: EntryType) => {
     setTypeFilter((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
@@ -187,6 +198,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       const r = await api.entries.relocate(entry);
       if (r.ok) {
         setRuntime((cur) => ({ ...cur, [entry.id]: { phase: 'idle' } }));
+        // 重新定位成功会立刻再开一次：这也是一次真实打开，进最近打开。
+        recordEntryOpen(entry.id);
         push({ title: `已记住「${entry.name}」在这台电脑上的位置`, tone: 'success' });
         return;
       }
@@ -197,17 +210,21 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   );
 
   const openEntry = useCallback(
-    async (entry: Entry) => {
+    async (entry: Entry, opts?: { record?: 'entry' | 'direct' }) => {
+      /** direct = 未加入入口的合成项（最近打开里的程序/文件夹/网页）：最近记录走描述而非入口 id。 */
+      const direct = opts?.record === 'direct';
       setRuntime((r) => ({ ...r, [entry.id]: { phase: 'opening' } }));
       // 直接按对象打开（主进程仍做 schema 校验）：团队已发布入口、个人入口、
       // 以及尚未发布的编辑态草稿都能开——此前草稿入口按 id 解析必然失败。
       const result = await api.entries.openObject(entry);
-      /* 本机用量统计（仅落本机文件、不上报）：记成功/失败各一次；统计失败不影响打开（主进程侧静默）。 */
-      void api.usage.bump({ kind: 'entry', key: entry.id, ok: result.ok });
+      /* 本机用量统计（仅落本机文件、不上报）：记成功/失败各一次；统计失败不影响打开（主进程侧静默）。
+         合成项的 id 不是真实入口 id，记进去只会污染统计，跳过。 */
+      if (!direct) void api.usage.bump({ kind: 'entry', key: entry.id, ok: result.ok });
       if (result.ok) {
         setRuntime((r) => ({ ...r, [entry.id]: { phase: 'idle' } }));
         // 最近打开只记"真的打开了"的（面板空查询要显示它，失败的不算）。
-        pushRecentOpen(entry.id);
+        if (direct) recordDirectOpen(entry, settings.recentIncludeUnlisted);
+        else recordEntryOpen(entry.id);
         // 指定了浏览器但它不在了 → 已用系统默认打开：如实说一句，别让用户以为用的是他选的那个。
         if (result.usedFallback) {
           push({ title: '原来选的浏览器找不到了，已用系统默认浏览器打开', tone: 'warn', duration: 6000 });
@@ -217,21 +234,24 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       setRuntime((r) => ({ ...r, [entry.id]: { phase: 'failed', failure: result.failure } }));
       // 应用类入口 = 装的位置跟管理员不一样是常态：给"本机重新定位"这个动作出口
       //（分层解析 2026-10-04）。只在"本机没找到"时出现，别的失败形态不给假选项。
-      const canRelocate = entry.type === 'app' && result.failure === 'NOT_INSTALLED';
+      // 合成项没有真实入口 id：不提供重新定位与反馈（否则会指向一个不存在的入口）。
+      const canRelocate = !direct && entry.type === 'app' && result.failure === 'NOT_INSTALLED';
       push({
         title: `没能打开「${entry.name}」`,
         tone: 'danger',
         duration: 6000,
-        actions: [
-          ...(canRelocate
-            ? [{ label: '在本机重新定位…', onSelect: () => void relocateEntry(entry) }]
-            : []),
-          { label: '查看诊断', onSelect: () => setDialog('diagnostics') },
-          { label: '反馈给管理员', onSelect: () => setFeedbackTargetId(entry.id) },
-        ],
+        actions: direct
+          ? [{ label: '查看诊断', onSelect: () => setDialog('diagnostics') }]
+          : [
+              ...(canRelocate
+                ? [{ label: '在本机重新定位…', onSelect: () => void relocateEntry(entry) }]
+                : []),
+              { label: '查看诊断', onSelect: () => setDialog('diagnostics') },
+              { label: '反馈给管理员', onSelect: () => setFeedbackTargetId(entry.id) },
+            ],
       });
     },
-    [push, relocateEntry],
+    [push, relocateEntry, settings.recentIncludeUnlisted],
   );
 
   const copyTarget = useCallback(
@@ -354,10 +374,19 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
 
   /** 收藏的连锁（2026-10-19）：一键按保存时的顺序启动；不动当前多选清单。 */
   const runSavedChain = useCallback(
-    async (list: Entry[], intervalMs: number, name: string, missingCount: number, onStepOpened?: (entry: Entry) => void) => {
+    async (
+      list: Entry[],
+      intervalMs: number,
+      name: string,
+      missingCount: number,
+      onStepOpened?: (entry: Entry) => void,
+      chainId?: string,
+    ) => {
+      // 最近打开（2026-11-18）：整条连锁只记一条，不把每一步拆进去。
+      if (chainId !== undefined && list.length > 0) recordChainOpen(chainId, settings.recentIncludeUnlisted);
       await runList(list, intervalMs, { label: `连锁「${name}」`, missingCount, onStepOpened });
     },
-    [runList],
+    [runList, settings.recentIncludeUnlisted],
   );
 
   /**

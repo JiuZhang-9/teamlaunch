@@ -821,6 +821,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 | `deleteFx` | enum | `dissolve` | 卡片删除动效：`dissolve` 像素溶解（默认）／`rgb` RGB 三通道爆散／`crt` CRT 关机／`melt` 熔化下滴／`burn` 烧灼扫描／`tiles` 方块爆飞（2026-11-15，10 机制演示选定 6 种） |
 | `sidebarCollapsed` | boolean | false | 侧栏是否完全收起（用户意图，故留在 settings；本机记忆类状态见下方第 3 条） |
 | `announcementNotify` | boolean | true | 主页公告提醒（每篇只提示一次）；关掉只是不弹提示，公告仍在主页 |
+| `recentIncludeUnlisted` | boolean | true | **最近打开扩展（2026-11-18）**：开＝通过 TeamLaunch 打开成功的本机程序、文件夹、网页与整条连锁也进「最近打开」；关＝只显示入口记录且不再新增这类记录（已存的保留）。记录本身仍只存 localStorage，不写 personal.json、不跨机同步 |
 | `paletteOpacity` | int | 100 | 全局快捷窗口的不透明度（60–100，整数百分比；2026-10-19 起，只作用于面板窗口） |
 | `autoCheckUpdates` | boolean | true | **自动检查更新（O-07）**：开＝启动约 8s 后检查一次、此后每 15min 一次，睡眠唤醒 / 网络恢复补查（10min 节流）；关＝不排任何定时检查、零外网请求（「检查更新」按钮不受限，那是用户的显式动作） |
 
@@ -828,6 +829,7 @@ PRD 要求"HTTPS/TLS + JWT 短时会话或经架构师确认的等价机制"。�
 1. `telemetryUpload` → **`telemetryEnabled`**。原名字会被读成"只控制上传"，而 AC-18 要求关闭时**停止记录并清空缓冲**；名字必须不暗示错误语义。
 2. **删除 `knownEndpoints`**。端点记忆是机器维护的高频状态，唯一所有者是 `discovery.json`（ADR-005）。一个事实不允许两个写入点。
 3. **本机记忆类状态不进 settings（2026-10-11 补）**：上次所在页（`lastTab`）、最近打开这类"这台机器记得的事"存**渲染层 localStorage**（`src/renderer/lib/localMemory.ts`、`recentOpens.ts`）——不进 settings.json、不参与 `tl:settings-patch` 广播、不跨机同步（否则两台机器各记各的页面，会互相顶掉）。主进程维护的窗口机器状态同理：`config/window-state.json`、`config/surface-state.json`（上次显示的是哪一面，2026-11-07）、`config/palette-state.json`（快捷窗口位置）。`sidebarCollapsed` 是历史遗留（视作用户意图，留在 settings），新状态一律走本机记忆。
+   **2026-11-18 扩展**：最近记录形态为 `entry / app / folder / web / chain`（一条连锁只记一条，不拆步骤），仍只存 localStorage；settings 里只多一个开关 `recentIncludeUnlisted`（用户意图），记录本身不写 personal.json、不跨机同步。展示时若某条直接项已被加为入口，按 target/url 命中现有入口合并成一条（`src/shared/entry-match.ts`）。
 
 ### 5.3 团队配置文档（同时也是同步报文体）
 

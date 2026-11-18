@@ -145,6 +145,10 @@ else ok('Settings 默认 browserExe = null（用系统默认浏览器打开网�
    不能被默认值悄悄关掉，也不该由某次迁移的缺省值把它带成关。 */
 if (settings.autoCheckUpdates !== true) fail(`autoCheckUpdates 默认应为 true（现状行为：启动后自动检查），实际 ${settings.autoCheckUpdates}`);
 else ok('Settings 默认 autoCheckUpdates = true（关掉才零外网请求）');
+/* 最近打开扩展（2026-11-18）：默认开启——未加入入口的程序/文件夹/网页/连锁要能直接出现在空查询里；
+   记录本身仍只存 localStorage，settings 里只有用户意图。 */
+if (settings.recentIncludeUnlisted !== true) fail(`recentIncludeUnlisted 默认应为 true，实际 ${settings.recentIncludeUnlisted}`);
+else ok('Settings 默认 recentIncludeUnlisted = true（最近打开含未加入入口项）');
 expectReject('Settings 轮询低于 5s', S.SettingsSchema, { pollIntervalMs: 1_000 });
 // settings.json 只放用户意图：机器维护的端点记忆不得回到这里（ADR-002 L1 归 discovery.json）
 if ('knownEndpoints' in settings) fail('Settings 不应再含 knownEndpoints：端点记忆的唯一写入点是 discovery.json');

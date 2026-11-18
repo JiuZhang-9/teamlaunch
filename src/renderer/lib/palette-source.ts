@@ -11,9 +11,18 @@ import { programSubtitle, systemEntry } from './programs.ts';
 import { normalizeProgramPath } from '../../shared/program-filter.ts';
 import { scoreProgram } from '../../shared/program-match.ts';
 import { findEntryIndex, type EntryProbe } from '../../shared/entry-match.ts';
+import {
+  probeOfRecent,
+  recentDisplayId,
+  recentDisplayName,
+  recentPathBase,
+  type RecentRecord,
+} from '../../shared/recent.ts';
+import { CAPACITY } from '../../shared/schema/common.ts';
 import type { Entry } from '../../shared/schema/entry.ts';
 import type { Group } from '../../shared/schema/group.ts';
 import type { ProgramIndexSnapshot } from '../../shared/schema/programs.ts';
+import { defaultWebName } from '../../shared/web-name.ts';
 import type { IdentifyResult } from '../bridge/types.ts';
 
 /** 行的种类（默认 result）。 */
@@ -26,8 +35,10 @@ export interface PaletteHit {
   kind?: PaletteHitKind;
   /** 入口结果所属分组（主窗口副标题用；程序/剪贴板新条目没有）。 */
   groupName?: string;
-  /** kind='chain' 时的步数（副标题与徽标用）。 */
+  /** 连锁命中（kind='chain' 或最近打开里的连锁）时的步数（副标题与徽标用）。 */
   chainSteps?: number;
+  /** 未加入入口的合成项（最近打开里的程序/文件夹/网页）：打开时不要再记成入口 id。 */
+  unlisted?: true;
 }
 
 export interface Candidate {
@@ -142,9 +153,12 @@ export interface BuildHitsInput {
   query: string;
   /** 收藏 id，最近收藏的在前。收藏的连锁带 `chain:` 前缀（1.9.0），用 chains 解析。 */
   favoriteIds: string[];
-  recentIds: string[];
+  /** 最近打开记录（最新在前）：入口 id + 未加入入口的程序/文件夹/网页/连锁。 */
+  recent: RecentRecord[];
+  /** 是否显示未加入入口的记录（settings.recentIncludeUnlisted）。 */
+  recentIncludeUnlisted: boolean;
   programHits: PaletteHit[];
-  /** 本机已存的连锁（1.9.0 连锁可收藏）：收藏行与按名搜索都从这里出。 */
+  /** 本机已存的连锁（1.9.0 连锁可收藏）：收藏行、最近打开的连锁、按名搜索都从这里出。 */
   chains?: PaletteChainRef[];
   /** entries=入口搜索（默认）；programs=Ctrl+Alt+F 的程序专用范围。 */
   scope?: 'entries' | 'programs';
@@ -183,13 +197,77 @@ function chainEntryOf(c: PaletteChainRef): Entry {
     };
 }
 
+/** 最近打开里的未加入入口记录 → 临时 Entry（只为渲染/打开，不落库、不参与同步）。 */
+function directRecentEntry(record: RecentRecord): Entry | null {
+  if (record.kind === 'entry' || record.kind === 'chain') return null;
+  const name = (recentDisplayName(record).trim() || '未命名').slice(0, CAPACITY.MAX_NAME_LEN);
+  if (record.kind === 'app') {
+    return {
+      id: recentDisplayId(record),
+      name,
+      type: 'app',
+      target: record.target,
+      sourcePath: record.sourcePath,
+      args: record.args,
+      cwd: record.cwd,
+      expandEnv: true,
+      sort: 0,
+      description: null,
+      icon: { kind: 'local' },
+      iconAssetHash: null,
+      updatedAt: record.at,
+    };
+  }
+  if (record.kind === 'folder') {
+    return {
+      id: recentDisplayId(record),
+      name,
+      type: 'folder',
+      target: record.target,
+      sort: 0,
+      description: null,
+      icon: { kind: 'local' },
+      iconAssetHash: null,
+      updatedAt: record.at,
+    };
+  }
+  return {
+    id: recentDisplayId(record),
+    name,
+    type: 'web',
+    url: record.url,
+    sort: 0,
+    description: null,
+    icon: { kind: 'fallback' },
+    iconAssetHash: null,
+    updatedAt: record.at,
+  };
+}
+
+/** 未加入入口项的副标题：程序 exe / 文件夹路径 / 网页域名（连锁另有步数）。 */
+function recentSubtitle(record: RecentRecord): string {
+  if (record.kind === 'app') return `程序 · ${recentPathBase(record.target)}`;
+  if (record.kind === 'folder') return `文件夹 · ${record.target}`;
+  if (record.kind === 'web') return `网页 · ${defaultWebName(record.url) ?? record.url}`;
+  return '连锁';
+}
+
 /** 剪贴板置顶行（旧名 isPinnedHit 容易和收藏混淆，1.7.0 改名）。 */
 export function isClipboardHit(hit: PaletteHit | undefined): boolean {
   return hit?.kind === 'clip-new' || hit?.kind === 'clip-existing';
 }
 
 export function buildHits(input: BuildHitsInput): PaletteHit[] {
-  const { candidates, clip, query, favoriteIds, recentIds, programHits, scope = 'entries' } = input;
+  const {
+    candidates,
+    clip,
+    query,
+    favoriteIds,
+    recent: recentRecords,
+    recentIncludeUnlisted,
+    programHits,
+    scope = 'entries',
+  } = input;
   const searchPool = input.searchCandidates ?? candidates;
   const maxRows = input.maxRows ?? MAX_ROWS;
   const sectionMax = input.sectionMax ?? SECTION_MAX;
@@ -254,16 +332,72 @@ export function buildHits(input: BuildHitsInput): PaletteHit[] {
       if (favoriteHits.length >= sectionMax) break;
     }
 
-    /* 「最近打开」行：自动记录，已收藏/剪贴板置顶的不重复出现。 */
+    /* 「最近打开」行（2026-11-18 扩展）：入口记录按 id 解析；未加入入口的程序/文件夹/网页/
+       连锁构造临时行。已收藏/剪贴板置顶/同一目标已出现的都不重复。
+       某条直接项后来被加为入口时，按 target/url 命中真实入口并合并成一条（入口名优先）。 */
     const recent: PaletteHit[] = [];
-    for (const id of recentIds) {
-      if (id === clipId || favoriteIdSet.has(id)) continue;
-      const c = byId.get(id);
-      if (!c) continue;
-      recent.push({ entry: c.entry, subtitle: subtitleOf(c.entry), source: c.source, kind: 'recent', groupName: c.groupName });
+    const seenRecent = new Set<string>();
+    const candidateEntries = candidates.map((c) => c.entry);
+    for (const record of recentRecords) {
       if (recent.length >= sectionMax) break;
+      if (!recentIncludeUnlisted && record.kind !== 'entry') continue;
+
+      let hit: PaletteHit;
+      if (record.kind === 'entry') {
+        const c = byId.get(record.entryId);
+        if (!c) continue;
+        hit = {
+          entry: c.entry,
+          subtitle: subtitleOf(c.entry),
+          source: c.source,
+          kind: 'recent',
+          groupName: c.groupName,
+        };
+      } else if (record.kind === 'chain') {
+        const ref = (input.chains ?? []).find((x) => x.id === record.chainId);
+        if (!ref) continue;
+        hit = {
+          entry: chainEntryOf(ref),
+          subtitle: `连锁 · ${ref.steps} 步`,
+          source: '本机',
+          kind: 'recent',
+          chainSteps: ref.steps,
+        };
+      } else {
+        const probe = probeOfRecent(record);
+        if (probe === null) continue;
+        const idx = findEntryIndex(candidateEntries, probe);
+        if (idx >= 0) {
+          const c = candidates[idx];
+          hit = {
+            entry: c.entry,
+            subtitle: subtitleOf(c.entry),
+            source: c.source,
+            kind: 'recent',
+            groupName: c.groupName,
+          };
+        } else {
+          const entry = directRecentEntry(record);
+          if (entry === null) continue;
+          hit = {
+            entry,
+            subtitle: recentSubtitle(record),
+            source: record.kind === 'app' ? '程序' : '本机',
+            kind: 'recent',
+            unlisted: true,
+          };
+        }
+      }
+
+      if (hit.entry.id === clipId || favoriteIdSet.has(hit.entry.id) || seenRecent.has(hit.entry.id)) continue;
+      seenRecent.add(hit.entry.id);
+      recent.push(hit);
     }
     if (recent.length > 0) return [...clipRows, ...favoriteHits, ...recent];
+
+    /* 有记录但全部被开关隐藏/已失效：不再回退"清单前几条"——
+       那批结果会被误读成最近打开。视图会保留标题行与"已隐藏"提示。 */
+    if (recentRecords.length > 0) return [...clipRows, ...favoriteHits];
 
     /* 一条最近记录都没有：收藏行之后回退展示当前范围前几条。
        kind 保持 result（不贴「最近打开」标签）——标签必须如实描述这批结果是什么。 */

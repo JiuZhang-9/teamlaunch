@@ -15,6 +15,7 @@ import { CardStatsBar } from '../components/molecules/CardStatsBar.tsx';
 import { GroupSections } from '../components/organisms/GroupSections.tsx';
 import type { ContextMenuItem } from '../components/molecules/ContextMenu.tsx';
 import { EmptyBlock } from '../components/molecules/EmptyBlock.tsx';
+import { recordEntryOpen } from '../lib/recentOpens.ts';
 import { syncPresentation } from '../services/syncCopy.ts';
 import { useEdit } from '../store/editStore.tsx';
 import { useFeedback } from '../store/feedbackStore.tsx';
@@ -99,7 +100,11 @@ export function TeamEntriesView() {
         id: 'browser',
         label: '在浏览器中打开',
         icon: ExternalLink,
-        onSelect: () => void api.entries.openExternal(entry.url),
+        onSelect: () => {
+          /* 外部打开没有成功回执：按用户动作记一次最近打开（网页入口 id）。 */
+          recordEntryOpen(entry.id);
+          void api.entries.openExternal(entry.url);
+        },
       });
     }
     if (entry.type === 'app') {

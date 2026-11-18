@@ -533,6 +533,19 @@ export function SettingsPanel({
               }
             />
 
+            {/* 最近打开扩展（2026-11-18）：开关同时控制记录与显示；位置与「最近打开」标题行的小开关同步。 */}
+            <Row
+              title="最近打开记录"
+              detail="通过快捷搜索直接打开的本机程序、文件夹、网页与整条连锁也会进入「最近打开」；不会加入入口清单，仅本机保存、不同步。关闭后只显示入口记录"
+              control={
+                <Switch
+                  ariaLabel="最近打开包含未加入入口的项目"
+                  checked={settings.recentIncludeUnlisted}
+                  onChange={(next) => onPatch({ recentIncludeUnlisted: next })}
+                />
+              }
+            />
+
             <Divider />
             <SectionHead>UI 缩放</SectionHead>
             <p className="t-2xs mb-2 text-[var(--meta)]">放大字体与界面元素，窗口大小不变；主窗口立即生效并记住选择</p>
