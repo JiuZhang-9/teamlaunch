@@ -39,9 +39,9 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 `docs/design-system/`｜分发与现场排障 `docs/DELIVERY.md`｜开发细节 `docs/DEVELOPMENT.md`｜
 决策与待办登记 `docs/decisions/OPEN-DECISIONS.md` + `docs/decisions/ADR-001..008`
 
-## 当前状态（2026-11-18，latest = v1.9.0；v1.9.1 已实现待发）
+## 当前状态（2026-11-18，latest = v1.9.1 已发布）
 
-- v1.0.13 起逐版发布到 **v1.9.0**（latest = v1.9.0；自 1.1.0 起小修改按最后一位递增，
+- v1.0.13 起逐版发布到 **v1.9.1**（latest = v1.9.1；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
 - 用户反馈多批：v1.0.33（隐私门披露 / 书签两步 / 更新进度环）、v1.0.34（窗口尺寸记忆 / 卡片框选 /
   分组多选删 / 组名点击改名）、v1.0.35（连锁收藏 / 面板透明度 / Ctrl+空格 / Ctrl+Tab / 图标重画）、
@@ -94,10 +94,11 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   卡片页 Tab/Shift+Tab 翻页一屏；顶栏常驻「检测更新」按钮；
   复测二轮：删除动效改六机制进设置（deleteFx：RGB 爆散/CRT 关机/像素溶解默认/熔化下滴/烧灼扫描/方块爆飞）、
   搜索浮层入场缓动、右键菜单图标、卡片中键进编辑、六点柄移除、主页改开关式态且侧栏对齐）
-- v1.9.1（2026-11-18，待发布）：**最近打开扩展**——除入口外，通过 TeamLaunch 打开成功的本机程序、
-  文件夹、网页与整条连锁也进最近打开（不自动加入入口、不写 personal.json）；文件夹显示名称、网页显示
-  标题（与添加入口同一 pageTitle 逻辑）、连锁一条记录不拆步骤；设置·通用 + 「最近打开」标题行两处
-  开关 `recentIncludeUnlisted`（默认开、跨窗口同步）；记录模型抽 `shared/recent.ts` 并加 `verify:recent`
+- v1.9.1（2026-11-18，已发布；commit `6102e9e` + tag/Release v1.9.1 四件套，exe 118,419,984）：
+  **最近打开扩展**——除入口外，通过 TeamLaunch 打开成功的本机程序、文件夹、网页与整条连锁也进
+  最近打开（不自动加入入口、不写 personal.json）；文件夹显示名称、网页显示标题（与添加入口同一
+  pageTitle 逻辑）、连锁一条记录不拆步骤；设置·通用 + 「最近打开」标题行两处开关
+  `recentIncludeUnlisted`（默认开、跨窗口同步）；记录模型抽 `shared/recent.ts` 并加 `verify:recent`
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、
