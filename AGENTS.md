@@ -111,5 +111,8 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 - **本机构建受 360 拦截**（三步绕过：输出到 `%TEMP%` → `NsisTarget.js` 重试补丁 → 生成后立刻改名 `.bin`）；
   根治要把项目目录 + `%LOCALAPPDATA%\electron-builder\Cache` 加信任区
 - 每批固定流程：门禁五项全绿（`verify:qa-http` 单独补跑）→ **完整 `npm run build`** → electron-builder 到 `%TEMP%` →
-  改名 `.bin` 拷回 → sha512 对 `latest.yml` + SHA256SUMS → 打包产物自验（隔离档案 + CDP）→ 发 Release
+  改名 `.bin` 拷回 → sha512 对 `latest.yml` + SHA256SUMS → 打包产物自验（隔离档案 + CDP）→ 发 Release →
+  **把 `latest.yml` + 新 exe + blockmap 拷进管理员机 `%APPDATA%\TeamLaunch\updates`（局域网镜像）**。
+  不拷的后果：镜像仍报旧版本；GitHub 不可达时选源会落到镜像，全团队被钉在旧版，界面只显示
+  “已是最新 · 来源 局域网镜像”（2026-11-18 实际踩到：镜像停在 1.8.2，1.9.1 发不出去）。
 
