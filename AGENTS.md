@@ -110,6 +110,14 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   千问/夸克/Tabbit/360安全；判定只认 profile 内含 Bookmarks，避免 Electron 应用误报）；
   新增 `verify:bookmarks`，`verify:favorites` 扩排序断言。安装包
   `dist/installer/TeamLaunch-Setup-1.10.0.exe`（118,434,073，sha512 已对 latest.yml）
+- v1.11.0（2026-11-21，**已构建安装包，待用户实测后发版**）：搜索框**直接网页搜索**——
+  主窗口/快捷窗口查询非空时，搜索框右侧「在浏览器中搜索」按钮 + `Alt+Enter` + 结果区底部
+  吸底一行；用**目标浏览器自己的默认搜索引擎**（读 Preferences 的 `default_search_provider_data`；
+  新版 Chrome 只有 `mirrored_template_url_data.keyword`，按内置 Bing/Google/百度/搜狗/360 映射），
+  目标浏览器确定后读不到直接回退 Bing、**不借别的浏览器的引擎**（避免来源显示错）；输入是
+  网址/路径时不显示；不写最近打开、不进同步/上报。门禁 `verify:web-search`（模板解析/URL 拼接/
+  网址识别/exe↔目录匹配/四端接线）。安装包
+  `dist/installer/TeamLaunch-Setup-1.11.0.exe`（118,445,306，sha512 已对 latest.yml）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、

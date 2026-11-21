@@ -42,11 +42,13 @@ export interface WindowSearchViewProps {
   teamUnavailable: boolean;
   /** 收藏拖拽排序（1.10.0）：传拖动后的可见收藏 id 顺序给主进程。 */
   onReorderFavorites?(orderedIds: string[]): void;
+  /** 网页搜索（1.11.0）：查询非空且不像网址/路径时，结果区底部显示一行。 */
+  webSearch?: { query: string; engine?: string; onRun(): void };
 }
 
 export function WindowSearchView({
   query, hits, debouncing, quickAccess, tabLabel, icons, runtime, selectedIndex, onSelectIndex, onOpen, onAddToPersonal, recentCount, onClear,
-  programScanning, programError, teamUnavailable, onReorderFavorites,
+  programScanning, programError, teamUnavailable, onReorderFavorites, webSearch,
 }: WindowSearchViewProps) {
   const { settings, patch } = useSettings();
   return (
@@ -85,6 +87,7 @@ export function WindowSearchView({
           return rt?.phase === 'opening' ? 'opening' : rt?.phase === 'failed' ? 'failed' : 'idle';
         }}
         onReorderFavorites={onReorderFavorites}
+        webSearch={webSearch}
       />
     </div>
   );

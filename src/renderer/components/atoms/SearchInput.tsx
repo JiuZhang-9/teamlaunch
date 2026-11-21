@@ -2,16 +2,21 @@
  * SearchInput 原子 —— 工具栏搜索框（w 280，图标 16）与迷你面板搜索框（h 40，图标 20）共用。
  * Loading 态（防抖计算中）不显示转圈，只由调用方在结果区表达，避免输入框内闪动。
  */
-import { Search, X } from 'lucide-react';
+import { Globe, Search, X } from 'lucide-react';
 import { forwardRef, type InputHTMLAttributes } from 'react';
 
 export interface SearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   variant?: 'toolbar' | 'palette';
   onClear?(): void;
+  /**
+   * 网页搜索（1.11.0）：有值且提供时，右侧出现「在浏览器中搜索」按钮。
+   * 与清除按钮并排；mousedown 阻止默认，避免点击时输入框失焦把搜索浮层收掉。
+   */
+  onWebSearch?(): void;
 }
 
 export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { variant = 'toolbar', onClear, className = '', value, ...rest },
+  { variant = 'toolbar', onClear, onWebSearch, className = '', value, ...rest },
   ref,
 ) {
   const palette = variant === 'palette';
@@ -46,6 +51,18 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
         ].join(' ')}
         {...rest}
       />
+      {hasValue && onWebSearch && (
+        <button
+          type="button"
+          aria-label="在浏览器中搜索"
+          title="在浏览器中搜索（Alt+Enter）"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onWebSearch}
+          className="mr-0.5 grid h-6 w-6 place-items-center rounded-sm text-[var(--muted)] transition-colors duration-[var(--motion-fast)] hover:bg-surface-hover hover:text-fg"
+        >
+          <Globe size={palette ? 18 : 16} strokeWidth={2} aria-hidden />
+        </button>
+      )}
       {hasValue && onClear && (
         <button
           type="button"

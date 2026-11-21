@@ -30,6 +30,8 @@ import type {
   ScanResult,
   SyncSnapshot,
   TeamLaunchApi,
+  WebSearchEngineInfo,
+  WebSearchRunResult,
 } from '../renderer/bridge/types.ts';
 import { PersonalConfigSchema, SettingsSchema } from '../shared/schema/local.ts';
 import { EntrySchema } from '../shared/schema/entry.ts';
@@ -171,6 +173,12 @@ const api: TeamLaunchApi = {
       if (!gate.success) return Promise.resolve({ ok: false as const, reason: 'UNKNOWN' as const });
       return invoke<RelocateResult>('tl:entries-relocate', gate.data);
     },
+  },
+
+  /* 网页搜索（1.11.0）：主进程读浏览器默认引擎、拼 URL 并交给系统浏览器。 */
+  webSearch: {
+    run: (query) => invoke<WebSearchRunResult>('tl:web-search', query),
+    info: () => invoke<WebSearchEngineInfo>('tl:web-search-info'),
   },
 
   sync: {

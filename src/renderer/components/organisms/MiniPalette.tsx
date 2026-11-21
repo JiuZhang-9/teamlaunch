@@ -52,13 +52,15 @@ export interface MiniPaletteProps {
   /** 索引正在扫描 / 最近失败原因：程序范围的空态要如实说明。 */
   programScanning?: boolean;
   programError?: string | null;
+  /** 网页搜索（1.11.0）：查询非空且不像网址/路径时，搜索框出现按钮、结果区底部出现一行。 */
+  webSearch?: { query: string; engine?: string; onRun(): void };
 }
 
 export function MiniPalette(props: MiniPaletteProps) {
   const {
     open, query, onQueryChange, hits, selectedIndex, onSelectIndex, iconFor, onOpen, onAddToPersonal, onEnterMain, onClose, onToggleFavorite, isFavorite,
     recentCount = 0, recentIncludeUnlisted = true, onToggleRecentIncludeUnlisted,
-    teamUnavailable, docked = false, scope = 'entries', programScanning = false, programError = null,
+    teamUnavailable, docked = false, scope = 'entries', programScanning = false, programError = null, webSearch,
   } = props;
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -75,6 +77,14 @@ export function MiniPalette(props: MiniPaletteProps) {
     /* 输入法组词中：回车 / 空格 / 方向键都交给输入法，否则会"回车不跟手"或误开候选。
        这是 2026-10-27 用户反馈"回车很多时候不跟手"的根因之一。 */
     if (e.nativeEvent.isComposing) return;
+    /* 网页搜索（1.11.0）：Alt+Enter 在"没有入口命中"时最有用，必须在 Enter 分支之前处理。 */
+    if (e.key === 'Enter' && e.altKey) {
+      if (webSearch !== undefined) {
+        e.preventDefault();
+        webSearch.onRun();
+      }
+      return;
+    }
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
       /* ←/→ 与 ↑/↓ 都能移动选中项（2026-10-19 用户要求："变成按钮后，上下左右方向键是否也可以调整选中项"）：
          图标格是一行，左右是它的自然轴；上下继续沿用原来的线性游标（进入下方列表）。 */
@@ -177,6 +187,7 @@ export function MiniPalette(props: MiniPaletteProps) {
             onChange={(e) => onQueryChange(e.target.value)}
             aria-label={scope === 'programs' ? '搜索本机程序（开始菜单）' : '搜索入口、程序或路径'}
             placeholder={scope === 'programs' ? '搜索本机程序（开始菜单）' : '搜索入口、程序或路径'}
+            onWebSearch={webSearch?.onRun}
           />
           {/* 1.5.3 用户要求：搜索框右侧一个可见的「打开主窗口」按钮，
               和 Ctrl+Tab 同一个动作；只在独立快捷窗口里显示（主窗口内的浮层不需要）。 */}
@@ -213,6 +224,7 @@ export function MiniPalette(props: MiniPaletteProps) {
           programScanning={programScanning}
           programError={programError}
           teamUnavailable={teamUnavailable}
+          webSearch={webSearch}
           tileColumns={7}
           tileHeight={104}
           tileGap={8}

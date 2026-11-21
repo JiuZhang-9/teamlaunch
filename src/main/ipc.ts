@@ -8,6 +8,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { extractIcon, openEntry, openUrl, type OpenTarget, type RelocateResult } from './opener.ts';
+import { resolveSearchEngine, resolveWebSearchUrl } from './defaultSearch.ts';
 import { resolveAppCandidates, saveOverride } from './appResolver.ts';
 import { fetchPageTitle } from './pageTitle.ts';
 import { faviconForUrl } from './favicon.ts';
@@ -418,6 +419,30 @@ export function registerIpc(deps: IpcDeps): void {
   });
 
   ipcMain.handle('tl:entries-open-external', (_e, url: string) => openUrl(url));
+
+  /* 网页搜索（1.11.0）：用浏览器自己的默认搜索引擎新标签打开结果页。
+     只读浏览器 Preferences 的搜索模板，不碰历史/书签；搜索词不写最近打开、不进同步/上报。 */
+  ipcMain.handle('tl:web-search', async (_e, query: unknown) => {
+    const text = typeof query === 'string' ? query : '';
+    const settings = await localStore.settings<Partial<Settings>>({});
+    const resolved = await resolveWebSearchUrl(text, settings.browserExe ?? null);
+    if (resolved === null) {
+      return { ok: false, engine: 'Bing', browser: null, source: 'fallback' as const, reason: 'EMPTY_QUERY' };
+    }
+    const opened = await openUrl(resolved.url);
+    return {
+      ok: opened.ok,
+      engine: resolved.engine.engine,
+      browser: resolved.engine.browser,
+      source: resolved.engine.source,
+      reason: opened.ok ? undefined : opened.failure,
+    };
+  });
+  ipcMain.handle('tl:web-search-info', async () => {
+    const settings = await localStore.settings<Partial<Settings>>({});
+    const info = await resolveSearchEngine(settings.browserExe ?? null);
+    return { engine: info.engine, browser: info.browser, source: info.source };
+  });
 
   ipcMain.handle('tl:sync-snapshot', () => syncService().snapshot());
   /** 渲染层挂载后主动拉一次：preload 预热缓存与首帧之间有竞态，拉取兜底保证首帧即真值。 */

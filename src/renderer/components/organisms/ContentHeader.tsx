@@ -54,6 +54,8 @@ export interface ContentHeaderProps {
   onSearchBlur?(): void;
   /** Esc：有查询词时清空，空查询时退出搜索（1.5.1）。 */
   onSearchEscape?(): void;
+  /** 网页搜索（1.11.0）：输入非空时搜索框右侧出现「在浏览器中搜索」按钮。 */
+  onWebSearch?(): void;
   /** 搜索框后的页面切换按钮（1.5.1 用户要求：不按快捷键也能换主页/团队/个人）。 */
   onSwitchTab?(tab: TabKey): void;
   /** 主页态开关（1.9.0）：小房子 = 进入 / 退出主页；不给则回退旧的"跳到主页"行为。 */
@@ -63,7 +65,7 @@ export interface ContentHeaderProps {
 export function ContentHeader(props: ContentHeaderProps) {
   const {
     tab, mode, query, onQueryChange, snapshot, onRefresh, typeFilter, onToggleTypeFilter, onClearTypeFilter,
-    selecting, onToggleSelecting, actions = [], onSearchFocus, onSearchBlur, onSearchEscape, onSwitchTab, onToggleHome,
+    selecting, onToggleSelecting, actions = [], onSearchFocus, onSearchBlur, onSearchEscape, onWebSearch, onSwitchTab, onToggleHome,
   } = props;
   const searchRef = useRef<HTMLInputElement | null>(null);
   const actionsRef = useRef<HTMLDivElement | null>(null);
@@ -192,6 +194,7 @@ export function ContentHeader(props: ContentHeaderProps) {
           }}
           aria-label="搜索入口"
           placeholder={tab === 'team' ? '搜索团队入口' : '搜索个人入口'}
+          onWebSearch={onWebSearch}
         />
       </div>
 

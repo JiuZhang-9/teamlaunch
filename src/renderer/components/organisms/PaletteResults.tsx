@@ -5,7 +5,7 @@
  *   剪贴板置顶行 → 收藏行（图标格）→ 最近打开行（图标格）→ 入口结果 → 本机程序。
  * 主窗口只是把它放进内容区，并关掉右键收藏与 Alt 序号（C4 不做）。
  */
-import { AppWindow, LayoutGrid, Plus, RotateCcwClock, Search, Star, X, Zap } from 'lucide-react';
+import { AppWindow, Globe, LayoutGrid, Plus, RotateCcwClock, Search, Star, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Button } from '../atoms/Button.tsx';
 import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
@@ -68,6 +68,11 @@ export interface PaletteResultsProps {
    * 快捷窗口不传（面板格子小，拖拽体验差；顺序跟随主窗口）。
    */
   onReorderFavorites?(orderedIds: string[]): void;
+  /**
+   * 网页搜索（1.11.0）：查询非空且不像网址/路径时，结果区底部固定一行。
+   * 不走 hits、不参与方向键选择——它是"兜底动作"，不能和"打开入口"混在一个列表里。
+   */
+  webSearch?: { query: string; engine?: string; onRun(): void };
   className?: string;
 }
 
@@ -100,6 +105,7 @@ export function PaletteResults({
   tileIconSize = 32,
   phaseFor,
   onReorderFavorites,
+  webSearch,
   className = '',
 }: PaletteResultsProps) {
   /** 右键菜单：位置 + 命中的那条结果。菜单开着时 Esc 只收菜单，不收起面板。 */
@@ -623,6 +629,23 @@ export function PaletteResults({
           <p className="px-3 py-1 t-2xs text-[var(--meta)]">
             团队入口还没有同步，当前只显示个人入口
           </p>
+        )}
+        {/* 网页搜索（1.11.0）：底部固定一行，吸底不随列表滚走；失败原因由调用方 toast 如实说明。 */}
+        {webSearch !== undefined && (
+          <button
+            type="button"
+            onClick={webSearch.onRun}
+            title="用浏览器默认搜索引擎打开结果页"
+            className="sticky bottom-0 z-[1] flex w-full items-center gap-2 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-left t-xs text-[var(--fg-2)] transition-colors duration-[var(--motion-fast)] hover:bg-[var(--card-bg-hover)]"
+          >
+            <Globe size={16} strokeWidth={2} aria-hidden className="shrink-0 text-[var(--accent-text)]" />
+            <span className="min-w-0 truncate">
+              {webSearch.engine !== undefined && webSearch.engine.length > 0
+                ? `用 ${webSearch.engine} 搜索「${webSearch.query.trim()}」`
+                : `在浏览器中搜索「${webSearch.query.trim()}」`}
+            </span>
+            <span className="ml-auto shrink-0 t-2xs text-[var(--meta)]">Alt+Enter</span>
+          </button>
         )}
       </div>
 

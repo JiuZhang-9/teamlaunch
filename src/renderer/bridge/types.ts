@@ -297,6 +297,22 @@ export interface DemoControls {
   setDiagnosticsScenario(s: 'normal' | 'public-network' | 'firewall-missing'): void;
 }
 
+/** 网页搜索（1.11.0）：用浏览器默认搜索引擎打开结果页。 */
+export interface WebSearchEngineInfo {
+  /** 引擎显示名（如「百度」）；读不到回退时是「Bing」。 */
+  engine: string;
+  /** 引擎来源浏览器（如「Google Chrome」）；回退时为 null。 */
+  browser: string | null;
+  /** browser = 来自浏览器默认配置；fallback = 读不到时的兜底。 */
+  source: 'browser' | 'fallback';
+}
+
+export interface WebSearchRunResult extends WebSearchEngineInfo {
+  ok: boolean;
+  /** 打开失败的真实原因（成功时无）。 */
+  reason?: string;
+}
+
 export interface TeamLaunchApi {
   readonly kind: 'electron' | 'mock';
   /**
@@ -352,6 +368,14 @@ export interface TeamLaunchApi {
     pageTitle(url: string): Promise<string | null>;
     /** 在本机重新定位应用入口：选一次、本机记住、立刻尝试打开。 */
     relocate(entry: Entry): Promise<RelocateResult>;
+  };
+
+  /** 网页搜索（1.11.0）：用目标浏览器的默认搜索引擎新标签打开结果页。 */
+  webSearch: {
+    /** 用浏览器默认搜索引擎打开当前词的搜索结果页（不写最近打开）。 */
+    run(query: string): Promise<WebSearchRunResult>;
+    /** 读当前会用的引擎名与来源（只读解析，不打开浏览器）。 */
+    info(): Promise<WebSearchEngineInfo>;
   };
 
   /** 收藏（本机持久化；主页与快捷窗口共用同一份）。 */

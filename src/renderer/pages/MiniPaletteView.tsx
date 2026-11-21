@@ -12,7 +12,7 @@
  *
  * 1.4.0：候选构造/打分/去重全部搬进 `lib/palette-source.ts`，与主窗口搜索共用。
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../bridge/index.ts';
 import { MiniPalette } from '../components/organisms/MiniPalette.tsx';
 import { useEntryIcons } from '../hooks/useEntryIcons.ts';
@@ -38,6 +38,7 @@ import { useSync } from '../store/syncStore.tsx';
 import { useToasts } from '../store/toastStore.tsx';
 import { useWorkbench } from '../store/workbenchStore.tsx';
 import { syncPresentation } from '../services/syncCopy.ts';
+import { looksLikeUrlOrPath } from '../../shared/web-search.ts';
 
 export function MiniPaletteView({
   open,
@@ -63,6 +64,39 @@ export function MiniPaletteView({
       text 留着原样转给"加为入口"——重新识别一遍比在这里拼 target 更可靠（.lnk 会丢原始路径）。 */
   const [clip, setClip] = useState<ClipboardCandidate | null>(null);
   const debounced = useDebouncedValue(query, 120);
+
+  /* 网页搜索（1.11.0）：面板打开时读一次浏览器默认引擎名；程序专用范围不提供。 */
+  const [webSearchEngine, setWebSearchEngine] = useState<{ engine: string } | null>(null);
+  useEffect(() => {
+    if (!open || scope === 'programs') return;
+    let cancelled = false;
+    void api.webSearch
+      .info()
+      .then((info) => {
+        if (!cancelled) setWebSearchEngine({ engine: info.engine });
+      })
+      .catch(() => {
+        /* 读不到引擎名不影响执行：主进程仍会解析/回退 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, scope]);
+
+  const webSearchAvailable =
+    open && scope !== 'programs' && query.trim().length > 0 && !looksLikeUrlOrPath(query);
+  const runWebSearch = useCallback(async () => {
+    const text = query.trim();
+    if (text.length === 0) return;
+    /* 与 Enter 打开入口同一手感：面板先收起，浏览器到前台。 */
+    onClose();
+    try {
+      const result = await api.webSearch.run(text);
+      if (!result.ok) push({ title: result.reason ?? '没能打开浏览器搜索', tone: 'warn' });
+    } catch {
+      push({ title: '没能打开浏览器搜索', tone: 'danger' });
+    }
+  }, [query, onClose, push]);
   /** 收藏与最近打开都是本机数据：面板开着时被主窗口更新，也要立刻跟着变。 */
   const { favoriteIds, isFavorite, toggleFavorite } = useFavorites();
   const recent = useRecentOpens();
@@ -160,6 +194,7 @@ export function MiniPaletteView({
       onSelectIndex={setSelected}
       iconFor={(id) => icons[id] ?? null}
       teamUnavailable={!presentation.renderable && candidates.some((c) => c.source === '本机')}
+      webSearch={webSearchAvailable ? { query, engine: webSearchEngine?.engine, onRun: () => void runWebSearch() } : undefined}
       onToggleFavorite={(entryId) => void toggleFavorite(entryId)}
       isFavorite={isFavorite}
       recentCount={recent.length}

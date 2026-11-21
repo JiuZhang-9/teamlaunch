@@ -34,6 +34,7 @@ import { measure } from '../../../shared/capacity-usage.ts';
 import { CAPACITY } from '../../../shared/schema/common.ts';
 import { DEFAULT_APP_HOTKEYS, type HotkeyConflictInfo } from '../../../shared/app-hotkeys.ts';
 import { quickAddScope } from '../../../shared/quick-add.ts';
+import { looksLikeUrlOrPath } from '../../../shared/web-search.ts';
 import { useEntryIcons } from '../../hooks/useEntryIcons.ts';
 import {
   CHAIN_FAV_PREFIX,
@@ -277,6 +278,38 @@ export function MainWindowShell() {
   /* 搜索态：输入框聚焦（空查询 = 快速打开）或已有查询词；编辑态不参与搜索。 */
   const showSearch = tab !== 'home' && !editing && (searching || searchFocused);
   const quickAccess = showSearch && !searching;
+
+  /* 网页搜索（1.11.0）：搜索态打开时读一次浏览器默认引擎名（只读解析，不打开浏览器）；
+     读不到时主进程会回退 Bing——这里没有引擎名也能用，只是底部行文案用通用说法。 */
+  const [webSearchEngine, setWebSearchEngine] = useState<{ engine: string; source: 'browser' | 'fallback' } | null>(null);
+  useEffect(() => {
+    if (!showSearch) return;
+    let cancelled = false;
+    void api.webSearch
+      .info()
+      .then((info) => {
+        if (!cancelled) setWebSearchEngine({ engine: info.engine, source: info.source });
+      })
+      .catch(() => {
+        /* 引擎信息读不到不影响按钮：真正执行时主进程仍会解析/回退 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showSearch]);
+
+  /** 输入本身是网址/路径时不提供"搜索网页"；空查询也不提供。 */
+  const webSearchAvailable = query.trim().length > 0 && !looksLikeUrlOrPath(query);
+  const runWebSearch = useCallback(async () => {
+    const text = query.trim();
+    if (text.length === 0) return;
+    try {
+      const result = await api.webSearch.run(text);
+      if (!result.ok) push({ title: result.reason ?? '没能打开浏览器搜索', tone: 'warn' });
+    } catch {
+      push({ title: '没能打开浏览器搜索', tone: 'danger' });
+    }
+  }, [query, push]);
 
   /* 搜索结果的图标：当前 Tab 的卡片图标已有；收藏/最近可能来自另一页，按命中补取。 */
   const searchHitEntries = useMemo(
@@ -555,6 +588,15 @@ export function MainWindowShell() {
       if (e.isComposing) return;
       const target = e.target as HTMLElement | null;
       if (!target?.closest('[data-tl-search-surface]')) return;
+      /* 网页搜索（1.11.0）：Alt+Enter 在"没有入口命中"时最有用，
+         所以必须在 hits.length===0 早退之前处理。输入法组词中不拦。 */
+      if (e.key === 'Enter' && e.altKey) {
+        if (webSearchAvailable) {
+          e.preventDefault();
+          void runWebSearch();
+        }
+        return;
+      }
       if (hits.length === 0) return;
       const current = hits[searchIndex] ?? hits[0];
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
@@ -592,7 +634,7 @@ export function MainWindowShell() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showSearch, hits, searchIndex, handleSearchAdd, handleSearchOpen]);
+  }, [showSearch, hits, searchIndex, handleSearchAdd, handleSearchOpen, webSearchAvailable, runWebSearch]);
 
   /** 应用内快捷键：内置默认 + 用户覆盖（settings.appHotkeys 只存改过的动作）。 */
   const appHotkeys = useMemo(() => ({ ...DEFAULT_APP_HOTKEYS, ...settings.appHotkeys }), [settings.appHotkeys]);
@@ -1125,6 +1167,7 @@ export function MainWindowShell() {
               onSearchFocus={() => setSearchFocused(true)}
               onSearchBlur={() => setSearchFocused(false)}
               onSearchEscape={closeSearch}
+              onWebSearch={webSearchAvailable ? () => void runWebSearch() : undefined}
               onSwitchTab={setTab}
               onToggleHome={toggleHome}
             />
@@ -1247,6 +1290,11 @@ export function MainWindowShell() {
                       programError={programs.error}
                       teamUnavailable={!p.renderable && personal.groups.some((g) => g.entries.length > 0)}
                       onReorderFavorites={reorderFavorites}
+                      webSearch={
+                        webSearchAvailable
+                          ? { query, engine: webSearchEngine?.engine, onRun: () => void runWebSearch() }
+                          : undefined
+                      }
                     />
                   </div>
                 </>

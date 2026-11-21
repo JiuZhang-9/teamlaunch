@@ -833,7 +833,14 @@ Graphite（石墨）—— 极低彩度的冷灰，色相约 215°，这是让"�
 - **收藏顺序唯一口径**：`shared/favorites.ts` 的 `favoriteIdsForDisplay`——有 `sort` 的按 sort 升序，没有 sort 的（刚收藏 / 老数据）按 addedAt 倒序排最前；主页、搜索浮层、快捷窗口都只走它，不再各自 reverse。老数据无需迁移标记。
 - **连锁改为手动收藏**：多选条按钮回到「保存为连锁」，连锁保存不再自动写收藏、不再补老连锁；主页「连锁」格子的「⋯」菜单新增「收藏这条连锁 / 取消收藏这条连锁」。已存在的 `chain:` 收藏记录保留，删除连锁仍自动撤收藏。
 - **点击反馈（方案 C，用户 2026-11-21 选定）**：入口卡片、主页收藏格、连锁格、搜索与快捷窗口图标格——按下容器 scale 0.97 + 图标 scale 0.9 下压（80ms），打开成功图标 1→1.12→1（300ms ease-emphasis），打开失败图标抖动（260ms）+ 卡片红边。键盘 Enter/空格同款。`prefers-reduced-motion` 下全部关闭（含 active 缩放）。
-- **导入书签浏览器识别**：固定名单 → 固定表 + 动态扫描 `%LOCALAPPDATA%` / `%APPDATA%` 下的 Chromium 数据目录（`<vendor>/User Data`、`<vendor>/<product>/User Data`、Opera 宿主目录形态）；判定看 `Local State` 或 profile 内 `Bookmarks`，只读目录与文件名。Firefox 仍不支持并在对话框如实说明。
+- **导入书签浏览器识别**：固定名单 → 固定表 + 动态扫描 `%LOCALAPPDATA%` / `%APPDATA%` 下的 Chromium 数据目录（`<vendor>/User Data`、`<vendor>/<product>/User Data`、Opera 宿主目录形态）；判定只认 profile 内的 `Bookmarks`——实机发现按 `Local State` 判定会把 VS Code/Discord/TeamLaunch 等几十个 Electron 应用误报成浏览器。Firefox 仍不支持并在对话框如实说明。
+
+#### 1.11.0（2026-11-21）：搜索框直接网页搜索
+
+- **入口**：搜索框有值时右侧出现「在浏览器中搜索」按钮（清除按钮左侧，`mousedown` 阻止默认以保持输入框焦点）；`Alt+Enter` 同效（输入法组词中不拦，`hits` 为空时也可用——这是它最有用的场景）；结果区底部固定一行 `用 <引擎> 搜索「xxx」`（`sticky bottom-0`，不参与 `hits` / 方向键选择，避免和"打开入口"混在一个列表）。
+- **引擎**：用目标浏览器自己的默认搜索引擎，不在应用内另设配置。解析顺序：设置里「打开网页的浏览器」→ 系统默认浏览器 → 任一能读到配置的 Chromium 浏览器 → 回退 Bing。读 `Preferences` 的 `default_search_provider_data`：旧版/自定义引擎取 `template_url_data.search_url`；新版 Chrome 只有 `mirrored_template_url_data` 的 `keyword`（内置模板在浏览器二进制里），按 Bing/Google/百度/搜狗/360 映射；目标浏览器确定后**只读它**，读不到直接回退 Bing，不借用别的浏览器的引擎（否则来源显示错）。
+- **边界**：输入本身是网址/路径（`https://`、`C:\`、`\\server`、`./`、`/`）时不显示；普通域名（`example.com`）仍显示。搜索词只在本机拼 URL 交给系统浏览器（尊重「打开网页的浏览器」偏好），**不写最近打开、不进同步/上报**；打开失败由 toast 如实说明原因。
+- 门禁：新增 `verify:web-search`（模板解析/URL 拼接/网址识别/exe↔目录匹配/四端接线），进 `verify:all`。
   - **（复测追加）卡片中央编辑钮**：个人页卡片悬停时中央浮出铅笔圆钮，点它直接进编辑（点卡片其余区域仍是打开；圆钮不悬停时不吃点击）。
   - **（复测追加）编辑态拖拽句柄挪位**：左上常驻句柄挪到右上操作行（原位置与入口图标重叠）。
   - **（复测追加）主页改开关式"态"**：主页不再与团队/个人入口并列——内容头小房子进入 / 主页顶栏小房子退出（回到进入前的页面）；侧栏里主页从页签摘除、改为分隔线下的独立开关钮；主页顶栏右侧两个页面按钮移除。

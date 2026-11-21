@@ -264,13 +264,21 @@ function displayNameOf(dir: string, known: BrowserDef[]): string {
   return candidates[0] ?? base;
 }
 
+/** 供主进程内部复用的完整浏览器信息（含数据目录；不经过 IPC 暴露给渲染层）。 */
+export interface BrowserDataDir {
+  id: string;
+  name: string;
+  dir: string;
+  profiles: string[];
+}
+
 /**
- * 第一步：识别本机装了的 Chromium 系浏览器（**不读书签内容**）。
+ * 第一步（完整版）：识别本机装了的 Chromium 系浏览器与其数据目录。
  *
  * 固定表先占位（友好名与稳定 id），动态扫描补上不在表里的浏览器；同一目录只保留一条。
  * 目录读不到 = 没装这个浏览器，直接从结果里消失（不报假数据）。
  */
-export async function listBookmarkBrowsersAt(local: string, roaming: string): Promise<BookmarkBrowser[]> {
+export async function listBrowserDataDirsAt(local: string, roaming: string): Promise<BrowserDataDir[]> {
   const known = browserDefsAt(local, roaming);
   const merged = new Map<string, { def: BrowserDef; profiles: string[] }>();
 
@@ -295,12 +303,18 @@ export async function listBookmarkBrowsersAt(local: string, roaming: string): Pr
   }
 
   discovered.clear();
-  const out: BookmarkBrowser[] = [];
+  const out: BrowserDataDir[] = [];
   for (const item of merged.values()) {
     discovered.set(item.def.id, item.def);
-    out.push({ id: item.def.id, name: item.def.name, profiles: item.profiles });
+    out.push({ id: item.def.id, name: item.def.name, dir: item.def.dir, profiles: item.profiles });
   }
   return out;
+}
+
+/** 第一步（公开版）：只给渲染层 id/名字/profile，不暴露数据目录。 */
+export async function listBookmarkBrowsersAt(local: string, roaming: string): Promise<BookmarkBrowser[]> {
+  const dirs = await listBrowserDataDirsAt(local, roaming);
+  return dirs.map(({ id, name, profiles }) => ({ id, name, profiles }));
 }
 
 /** 第一步（默认路径）：本机环境变量。 */
