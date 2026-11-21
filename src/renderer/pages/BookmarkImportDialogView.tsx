@@ -134,9 +134,9 @@ export function BookmarkImportDialogView({ onClose }: { onClose(): void }) {
     if (browsers.length === 0) {
       return (
         <p className="t-sm m-0 text-[var(--fg-2)]">
-          没有检测到基于 Chrome 技术的浏览器。我们查了本机常见的 Chromium 系浏览器
-          （Chrome、Edge、Brave、Vivaldi、Chromium、Yandex、360 极速、QQ 浏览器、Opera）的
-          用户数据目录；Firefox 暂不支持（它的书签存在被浏览器占用的数据库里）。
+          没有检测到基于 Chrome 技术的浏览器。我们扫描了本机用户数据目录里的 Chromium 系浏览器
+          （包括 Chrome、Edge、Brave、Vivaldi、夸克、豆包、Tabbit、360、QQ、Opera 等常见形态）；
+          Firefox 暂不支持（它的书签存在被浏览器占用的数据库里）。
         </p>
       );
     }

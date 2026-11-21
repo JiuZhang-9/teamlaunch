@@ -825,6 +825,15 @@ Graphite（石墨）—— 极低彩度的冷灰，色相约 215°，这是让"�
   - **检测更新常驻**：顶栏右侧常驻「检测更新」按钮（空闲可点 / 点击转圈 / 结论 toast 说明），发现新版本仍由 1.3.0 胶囊接管（按钮让位）。**复测通过。**
   - **（复测追加）主窗口搜索浮层入场**：结果卡自上而下 + 轻微缩放缓动出现（200ms ease-emphasis），遮罩同步淡入。
   - **（复测追加）右键菜单每项带图标**：ContextMenu 项支持 icon，团队只读 / 个人 / 批量 / 编辑态菜单全部配齐。
+
+#### 1.10.0（2026-11-21）：收藏排序 / 点击反馈 / 搜索浮层列数
+
+- **搜索浮层收藏 / 最近打开跟随列数**：不再写死一排 8 个——`PaletteResults` 用 ResizeObserver 实测结果区宽度，按 `floor((宽度 + 6) / (86 + 6))` 算列数（默认 1280 窗口约 10 个，最窄窗口约 6 个，永不折行）；数据层上限给 30 条，渲染层截断到列数。快捷窗口保持固定 7 列 × 104px。
+- **收藏拖拽排序**：主页「收藏」与主窗口搜索的收藏行都能拖。搜索行用 pointer 事件（移动 > 4px 才进入拖拽，松手吞掉随后的 click，避免拖完就打开）；主页收藏格复用 CardGrid 的 HTML5 拖拽束（`FavoriteTile` 支持 drag props），可见收藏重排后按原位置替换回完整收藏顺序（连锁 / 失效项保持原位）。两处提交都走 `favorites.reorder` 主进程串行落盘 + 全窗口广播；主页收藏格另支持 Alt+↑/↓ 键盘换位。
+- **收藏顺序唯一口径**：`shared/favorites.ts` 的 `favoriteIdsForDisplay`——有 `sort` 的按 sort 升序，没有 sort 的（刚收藏 / 老数据）按 addedAt 倒序排最前；主页、搜索浮层、快捷窗口都只走它，不再各自 reverse。老数据无需迁移标记。
+- **连锁改为手动收藏**：多选条按钮回到「保存为连锁」，连锁保存不再自动写收藏、不再补老连锁；主页「连锁」格子的「⋯」菜单新增「收藏这条连锁 / 取消收藏这条连锁」。已存在的 `chain:` 收藏记录保留，删除连锁仍自动撤收藏。
+- **点击反馈（方案 C，用户 2026-11-21 选定）**：入口卡片、主页收藏格、连锁格、搜索与快捷窗口图标格——按下容器 scale 0.97 + 图标 scale 0.9 下压（80ms），打开成功图标 1→1.12→1（300ms ease-emphasis），打开失败图标抖动（260ms）+ 卡片红边。键盘 Enter/空格同款。`prefers-reduced-motion` 下全部关闭（含 active 缩放）。
+- **导入书签浏览器识别**：固定名单 → 固定表 + 动态扫描 `%LOCALAPPDATA%` / `%APPDATA%` 下的 Chromium 数据目录（`<vendor>/User Data`、`<vendor>/<product>/User Data`、Opera 宿主目录形态）；判定看 `Local State` 或 profile 内 `Bookmarks`，只读目录与文件名。Firefox 仍不支持并在对话框如实说明。
   - **（复测追加）卡片中央编辑钮**：个人页卡片悬停时中央浮出铅笔圆钮，点它直接进编辑（点卡片其余区域仍是打开；圆钮不悬停时不吃点击）。
   - **（复测追加）编辑态拖拽句柄挪位**：左上常驻句柄挪到右上操作行（原位置与入口图标重叠）。
   - **（复测追加）主页改开关式"态"**：主页不再与团队/个人入口并列——内容头小房子进入 / 主页顶栏小房子退出（回到进入前的页面）；侧栏里主页从页签摘除、改为分隔线下的独立开关钮；主页顶栏右侧两个页面按钮移除。
@@ -1069,8 +1078,10 @@ Banner 采用**两段式**：第一行「状态文案」（由状态枚举决定
 | Ctrl+Space 面板出现 | opacity + translateY(-4px→0) | 120ms | `--ease-emphasis` |
 | 面板消失 | opacity + translateY(0→-4px) | 120ms | `--ease-exit` |
 | 卡片 hover 抬起 | translateY(-1px) + 背景 + `--elev-2` | 160ms | `--ease-standard` |
-| 卡片按下 | translateY(0) + 背景 active | 80ms | `--ease-standard` |
-| 打开成功 | 图标容器 scale(0.96) 压一下即回原位（单向收敛，**非弹簧回弹**） | 120ms | `--ease-standard` |
+| 卡片 / 图标格按下 | 容器 scale(0.97) + 图标 scale(0.9) translateY(1px) + 背景 active | 80ms | `--ease-standard` |
+| 打开成功（1.10.0 方案 C） | 图标 1 → 1.12 → 1 弹一下（`tl-press-pop`） | 300ms | `--ease-emphasis` |
+| 打开失败 | 图标抖动（`tl-press-shake`）+ 卡片红边 | 260ms | `--ease-standard` |
+| 收藏拖拽排序 | 按 pointer 位移 > 4px 进入拖拽；被拖格 40% 透明度 + 目标位置主题色竖线 | 即时 | — |
 | 更多菜单淡入 | opacity + translateY(-2px→0) | 120ms | `--ease-standard` |
 | 下拉菜单展开 | opacity + scale(0.98→1)，transform-origin 顶部 | 160ms | `--ease-standard` |
 | Tab 指示条移动 | translateX + width | 160ms | `--ease-standard` |

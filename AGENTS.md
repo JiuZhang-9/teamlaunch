@@ -99,6 +99,17 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   最近打开（不自动加入入口、不写 personal.json）；文件夹显示名称、网页显示标题（与添加入口同一
   pageTitle 逻辑）、连锁一条记录不拆步骤；设置·通用 + 「最近打开」标题行两处开关
   `recentIncludeUnlisted`（默认开、跨窗口同步）；记录模型抽 `shared/recent.ts` 并加 `verify:recent`
+- v1.10.0（2026-11-21，**已构建安装包，待用户实测后发版**）：用户六条反馈——
+  ① 搜索浮层收藏/最近**跟随实测列数只显示 1 行**（默认 1280 约 10 个，不再写死 8）；
+  ② 收藏**拖拽排序**：主页 + 搜索浮层都能拖，显式 `sort` 0..n-1 落盘，快捷窗跟随；
+  ③ 收藏顺序唯一口径 `favoriteIdsForDisplay`（主页/搜索/快捷窗不再各自 reverse）；
+  ④ 连锁**取消自动收藏**：保存连锁不再进收藏、不再补老连锁，主页「连锁」菜单手动收藏，
+  按钮文案回到「保存为连锁」；⑤ **点击反馈方案 C**（按下 0.97 + 图标下压，成功 1→1.12→1
+  弹跳 300ms，失败抖动 260ms + 红边，reduced-motion 全关）；⑥ 导入书签**动态扫描**
+  `%LOCALAPPDATA%`/`%APPDATA%` 的 Chromium 数据目录（本机实识别 8 个：Chrome/Edge/豆包/ima/
+  千问/夸克/Tabbit/360安全；判定只认 profile 内含 Bookmarks，避免 Electron 应用误报）；
+  新增 `verify:bookmarks`，`verify:favorites` 扩排序断言。安装包
+  `dist/installer/TeamLaunch-Setup-1.10.0.exe`（118,434,073，sha512 已对 latest.yml）
 - **O-05 已全关**（PVR + Dependabot alerts + security updates，均复核）；仍待办：
   局域网多机同步 + 员工机 per-user 装法（**仅公司环境测**，用户 2026-10-20 去公司实测）、
   360 信任区（用户"先这样吧"）、代码签名（用户"不着急"）、O-01..O-03 三个 PM 小裁定（有默认实现）、

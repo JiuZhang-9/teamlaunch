@@ -9,16 +9,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api } from '../bridge/index.ts';
 import type { FavoriteItem } from '../bridge/types.ts';
 import {
-  favoriteIdsNewestFirst,
+  favoriteIdsForDisplay,
   mergeLegacyPinned,
   normalizeFavorites,
+  reorderFavorites,
 } from '../../shared/favorites.ts';
 import { clearLegacyPinnedEntries, legacyPinnedEntryIds } from '../lib/legacyPinnedEntries.ts';
 import { useToasts } from './toastStore.tsx';
 
 interface FavoriteCtx {
   favorites: FavoriteItem[];
-  /** 最近收藏的 id 在前：快捷窗口 / 主窗口搜索的收藏行直接用它。 */
+  /** 显示顺序（唯一口径，1.10.0）：主页、快捷窗口 / 主窗口搜索的收藏行直接用它。 */
   favoriteIds: string[];
   isFavorite(entryId: string): boolean;
   toggleFavorite(entryId: string): Promise<void>;
@@ -27,6 +28,8 @@ interface FavoriteCtx {
    * 语义是"一次设定成同一个状态"，不是逐项 toggle——逐项 toggle 会让整批的结果不可预期。
    */
   setFavoriteMany(entryIds: string[], on: boolean): Promise<void>;
+  /** 手动排序（1.10.0）：传拖动后的 id 顺序；本地先乐观重排，主进程落盘后校准。 */
+  reorder(orderedIds: string[]): Promise<void>;
 }
 
 const Ctx = createContext<FavoriteCtx | null>(null);
@@ -115,11 +118,30 @@ export function FavoriteProvider({
     [push],
   );
 
-  const favoriteIds = useMemo(() => favoriteIdsNewestFirst(favorites), [favorites]);
+  const reorder = useCallback(
+    async (orderedIds: string[]) => {
+      /* 乐观更新：拖动松手立刻看到新顺序，不等 IPC 往返。
+         主进程返回的是唯一口径的结果（未出现的项按原显示顺序跟随），回来后再校准一次。 */
+      setFavorites((current) => reorderFavorites(current, orderedIds));
+      try {
+        setFavorites(normalizeFavorites(await api.favorites.reorder(orderedIds)));
+      } catch {
+        push({ title: '没能保存收藏顺序，请稍后再试', tone: 'danger' });
+        try {
+          setFavorites(normalizeFavorites(await api.favorites.get()));
+        } catch {
+          /* 读回也失败：保留乐观顺序，下次启动以磁盘为准 */
+        }
+      }
+    },
+    [push],
+  );
+
+  const favoriteIds = useMemo(() => favoriteIdsForDisplay(favorites), [favorites]);
 
   const value = useMemo(
-    () => ({ favorites, favoriteIds, isFavorite, toggleFavorite, setFavoriteMany }),
-    [favorites, favoriteIds, isFavorite, toggleFavorite, setFavoriteMany],
+    () => ({ favorites, favoriteIds, isFavorite, toggleFavorite, setFavoriteMany, reorder }),
+    [favorites, favoriteIds, isFavorite, toggleFavorite, setFavoriteMany, reorder],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

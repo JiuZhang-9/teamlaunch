@@ -40,11 +40,13 @@ export interface WindowSearchViewProps {
   programScanning: boolean;
   programError: string | null;
   teamUnavailable: boolean;
+  /** 收藏拖拽排序（1.10.0）：传拖动后的可见收藏 id 顺序给主进程。 */
+  onReorderFavorites?(orderedIds: string[]): void;
 }
 
 export function WindowSearchView({
   query, hits, debouncing, quickAccess, tabLabel, icons, runtime, selectedIndex, onSelectIndex, onOpen, onAddToPersonal, recentCount, onClear,
-  programScanning, programError, teamUnavailable,
+  programScanning, programError, teamUnavailable, onReorderFavorites,
 }: WindowSearchViewProps) {
   const { settings, patch } = useSettings();
   return (
@@ -82,6 +84,7 @@ export function WindowSearchView({
           const rt = runtime[id];
           return rt?.phase === 'opening' ? 'opening' : rt?.phase === 'failed' ? 'failed' : 'idle';
         }}
+        onReorderFavorites={onReorderFavorites}
       />
     </div>
   );

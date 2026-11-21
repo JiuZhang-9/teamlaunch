@@ -7,7 +7,7 @@
  * 四重类型通道（AC-03）：12px 类型角标图标 + 副标签里的类型文字前缀 + 容器 tint +
  * 右下角类型水印（2026-11-08 G1，低对比辅助，不替代前两者）。
  */
-import { forwardRef, useRef, type KeyboardEvent, type MouseEvent } from 'react';
+import { forwardRef, useEffect, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import { MessageSquareWarning, Pencil, Star, TriangleAlert, Trash } from 'lucide-react';
 import type { Entry } from '../../../shared/schema/entry.ts';
 import { TYPE_META, failureSubtitleOf, subtitleOf, targetFull } from '../../lib/entry.ts';
@@ -76,9 +76,27 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
   // 表情图标内联渲染，不走提取管道：换表情立刻生效（含编辑草稿态），也无缓存时效问题。
   const iconUrl = useEntryIcon(entry, wantsEntryIcon(entry));
   const lastOpen = useRef(0);
+  const iconRef = useRef<HTMLSpanElement | null>(null);
   const failed = phase === 'failed';
   const loading = phase === 'opening';
   const editing = mode === 'editing';
+
+  /** 方案 C（1.10.0）：打开成功时图标 1→1.12→1 弹一下；失败时抖动 + 卡片红边（红边已有）。 */
+  const playPop = () => {
+    const el = iconRef.current;
+    if (el === null) return;
+    el.classList.remove('tl-press-pop');
+    void el.offsetWidth;
+    el.classList.add('tl-press-pop');
+  };
+  useEffect(() => {
+    if (!failed) return;
+    const el = iconRef.current;
+    if (el === null) return;
+    el.classList.remove('tl-press-shake');
+    void el.offsetWidth;
+    el.classList.add('tl-press-shake');
+  }, [failed]);
   /** 团队只读卡更平：没有可拖/可编辑的物理感，和个人工作台区分开（2026-11-08 C）。 */
   const flatCard = source === 'team' && mode === 'readonly';
   /** 没有真实图标（含 favicon 取不到）：用入口 id 的稳定身份色 + 首字。 */
@@ -127,10 +145,14 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         const now = Date.now();
         if (now - lastOpen.current < 350) return;
         lastOpen.current = now;
+        playPop();
         onOpen();
       }}
       onContextMenu={onContextMenu}
-      onKeyDown={onKeyDown}
+      onKeyDown={(e) => {
+        if (!disabled && (e.key === 'Enter' || e.key === ' ')) playPop();
+        onKeyDown?.(e);
+      }}
       /* 中键进入编辑（1.9.0 复测确认）：中键点卡片 = 直接进编辑；
           mousedown 阶段挡掉浏览器默认的滚轮自动滚动。onEdit 不存在的页（只读团队页）不生效。 */
       onMouseDown={(e) => {
@@ -146,14 +168,15 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
       aria-label={`${entry.name}，${meta.label}，${source === 'team' ? '团队入口' : '个人入口'}`}
       className={[
         'group relative isolate flex flex-col items-start text-left',
-        'rounded-lg p-3 w-full',
+        'rounded-lg p-3 w-full tl-pressable',
         /* 背景/静置阴影走类：内联会压过 hover:/focus-visible:/active: 的同名规则，
            悬浮亮度、悬浮阴影、键盘焦点环全部失效（2026-10-03 实测定位）。 */
         flatCard ? 'bg-[var(--card-bg)]' : 'bg-[var(--card-bg)] shadow-[var(--card-elev)]',
         /* outline-color 在清单里（1.9.0）：框选光圈点亮/松手淡出都走过渡，不再瞬变。 */
-        'transition-[background-color,border-color,box-shadow,transform,outline-color] duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
+        'transition-[background-color,border-color,box-shadow,transform,scale,outline-color] duration-[var(--motion-fast)] ease-[var(--ease-standard)]',
         'focus-visible:shadow-[var(--ring-focus)]',
         disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+        'active:scale-[0.97]',
         'active:bg-[var(--card-bg-active)]',
         failed ? '' : flatCard ? 'hover:bg-[var(--card-bg-hover)]' : 'hover:-translate-y-0.5 hover:bg-[var(--card-bg-hover)] hover:shadow-[var(--card-elev-hover)]',
         drag?.dragging ? 'opacity-40' : '',
@@ -280,7 +303,7 @@ export const EntryCard = forwardRef<HTMLButtonElement, EntryCardProps>(function 
         </span>
       )}
 
-      <span className="relative z-[1]">
+      <span ref={iconRef} className="tl-press-icon relative z-[1]">
         <IconFrame
           tint={autoFallback ? `var(--identity-${tone}-bg)` : meta.tint}
           fg={autoFallback ? `var(--identity-${tone}-fg)` : undefined}

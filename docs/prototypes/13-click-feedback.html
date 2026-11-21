@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>点击反馈 · 三方案对比</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --bg:#0f0f0f; --surface:#1b1b1b; --surface-2:#222; --border:#2b2b2b; --border-strong:#3d3d3d;
+    --fg:#f0f0f0; --fg-2:#b8b8b8; --meta:#6e6e6e;
+    --accent:#3890ce; --accent-2:#4fa8dc; --accent-tint:rgba(56,144,206,.10);
+    --danger:#e5484d;
+    --instant:80ms; --fast:120ms; --base:160ms; --slow:240ms;
+    --ease:cubic-bezier(.2,0,0,1); --emph:cubic-bezier(.32,.72,0,1);
+    --radius-md:8px; --radius-lg:12px;
+  }
+  body {
+    font-family:"Inter","Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--fg); padding:0 18px 72px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1120px; margin:0 auto; }
+  h1 { font-size:19px; font-weight:600; padding-top:26px; }
+  .sub { font-size:12.5px; color:#9a9a9a; line-height:1.85; margin-top:7px; }
+  .sub b, .d b { color:#e8e8e8; font-weight:600; }
+  .sub em { color:var(--accent-2); font-style:normal; }
+
+  /* ---- 控制条 ---- */
+  .bar {
+    position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+    margin:16px -18px 0; padding:11px 18px; background:rgba(15,15,15,.94);
+    border-bottom:1px solid var(--border); backdrop-filter:blur(8px);
+  }
+  .bar .lab { font-size:11.5px; color:var(--meta); }
+  .seg { display:flex; gap:4px; padding:3px; border:1px solid var(--border); border-radius:9px; background:#151515; }
+  .seg button {
+    font:inherit; font-size:12px; color:#9a9a9a; background:transparent; border:0; border-radius:6px;
+    padding:5px 11px; cursor:pointer; transition:background var(--fast) var(--ease), color var(--fast) var(--ease);
+  }
+  .seg button:hover { color:#e8e8e8; }
+  .seg button.on { background:#2b2b2b; color:#f0f0f0; box-shadow:0 0 0 1px #3a3a3a inset; }
+  .seg button.on[data-variant="A"] { box-shadow:0 0 0 1px var(--accent) inset; color:var(--accent-2); }
+  .seg button.on[data-variant="B"] { box-shadow:0 0 0 1px var(--accent) inset; color:var(--accent-2); }
+  .seg button.on[data-variant="C"] { box-shadow:0 0 0 1px var(--accent) inset; color:var(--accent-2); }
+  .check { display:flex; align-items:center; gap:6px; font-size:12px; color:#9a9a9a; cursor:pointer; user-select:none; }
+  .check input { accent-color:var(--accent); }
+  .demo-btn {
+    margin-left:auto; font:inherit; font-size:12px; color:#e8e8e8; background:#242424;
+    border:1px solid #3a3a3a; border-radius:8px; padding:6px 12px; cursor:pointer;
+    transition:background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  }
+  .demo-btn:hover { background:#2e2e2e; border-color:#4a4a4a; }
+
+  /* ---- 区块 ---- */
+  .sec { border:1px solid var(--border); border-radius:16px; background:#161616; padding:16px 18px 18px; margin-top:16px; }
+  .sec h2 { font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .sec h2 .tag { font-size:10px; font-weight:500; color:var(--meta); border:1px solid var(--border); border-radius:5px; padding:2px 6px; }
+  .sec .d { font-size:11.5px; color:#9a9a9a; line-height:1.7; margin:5px 0 14px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; }
+
+  /* ---- 通用格子 ---- */
+  .cell {
+    position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font:inherit; color:inherit; text-align:center; cursor:pointer; user-select:none;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md);
+    transition:transform var(--slow) var(--emph), background-color var(--fast) var(--ease),
+               border-color var(--fast) var(--ease), box-shadow var(--slow) var(--emph);
+    will-change:transform; overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .cell:focus-visible { outline:none; box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+  .cell.pressed { transform:scale(.96); background:var(--surface-2); transition-duration:var(--instant); }
+  [data-variant="B"] .cell.pressed { transform:scale(.97); background:var(--accent-tint); border-color:var(--border-strong); }
+  [data-variant="C"] .cell.pressed { transform:scale(.97); }
+  [data-variant="C"] .cell.pressed .icon { transform:scale(.9) translateY(1px); transition-duration:var(--instant); }
+
+  .iconwrap { position:relative; display:inline-flex; align-items:center; justify-content:center; }
+  .icon {
+    display:flex; align-items:center; justify-content:center; flex:none;
+    border-radius:8px; font-weight:700; color:#0f0f0f;
+    transition:transform var(--fast) var(--ease);
+    transform-origin:50% 55%;
+  }
+  .badge {
+    position:absolute; right:-3px; bottom:-3px; width:12px; height:12px; border-radius:3px;
+    background:#151515; border:1px solid var(--border); display:grid; place-items:center;
+    font-size:8px; color:var(--meta);
+  }
+  .name { font-size:11px; line-height:1.25; color:var(--fg-2); margin-top:7px; max-width:100%;
+          overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .sub2 { font-size:10px; color:var(--meta); margin-top:2px; }
+
+  /* ---- 大卡片 ---- */
+  .card { width:222px; height:132px; align-items:flex-start; justify-content:flex-start; padding:13px 14px; border-radius:10px; gap:0; }
+  .card .icon { width:40px; height:40px; font-size:17px; border-radius:10px; }
+  .card .cardname { font-size:13px; font-weight:600; color:var(--fg); margin-top:10px; text-align:left; }
+  .card .sub2 { text-align:left; }
+  .card .stripe { position:absolute; left:0; top:10px; bottom:10px; width:2px; border-radius:2px; background:var(--accent); opacity:.85; }
+
+  /* ---- 图标格 ---- */
+  .tile { width:86px; height:86px; padding:9px 5px 7px; gap:0; }
+  .tile .icon { width:32px; height:32px; font-size:14px; }
+  .tile104 { width:104px; height:104px; padding:12px 6px 9px; border-radius:10px; }
+  .tile104 .icon { width:36px; height:36px; font-size:16px; border-radius:9px; }
+  .fav { width:150px; height:104px; padding:12px 8px; border-radius:10px; }
+
+  /* ---- 方案 A：成功后边框轻闪 ---- */
+  [data-variant="A"] .cell.ok { border-color:var(--accent); }
+  [data-variant="A"] .cell.ok .icon { transform:scale(1.02); }
+
+  /* ---- 方案 B：图标中心涟漪 + 背景淡入淡出 ---- */
+  .ripple {
+    position:absolute; left:50%; top:50%; width:8px; height:8px; border-radius:50%;
+    border:2px solid var(--accent); transform:translate(-50%,-50%);
+    pointer-events:none; opacity:0;
+    animation:ripple 420ms var(--ease) forwards;
+  }
+  .tile .ripple { --ripple-size:118px; }
+  .tile104 .ripple { --ripple-size:148px; }
+  .card .ripple { --ripple-size:300px; }
+  .fav .ripple { --ripple-size:180px; }
+  @keyframes ripple {
+    0%   { width:8px; height:8px; opacity:.62; border-width:2px; }
+    70%  { opacity:.28; }
+    100% { width:var(--ripple-size); height:var(--ripple-size); opacity:0; border-width:1px; }
+  }
+  [data-variant="B"] .cell.ok { background:var(--accent-tint); }
+
+  /* ---- 方案 C：图标弹跳 ---- */
+  @keyframes pop {
+    0%   { transform:scale(.9); }
+    40%  { transform:scale(1.12); }
+    70%  { transform:scale(.98); }
+    100% { transform:scale(1); }
+  }
+  [data-variant="C"] .icon.pop { animation:pop 300ms var(--emph); }
+
+  /* ---- 失败：抖动 + 红边（三方案共用） ---- */
+  @keyframes shake {
+    0%,100% { transform:translateX(0); }
+    14% { transform:translateX(-4px); }
+    29% { transform:translateX(4px); }
+    44% { transform:translateX(-3px); }
+    59% { transform:translateX(3px); }
+    74% { transform:translateX(-1px); }
+  }
+  .cell.fail { animation:shake 260ms var(--ease); border-color:var(--danger); }
+  .cell.fail .icon { border-color:var(--danger); }
+
+  /* ---- 减少动效 ---- */
+  body.reduced .cell, body.reduced .icon, body.reduced .ripple {
+    transition-duration:1ms !important; animation-duration:1ms !important;
+  }
+
+  /* ---- 参数/结论 ---- */
+  .note { display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:14px; font-size:11.5px; color:#8a8a8a; line-height:1.7; }
+  .note span { white-space:nowrap; }
+  .note b { color:#d8d8d8; font-weight:600; }
+  .foot { margin-top:22px; border-top:1px solid var(--border); padding-top:16px; font-size:12px; color:#8a8a8a; line-height:1.9; }
+  .foot b { color:#d8d8d8; }
+  .kbd { font-family:ui-monospace,Consolas,monospace; font-size:11px; color:#d8d8d8; background:#242424; border:1px solid #3a3a3a; border-radius:4px; padding:1px 5px; }
+</style>
+</head>
+<body data-variant="A">
+<div class="wrap">
+  <h1>点击反馈 · 三方案对比</h1>
+  <div class="sub">
+    点下面任意<b>卡片 / 图标格</b>，看「按下 → 打开」两段反馈。三个方案的<b>按下段相同</b>（缩到 0.96~0.97，80ms），
+    差异在<b>打开成功</b>那一下：A 回弹即结束、B 从图标扩一圈涟漪、C 图标弹一下。
+    右上可切「失败」看错误反馈。第 1 条已定：搜索浮层的收藏/最近<b>跟随列数显示 1 行</b>，本页图标格按 10 个摆一排演示。
+  </div>
+
+  <div class="bar">
+    <span class="lab">方案</span>
+    <div class="seg" id="variantSeg">
+      <button data-variant="A" class="on">A · 按压回弹</button>
+      <button data-variant="B">B · 涟漪</button>
+      <button data-variant="C">C · 图标弹跳</button>
+    </div>
+    <span class="lab">结果</span>
+    <div class="seg" id="modeSeg">
+      <button data-mode="ok" class="on">成功</button>
+      <button data-mode="fail">失败</button>
+    </div>
+    <label class="check"><input type="checkbox" id="reduced" /> 减少动效</label>
+    <button class="demo-btn" id="demo">自动演示当前方案</button>
+  </div>
+
+  <!-- 当前方案说明 -->
+  <div class="sec" style="margin-top:14px; padding-bottom:14px;">
+    <h2 id="planTitle">方案 A · 按压回弹 <span class="tag" id="planTag">推荐先看</span></h2>
+    <div class="d" id="planDesc">
+      按下缩到 <b>0.96</b>（80ms），松手 <b>240ms</b> 弹性回位；打开成功时边框轻闪一下主题色、图标 1.02 微放。
+      最克制，不抢内容，适合全站默认。
+    </div>
+    <div class="note">
+      <span>按下 <b>80ms</b></span><span>回弹 <b>240ms · ease-emphasis</b></span>
+      <span>成功 <b>边框 120ms</b></span><span>失败 <b>抖动 260ms + 红边</b></span>
+    </div>
+  </div>
+
+  <!-- 载体 1：主页面卡片 -->
+  <div class="sec">
+    <h2>主页面入口卡片 <span class="tag">222 × 132</span></h2>
+    <div class="d">主页 / 团队入口 / 个人入口的卡片。现在是 hover 上浮 + 按下变背景色，没有按下缩放，也没有打开确认。</div>
+    <div class="row">
+      <button class="cell card" data-kind="card"><span class="stripe"></span><span class="iconwrap"><span class="icon" style="background:#d9e7f2">Ch</span></span><span class="cardname">Google Chrome</span><span class="sub2">浏览器 · 团队入口</span></button>
+      <button class="cell card" data-kind="card"><span class="stripe" style="background:#c9a227"></span><span class="iconwrap"><span class="icon" style="background:#f3e3b8">文</span></span><span class="cardname">项目资料</span><span class="sub2">文件夹 · 个人入口</span></button>
+      <button class="cell card" data-kind="card"><span class="stripe" style="background:#8a6fd1"></span><span class="iconwrap"><span class="icon" style="background:#e2d9f7">No</span></span><span class="cardname">Notion</span><span class="sub2">网页 · 团队入口</span></button>
+      <button class="cell card" data-kind="card"><span class="stripe" style="background:#3aa06b"></span><span class="iconwrap"><span class="icon" style="background:#d3eedd">微</span></span><span class="cardname">微信</span><span class="sub2">程序 · 个人入口</span></button>
+    </div>
+  </div>
+
+  <!-- 载体 2：搜索浮层图标格 -->
+  <div class="sec">
+    <h2>主窗口搜索 · 收藏 / 最近打开 <span class="tag">86 × 86 · 10 个一排</span></h2>
+    <div class="d">搜索浮层里的图标格。现在是 hover 换边框/背景，按下没有任何变化。一格 86px、间距 6px，默认窗口一行能放 10 个。</div>
+    <div class="row">
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#d9e7f2">Ch</span><span class="badge">●</span></span><span class="name">Chrome</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#d3eedd">微</span><span class="badge">●</span></span><span class="name">微信</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#f3e3b8">文</span><span class="badge">▣</span></span><span class="name">项目资料</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#e2d9f7">No</span><span class="badge">◆</span></span><span class="name">Notion</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#f7d9d9">F</span><span class="badge">◆</span></span><span class="name">Figma</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#d9f2ee">飞</span><span class="badge">●</span></span><span class="name">飞书</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#eee2d1">钉</span><span class="badge">●</span></span><span class="name">钉钉</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#e0e7f7">VS</span><span class="badge">●</span></span><span class="name">VS Code</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#e7e7e7">⌘</span><span class="badge">⚡</span></span><span class="name">开工三件套</span></button>
+      <button class="cell tile" data-kind="tile"><span class="iconwrap"><span class="icon" style="background:#e2f0d9">表</span><span class="badge">▣</span></span><span class="name">周报表格</span></button>
+    </div>
+  </div>
+
+  <!-- 载体 3：快捷窗口图标格 -->
+  <div class="sec">
+    <h2>快捷窗口图标格 <span class="tag">104 × 104 · 7 个一排</span></h2>
+    <div class="d">快捷面板里的格子。现在同样只有 hover，没有按下态与打开确认。</div>
+    <div class="row">
+      <button class="cell tile104" data-kind="tile104"><span class="iconwrap"><span class="icon" style="background:#d9e7f2">Ch</span><span class="badge">●</span></span><span class="name">Chrome</span></button>
+      <button class="cell tile104" data-kind="tile104"><span class="iconwrap"><span class="icon" style="background:#d3eedd">微</span><span class="badge">●</span></span><span class="name">微信</span></button>
+      <button class="cell tile104" data-kind="tile104"><span class="iconwrap"><span class="icon" style="background:#f3e3b8">文</span><span class="badge">▣</span></span><span class="name">项目资料</span></button>
+      <button class="cell tile104" data-kind="tile104"><span class="iconwrap"><span class="icon" style="background:#e2d9f7">No</span><span class="badge">◆</span></span><span class="name">Notion</span></button>
+      <button class="cell tile104" data-kind="tile104"><span class="iconwrap"><span class="icon" style="background:#f7d9d9">F</span><span class="badge">◆</span></span><span class="name">Figma</span></button>
+      <button class="cell tile104" data-kind="tile104"><span class="iconwrap"><span class="icon" style="background:#d9f2ee">飞</span><span class="badge">●</span></span><span class="name">飞书</span></button>
+      <button class="cell tile104" data-kind="tile104"><span class="iconwrap"><span class="icon" style="background:#e7e7e7">⌘</span><span class="badge">⚡</span></span><span class="name">开工三件套</span></button>
+    </div>
+  </div>
+
+  <!-- 载体 4：主页收藏格 -->
+  <div class="sec">
+    <h2>主页「收藏」格 <span class="tag">约 150 × 104</span></h2>
+    <div class="d">主页收藏区（与搜索浮层共用同一份顺序）。第 2 条定了：这里也能拖拽排序，所以点击动效必须和拖拽区分开——按下先给反馈，移动超过 4px 才进入拖拽，不触发打开。</div>
+    <div class="row">
+      <button class="cell fav" data-kind="fav"><span class="iconwrap"><span class="icon" style="background:#d9e7f2">Ch</span></span><span class="name">Chrome</span></button>
+      <button class="cell fav" data-kind="fav"><span class="iconwrap"><span class="icon" style="background:#e2d9f7">No</span></span><span class="name">Notion</span></button>
+      <button class="cell fav" data-kind="fav"><span class="iconwrap"><span class="icon" style="background:#f7d9d9">F</span></span><span class="name">Figma</span></button>
+      <button class="cell fav" data-kind="fav"><span class="iconwrap"><span class="icon" style="background:#e7e7e7">⌘</span></span><span class="name">开工三件套</span></button>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>落地规则（三方案共用）：</b>按下 80ms 缩到 0.96~0.97；松手 240ms 弹性回位；打开成功走各方案的成功段；
+    打开失败 <b>抖动 260ms + 红边</b>，如实反映失败（不画成成功）。
+    键盘 <span class="kbd">Enter</span> / <span class="kbd">空格</span> 与鼠标同款反馈。
+    系统开启「减少动效」时全部压到 1ms（只保留状态变化，不做位移/缩放）。
+    <br /><b>拖拽与点击的边界：</b>主页收藏格按下后移动 &gt; 4px 进入拖拽，松手不打开；原地松手才按点击处理。
+  </div>
+</div>
+
+<script>
+  const body = document.body;
+  const state = { variant: 'A', mode: 'ok', reduced: false };
+  const plan = {
+    A: {
+      title: '方案 A · 按压回弹',
+      tag: '最克制',
+      desc: '按下缩到 <b>0.96</b>（80ms），松手 <b>240ms</b> 弹性回位；打开成功时边框轻闪一下主题色、图标 1.02 微放。最克制，不抢内容，适合全站默认。',
+    },
+    B: {
+      title: '方案 B · 按压 + 涟漪',
+      tag: '确认感最强',
+      desc: '按下缩到 <b>0.97</b>、背景淡淡染上主题色；打开成功瞬间从图标中心扩出一圈主题色涟漪（<b>420ms</b>，到格子边缘淡出）。"点了、开了"最明确，但全站很多卡片同时点会略热闹。',
+    },
+    C: {
+      title: '方案 C · 按压 + 图标弹跳',
+      tag: '活泼但不加元素',
+      desc: '按下卡片缩到 <b>0.97</b>、图标同时下压 <b>0.9</b>；打开成功时图标 <b>1 → 1.12 → 1</b> 弹一下（<b>300ms</b>）。反馈集中在图标本体，不增加任何新元素，适合与现有图标风格共存。',
+    },
+  };
+
+  const segVariant = document.getElementById('variantSeg');
+  const segMode = document.getElementById('modeSeg');
+  const planTitle = document.getElementById('planTitle');
+  const planTag = document.getElementById('planTag');
+  const planDesc = document.getElementById('planDesc');
+
+  function applyPlan() {
+    body.dataset.variant = state.variant;
+    planTitle.innerHTML = plan[state.variant].title + ' <span class="tag">' + plan[state.variant].tag + '</span>';
+    planDesc.innerHTML = plan[state.variant].desc;
+    for (const b of segVariant.querySelectorAll('button')) b.classList.toggle('on', b.dataset.variant === state.variant);
+    for (const b of segMode.querySelectorAll('button')) b.classList.toggle('on', b.dataset.mode === state.mode);
+  }
+
+  segVariant.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-variant]');
+    if (!b) return;
+    state.variant = b.dataset.variant;
+    applyPlan();
+  });
+  segMode.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-mode]');
+    if (!b) return;
+    state.mode = b.dataset.mode;
+    applyPlan();
+  });
+  document.getElementById('reduced').addEventListener('change', (e) => {
+    state.reduced = e.target.checked;
+    body.classList.toggle('reduced', state.reduced);
+  });
+
+  function clearFx(el) {
+    el.classList.remove('ok', 'fail', 'pressed');
+    for (const r of el.querySelectorAll('.ripple')) r.remove();
+    const icon = el.querySelector('.icon');
+    if (icon) icon.classList.remove('pop');
+  }
+
+  function press(el) {
+    el.classList.add('pressed');
+  }
+  function release(el, activate) {
+    el.classList.remove('pressed');
+    if (activate) play(el);
+  }
+
+  function play(el) {
+    clearFx(el);
+    void el.offsetWidth; // 强制重排，连点也能重新播放
+    if (state.mode === 'fail') {
+      el.classList.add('fail');
+      setTimeout(() => el.classList.remove('fail'), 320);
+      return;
+    }
+    if (state.variant === 'A') {
+      el.classList.add('ok');
+      setTimeout(() => el.classList.remove('ok'), 300);
+    } else if (state.variant === 'B') {
+      const wrap = el.querySelector('.iconwrap');
+      if (wrap) {
+        const r = document.createElement('span');
+        r.className = 'ripple';
+        wrap.appendChild(r);
+        setTimeout(() => r.remove(), 460);
+      }
+      el.classList.add('ok');
+      setTimeout(() => el.classList.remove('ok'), 300);
+    } else {
+      const icon = el.querySelector('.icon');
+      if (icon) {
+        icon.classList.add('pop');
+        setTimeout(() => icon.classList.remove('pop'), 340);
+      }
+    }
+  }
+
+  for (const el of document.querySelectorAll('.cell')) {
+    let down = false;
+    let moved = false;
+    let startX = 0, startY = 0;
+
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      down = true; moved = false;
+      startX = e.clientX; startY = e.clientY;
+      press(el);
+      el.setPointerCapture?.(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!down) return;
+      if (Math.abs(e.clientX - startX) > 4 || Math.abs(e.clientY - startY) > 4) moved = true;
+    });
+    el.addEventListener('pointerup', () => {
+      if (!down) return;
+      down = false;
+      release(el, !moved);
+    });
+    el.addEventListener('pointercancel', () => {
+      down = false;
+      el.classList.remove('pressed');
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        press(el);
+      }
+    });
+    el.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        release(el, true);
+      }
+    });
+  }
+
+  /* 自动演示：依次点每个区域的前两格，方便不操作也能看清成功段 */
+  let demoRunning = false;
+  document.getElementById('demo').addEventListener('click', async () => {
+    if (demoRunning) return;
+    demoRunning = true;
+    const btn = document.getElementById('demo');
+    btn.textContent = '演示中…';
+    const cells = [...document.querySelectorAll('.sec .cell')];
+    const picks = [];
+    for (const sec of document.querySelectorAll('.sec')) {
+      const list = [...sec.querySelectorAll('.cell')];
+      if (list.length > 0) picks.push(list[0]);
+      if (list.length > 2) picks.push(list[2]);
+    }
+    for (const el of picks) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      press(el);
+      await new Promise((r) => setTimeout(r, 110));
+      release(el, true);
+      await new Promise((r) => setTimeout(r, 520));
+    }
+    btn.textContent = '自动演示当前方案';
+    demoRunning = false;
+  });
+
+  applyPlan();
+</script>
+</body>
+</html>

@@ -25,6 +25,7 @@ import { EntrySchema } from '../shared/schema/entry.ts';
 import { SettingsSchema } from '../shared/schema/local.ts';
 import {
   normalizeFavorites,
+  reorderFavorites,
   setFavoriteManyInList,
   toggleFavoriteInList,
   type FavoriteItem,
@@ -218,6 +219,20 @@ export function registerIpc(deps: IpcDeps): void {
         : [];
       const current = await readFavorites();
       const next = setFavoriteManyInList(current, ids, p.on === true, new Date().toISOString());
+      await localStore.saveFavorites(next);
+      broadcastFavorites(next);
+      return next;
+    }),
+  );
+  /* 手动排序（1.10.0）：渲染层传"拖动后的 id 顺序"，主进程按唯一口径重写 sort
+     并广播给所有窗口——主页、搜索浮层、快捷窗口共享同一个顺序。 */
+  ipcMain.handle('tl:favorites-reorder', (_e, ids: unknown) =>
+    serializeFavorites(async () => {
+      const orderedIds = Array.isArray(ids)
+        ? ids.filter((id): id is string => typeof id === 'string')
+        : [];
+      const current = await readFavorites();
+      const next = reorderFavorites(current, orderedIds);
       await localStore.saveFavorites(next);
       broadcastFavorites(next);
       return next;

@@ -19,6 +19,7 @@ import { renderMarkdown } from '../lib/markdown.ts';
 import { useChains } from '../store/chainStore.tsx';
 import { useEdit } from '../store/editStore.tsx';
 import { CHAIN_FAV_PREFIX } from '../lib/palette-source.ts';
+import { moveFavoriteId } from '../../shared/favorites.ts';
 import { useFavorites } from '../store/favoriteStore.tsx';
 import { usePersonal } from '../store/personalStore.tsx';
 import { useSettings } from '../store/settingsStore.tsx';
@@ -33,7 +34,7 @@ export function HomePageView() {
   const { config: personal } = usePersonal();
   const { settings } = useSettings();
   const edit = useEdit();
-  const { favorites, toggleFavorite, isFavorite, setFavoriteMany } = useFavorites();
+  const { favoriteIds, toggleFavorite, isFavorite, setFavoriteMany, reorder } = useFavorites();
   const { runtime, openEntry, openDialog, runSavedChain } = useWorkbench();
   const { push } = useToasts();
   const { chains, resolve: resolveChain, rename: renameChain, remove: removeChain } = useChains();
@@ -124,13 +125,13 @@ export function HomePageView() {
     openDialog('announcements');
   };
 
-  /** 收藏行：按收藏时间倒序；已在团队快照或本机配置里找到的才显示。 */
+  /** 收藏行：显示顺序由 shared 唯一口径给出（与搜索 / 快捷窗口同一份）；解析不到的跳过。 */
   const favRows = useMemo(() => {
     const rows: Array<{ entry: Entry; source: 'team' | 'personal' }> = [];
-    for (const f of [...favorites].reverse()) {
+    for (const entryId of favoriteIds) {
       let found: Entry | null = null;
       for (const g of snapshot.config?.groups ?? []) {
-        const e = g.entries.find((x) => x.id === f.entryId);
+        const e = g.entries.find((x) => x.id === entryId);
         if (e) {
           found = e;
           break;
@@ -138,17 +139,35 @@ export function HomePageView() {
       }
       if (!found) {
         for (const g of personal.groups) {
-          const e = g.entries.find((x) => x.id === f.entryId);
+          const e = g.entries.find((x) => x.id === entryId);
           if (e) {
             found = e;
             break;
           }
         }
       }
-      if (found) rows.push({ entry: found, source: snapshot.config?.groups.some((g) => g.entries.some((x) => x.id === f.entryId)) ? 'team' : 'personal' });
+      if (found) rows.push({ entry: found, source: snapshot.config?.groups.some((g) => g.entries.some((x) => x.id === entryId)) ? 'team' : 'personal' });
     }
     return rows;
-  }, [favorites, snapshot.config, personal.groups]);
+  }, [favoriteIds, snapshot.config, personal.groups]);
+
+  /**
+   * 收藏拖拽排序（1.10.0）：CardGrid 给的是"可见收藏行"的落点下标，
+   * 先把可见项重排，再按原位置替换回完整收藏顺序（连锁 / 失效项保持原位），
+   * 最后交给主进程写成显式 sort——搜索浮层与快捷窗口会同步收到广播。
+   */
+  const reorderVisibleFavorites = useCallback(
+    (draggedId: string, toIndex: number) => {
+      const visibleIds = favRows.map((row) => row.entry.id);
+      if (!visibleIds.includes(draggedId)) return;
+      const moved = moveFavoriteId(visibleIds, draggedId, toIndex);
+      const visibleSet = new Set(visibleIds);
+      let cursor = 0;
+      const nextFull = favoriteIds.map((id) => (visibleSet.has(id) ? moved[cursor++] : id));
+      void reorder(nextFull);
+    },
+    [favoriteIds, favRows, reorder],
+  );
 
   const openFav = (entry: Entry) => {
     void openEntry(entry);
@@ -267,13 +286,22 @@ export function HomePageView() {
           </div>
         ) : (
           /* 图标格（2026-10-17 批 4）：列表改成一格一个图标，省空间也好扫；
-             键盘导航沿用 CardGrid 的 roving tabindex。 */
+             键盘导航沿用 CardGrid 的 roving tabindex。拖拽排序（1.10.0）：
+             整格可拖，落点语义与个人入口一致（toIndex 为移除前口径）。 */
           <CardGrid
             items={favRows}
             getKey={(row) => row.entry.id}
             ariaLabel="收藏"
             minColumnPx={120}
             onActivate={(row) => openFav(row.entry)}
+            dragEnabled
+            onDropEntry={reorderVisibleFavorites}
+            onReorder={(row, delta) => {
+              const visibleIds = favRows.map((r) => r.entry.id);
+              const from = visibleIds.indexOf(row.entry.id);
+              if (from < 0) return;
+              reorderVisibleFavorites(row.entry.id, delta === 1 ? from + 2 : from - 1);
+            }}
             render={(row, focus) => (
               <FavoriteTile
                 ref={focus.cardRef}
@@ -286,6 +314,7 @@ export function HomePageView() {
                     : `打开「${row.entry.name}」`
                 }
                 tabIndex={focus.tabIndex}
+                drag={focus.drag}
                 onKeyDown={focus.onKeyDown}
                 onOpen={() => openFav(row.entry)}
                 onToggleFavorite={() => void toggleFavorite(row.entry.id)}
@@ -344,6 +373,23 @@ export function HomePageView() {
           x={chainMenu.x}
           y={chainMenu.y}
           items={[
+            /* 1.10.0：连锁不再保存即收藏；收藏与否由这里手动决定（用户拍板）。 */
+            {
+              id: 'favorite',
+              label: isFavorite(`${CHAIN_FAV_PREFIX}${chainMenu.chain.id}`) ? '取消收藏这条连锁' : '收藏这条连锁',
+              onSelect: () => {
+                const chain = chainMenu.chain;
+                const favoriteId = `${CHAIN_FAV_PREFIX}${chain.id}`;
+                const next = !isFavorite(favoriteId);
+                setChainMenu(null);
+                void setFavoriteMany([favoriteId], next).then(() => {
+                  push({
+                    title: next ? `已收藏「${chain.name}」，搜索里可一键启动` : `已取消收藏「${chain.name}」`,
+                    tone: 'info',
+                  });
+                });
+              },
+            },
             {
               id: 'capture-layout',
               label: '记住窗口布局',
@@ -378,7 +424,8 @@ export function HomePageView() {
                 void removeChain(target.id)
                   .then(() => api.windowLayout.clear(target.id))
                   .then(() => push({ title: `已删除连锁「${target.name}」`, tone: 'info' }));
-                /* 连锁删了，它的收藏也要跟着撤（1.9.0 保存即收藏），否则搜索里留着一条死收藏。 */
+                /* 连锁删了，它的收藏也要跟着撤（不管当初是手动收藏还是 1.9.0 自动带进来的），
+                   否则搜索里留着一条死收藏。 */
                 void setFavoriteMany([`${CHAIN_FAV_PREFIX}${target.id}`], false);
               },
             },

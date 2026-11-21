@@ -331,6 +331,8 @@ const api: TeamLaunchApi = {
     toggle: (entryId) => invoke<FavoriteItem[]>('tl:favorites-toggle', entryId),
     save: (list) => invoke<FavoriteItem[]>('tl:favorites-save', list),
     setMany: (entryIds, on) => invoke<FavoriteItem[]>('tl:favorites-set-many', { entryIds, on }),
+    /** 手动排序（1.10.0）：按拖动后的 id 顺序重写 sort，广播给所有窗口。 */
+    reorder: (orderedIds) => invoke<FavoriteItem[]>('tl:favorites-reorder', orderedIds),
   },
   /* 连锁收藏（2026-10-19）：与收藏同款——本机文件，形状校验在 store 里做。 */
   chains: {

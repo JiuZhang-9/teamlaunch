@@ -363,6 +363,8 @@ export interface TeamLaunchApi {
     save(list: FavoriteItem[]): Promise<FavoriteItem[]>;
     /** 多选批量：一次设定成同一个状态；返回落盘后的完整列表。 */
     setMany(entryIds: string[], on: boolean): Promise<FavoriteItem[]>;
+    /** 手动排序（1.10.0）：按拖动后的 id 顺序重写 sort；返回落盘后的完整列表。 */
+    reorder(orderedIds: string[]): Promise<FavoriteItem[]>;
   };
 
   /** 连锁收藏（本机持久化，2026-10-19）：保存/读取"一串入口 + 间隔"的一键启动。 */

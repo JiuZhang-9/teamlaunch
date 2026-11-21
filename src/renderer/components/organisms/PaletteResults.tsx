@@ -6,7 +6,7 @@
  * 主窗口只是把它放进内容区，并关掉右键收藏与 Alt 序号（C4 不做）。
  */
 import { AppWindow, LayoutGrid, Plus, RotateCcwClock, Search, Star, X, Zap } from 'lucide-react';
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Button } from '../atoms/Button.tsx';
 import { Glyph, IconFrame, Monogram } from '../atoms/Icon.tsx';
 import { Switch } from '../atoms/Switch.tsx';
@@ -16,6 +16,7 @@ import { ContextMenu } from '../molecules/ContextMenu.tsx';
 import { ResultRow } from '../molecules/ResultRow.tsx';
 import { firstLetterOf, TYPE_META } from '../../lib/entry.ts';
 import { identityTone } from '../../../shared/identity.ts';
+import { moveFavoriteId } from '../../../shared/favorites.ts';
 import { isClipboardHit, type PaletteHit } from '../../lib/palette-source.ts';
 
 export interface PaletteResultsProps {
@@ -62,6 +63,11 @@ export interface PaletteResultsProps {
   tileIconSize?: number;
   /** 主窗口用：从 runtime 取 opening/failed 态。 */
   phaseFor?(entryId: string): 'idle' | 'opening' | 'failed';
+  /**
+   * 收藏拖拽排序（1.10.0，主窗口）：传拖动后的可见收藏 id 顺序。
+   * 快捷窗口不传（面板格子小，拖拽体验差；顺序跟随主窗口）。
+   */
+  onReorderFavorites?(orderedIds: string[]): void;
   className?: string;
 }
 
@@ -93,6 +99,7 @@ export function PaletteResults({
   tileGap = 6,
   tileIconSize = 32,
   phaseFor,
+  onReorderFavorites,
   className = '',
 }: PaletteResultsProps) {
   /** 右键菜单：位置 + 命中的那条结果。菜单开着时 Esc 只收菜单，不收起面板。 */
@@ -104,6 +111,33 @@ export function PaletteResults({
    * 空格 / 回车只认 selectedIndex（方向键、Tab 改它），鼠标只改 hoverIndex。
    */
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  /* 方格模式按容器实测宽度算列数（1.10.0）：写死 8 会让宽窗口右侧留空、最小窗口折行。 */
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const favoriteGridRef = useRef<HTMLDivElement | null>(null);
+  const [columns, setColumns] = useState(8);
+  useEffect(() => {
+    if (!tileSquare) return;
+    const el = rootRef.current;
+    if (el === null) return;
+    const measure = () => {
+      /* 内容宽度 = 滚动容器 clientWidth（不含滚动条）；图标格网格自带 px-2 左右各 8。 */
+      const width = el.clientWidth - 16;
+      setColumns(Math.max(1, Math.floor((width + tileGap) / (tileHeight + tileGap))));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tileSquare, tileGap, tileHeight]);
+
+  /* 收藏拖拽（1.10.0）：pointer 事件而不是 HTML5 拖拽——结果区里点击打开必须继续可用。
+     按下后移动 > 4px 才进入拖拽；松手提交顺序并吞掉紧随其后的 click。 */
+  const dragInfo = useRef<{ id: string; index: number; startX: number; startY: number; active: boolean } | null>(null);
+  const dragOverRef = useRef<number | null>(null);
+  const suppressClick = useRef(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
 
   /* 结果列表变了，旧悬停下标可能指向另一项：清掉，避免高亮错位。 */
   useEffect(() => {
@@ -129,6 +163,72 @@ export function PaletteResults({
   const favoriteHits = hits.filter((h) => h.kind === 'favorite' || h.kind === 'chain');
   const recentHits = hits.filter((h) => h.kind === 'recent');
   const systemHits = hits.filter((h) => h.kind === 'system');
+  /* 方格模式：收藏 / 最近各只显示一行，条数 = 容器实测列数（1.10.0）。
+     数据层已给足 30 条，这里按真实宽度截断；快捷窗口保持固定 7 列不截。 */
+  const shownFavoriteHits = tileSquare ? favoriteHits.slice(0, columns) : favoriteHits;
+  const shownRecentHits = tileSquare ? recentHits.slice(0, columns) : recentHits;
+
+  /* 收藏拖拽的全局监听（1.10.0）：按下后移动 > 4px 才算拖拽，松手按落点重排并提交。 */
+  useEffect(() => {
+    if (onReorderFavorites === undefined) return;
+    const overAt = (x: number): number | null => {
+      const grid = favoriteGridRef.current;
+      if (grid === null) return null;
+      const tiles = [...grid.querySelectorAll<HTMLElement>('[data-tl-tile]')];
+      let over: number | null = null;
+      for (let i = 0; i < tiles.length; i += 1) {
+        const rect = tiles[i]!.getBoundingClientRect();
+        if (x < rect.left + rect.width / 2) {
+          over = i;
+          break;
+        }
+        over = i + 1;
+      }
+      return over;
+    };
+    const move = (e: PointerEvent) => {
+      const info = dragInfo.current;
+      if (info === null) return;
+      if (!info.active) {
+        if (Math.hypot(e.clientX - info.startX, e.clientY - info.startY) < 4) return;
+        info.active = true;
+        setDragId(info.id);
+      }
+      e.preventDefault();
+      const over = overAt(e.clientX);
+      dragOverRef.current = over;
+      setDragOver(over);
+    };
+    const finish = (commit: boolean) => {
+      const info = dragInfo.current;
+      dragInfo.current = null;
+      if (info !== null && info.active) {
+        /* 拖拽松手后浏览器还会补一次 click：吞掉它，否则拖完就打开。 */
+        suppressClick.current = true;
+        setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+        const over = dragOverRef.current;
+        if (commit && over !== null) {
+          const ids = favoriteHits.map((h) => h.entry.id);
+          onReorderFavorites(moveFavoriteId(ids, info.id, over));
+        }
+      }
+      dragOverRef.current = null;
+      setDragId(null);
+      setDragOver(null);
+    };
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+    };
+  }, [favoriteHits, onReorderFavorites]);
   const emptyQuery = query.length === 0;
   /* 空查询时 kind='chain' 只属于收藏行；不能再进 resultHits，否则收藏的连锁会在
      「收藏」和下面的回退网格里各画一次。搜索查询时 chain 仍走结果行/格。 */
@@ -157,7 +257,20 @@ export function PaletteResults({
   /** 连锁命中：收藏行的 kind='chain'，最近打开里的连锁是 kind='recent' + chainSteps。 */
   const isChainHit = (hit: PaletteHit): boolean => hit.kind === 'chain' || hit.chainSteps !== undefined;
 
-  const renderTile = (hit: PaletteHit, favorited: boolean) => {
+  /** 方案 C（1.10.0）：打开成功时图标弹一下；与卡片共用同一套 keyframes。 */
+  const playPop = (el: HTMLElement) => {
+    const icon = el.querySelector<HTMLElement>('.tl-press-icon');
+    if (icon === null) return;
+    icon.classList.remove('tl-press-pop');
+    void icon.offsetWidth;
+    icon.classList.add('tl-press-pop');
+  };
+
+  const renderTile = (
+    hit: PaletteHit,
+    favorited: boolean,
+    opts?: { index: number; listLength: number },
+  ) => {
     const i = hitIndex(hit);
     const selected = i === selectedIndex;
     const hovered = i === hoverIndex;
@@ -166,6 +279,10 @@ export function PaletteResults({
     const emoji = hit.entry.icon.kind === 'emoji' ? hit.entry.icon.char : null;
     const autoFallback = !iconUrl && !emoji;
     const tone = identityTone(hit.entry.id);
+    /* 只有"收藏行"可拖（最近打开不排序）。快捷窗口不传 onReorderFavorites。 */
+    const draggable = opts !== undefined && favorited && onReorderFavorites !== undefined;
+    const dragIndex = opts?.index ?? -1;
+    const dragging = dragId === hit.entry.id;
     return (
       <div
         key={hit.entry.id}
@@ -175,12 +292,34 @@ export function PaletteResults({
         tabIndex={-1}
         aria-current={selected ? 'true' : undefined}
         aria-label={`${hit.entry.name}（${isChainHit(hit) ? `连锁 · ${hit.chainSteps} 步` : hit.source}）`}
-        title={`${hit.entry.name}\n${hit.subtitle}${enableFavoriteMenu && !isChainHit(hit) ? `\n右键：${favorited ? '取消收藏' : '收藏'}` : ''}`}
-        onClick={() => onOpen(hit)}
+        title={`${hit.entry.name}\n${hit.subtitle}${enableFavoriteMenu && !isChainHit(hit) ? `\n右键：${favorited ? '取消收藏' : '收藏'}` : ''}${draggable ? '\n拖动：调整收藏顺序' : ''}`}
+        onPointerDown={(e: ReactPointerEvent<HTMLDivElement>) => {
+          if (!draggable || e.button !== 0) return;
+          dragInfo.current = {
+            id: hit.entry.id,
+            index: dragIndex,
+            startX: e.clientX,
+            startY: e.clientY,
+            active: false,
+          };
+        }}
+        onClick={(e) => {
+          /* 拖拽松手后浏览器还会补一次 click：吞掉它，否则拖完就打开。 */
+          if (suppressClick.current) {
+            suppressClick.current = false;
+            return;
+          }
+          playPop(e.currentTarget);
+          onOpen(hit);
+        }}
         onMouseEnter={() => setHoverIndex(i)}
         onMouseLeave={() => setHoverIndex((current) => (current === i ? null : current))}
         onContextMenu={(e) => openMenu(e, hit)}
-        className="group relative flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--radius-md)] border px-1 pt-2 transition-colors duration-[var(--motion-fast)]"
+        className={[
+          'group tl-pressable relative flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[var(--radius-md)] border px-1 pt-2',
+          'transition-[background-color,border-color,scale] duration-[var(--motion-fast)] active:scale-[0.97]',
+          dragging ? 'opacity-40' : '',
+        ].join(' ')}
         style={{
           height: tileHeight,
           /* 方格模式（1.9.0）：宽=高，固定 86px 不拉伸；列数由 tileGrid 的 auto-fill 决定。 */
@@ -198,7 +337,18 @@ export function PaletteResults({
               : 'var(--card-bg)',
         }}
       >
-        <span className="relative shrink-0">
+        {/* 拖拽插入位置：目标格左缘竖线；落在整行末尾时画在最后一格右缘。 */}
+        {draggable && dragId !== null && dragOver === dragIndex && (
+          <span aria-hidden className="absolute inset-y-1 left-0 z-10 w-0.5 rounded-full bg-[var(--accent)]" />
+        )}
+        {draggable &&
+          dragId !== null &&
+          opts !== undefined &&
+          dragOver === opts.listLength &&
+          dragIndex === opts.listLength - 1 && (
+            <span aria-hidden className="absolute inset-y-1 right-0 z-10 w-0.5 rounded-full bg-[var(--accent)]" />
+          )}
+        <span className="tl-press-icon relative shrink-0">
           <IconFrame
             size={tileIconSize}
             shape={meta.shape}
@@ -256,6 +406,7 @@ export function PaletteResults({
 
   const tileGrid = (list: PaletteHit[], favorited: boolean) => (
     <div
+      ref={favorited ? favoriteGridRef : undefined}
       className={['grid gap-1.5 px-2 pb-1.5 pt-1', tileColumns === 7 ? 'grid-cols-7' : 'grid-cols-6'].join(' ')}
       style={{
         gap: tileGap,
@@ -263,7 +414,7 @@ export function PaletteResults({
         gridTemplateColumns: tileSquare ? `repeat(auto-fill, ${tileHeight}px)` : undefined,
       }}
     >
-      {list.map((hit) => renderTile(hit, favorited))}
+      {list.map((hit, index) => renderTile(hit, favorited, { index, listLength: list.length }))}
     </div>
   );
 
@@ -315,6 +466,7 @@ export function PaletteResults({
       {/* 点结果时不要抢走搜索框焦点：主窗口的"快速打开"依赖聚焦态；
           不阻止 mousedown 的话，输入框先失焦 → 面板在 click 之前就被卸载，点了个空。 */}
       <div
+        ref={rootRef}
         className={['tl-scroll min-h-0 flex-1 overflow-y-auto', className].filter(Boolean).join(' ')}
         role="listbox"
         aria-label="搜索结果"
@@ -407,7 +559,7 @@ export function PaletteResults({
             {emptyQuery && favoriteHits.length > 0 && (
               <>
                 {sectionLabel('收藏', Star)}
-                {tileGrid(favoriteHits, true)}
+                {tileGrid(shownFavoriteHits, true)}
               </>
             )}
 
@@ -430,7 +582,7 @@ export function PaletteResults({
                   )}
                 </div>
                 {recentHits.length > 0
-                  ? tileGrid(recentHits, false)
+                  ? tileGrid(shownRecentHits, false)
                   : (
                     <div className="mx-3 mb-1 rounded-[var(--radius-md)] border border-dashed border-[var(--border-default)] px-3 py-2 t-2xs leading-relaxed text-[var(--meta)]">
                       {recentIncludeUnlisted

@@ -58,10 +58,16 @@ type Identified = Exclude<IdentifyResult, { kind: 'none' }>;
 export const MAX_ROWS = 9;
 export const MAX_PROGRAM_ROWS = 8;
 export const MAX_PROGRAM_SCOPE_ROWS = 14;
-/** 「收藏」与「最近打开」各占一行图标格：面板 720px 下 7 列，主窗口方格 86px 下 8 列（1.9.0）。 */
+/**
+ * 「收藏」与「最近打开」各占一行图标格：面板 720px 下 7 列，主窗口方格 86px 下按容器宽度
+ * 自适应（1.10.0 起 1 行；默认 1280 窗口约 10 列）。
+ *
+ * 主窗口的数据层上限给足 30 条，真正的显示条数在 PaletteResults 里按**实测列数**截断——
+ * 写死 8 会在宽窗口里右侧留空、在最小窗口里折行（用户 2026-11-21 反馈）。
+ */
 export const SECTION_MAX = 6;
 export const PALETTE_SECTION_MAX = 7;
-export const WINDOW_SECTION_MAX = 8;
+export const WINDOW_SECTION_MAX = 30;
 /** 剪贴板文本长度上限：再长就不是"一个网址/一条路径"了。 */
 export const CLIP_MAX = 4096;
 /** 主窗口内容区更宽：入口结果与程序结果都可以多显示一些。 */

@@ -206,6 +206,59 @@
   }
 }
 
+/* ---- 点击反馈（1.10.0 方案 C，用户 2026-11-21 选定）----
+   按下：卡片 0.97（各组件的 active:scale-[0.97]）+ 图标下压 0.9；
+   打开成功：图标 1 → 1.12 → 1 弹一下（300ms）；打开失败：图标抖动（260ms）+ 卡片红边。 */
+@keyframes tl-press-pop {
+  0% {
+    transform: scale(0.9);
+  }
+  40% {
+    transform: scale(1.12);
+  }
+  70% {
+    transform: scale(0.98);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes tl-press-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  14% {
+    transform: translateX(-4px);
+  }
+  29% {
+    transform: translateX(4px);
+  }
+  44% {
+    transform: translateX(-3px);
+  }
+  59% {
+    transform: translateX(3px);
+  }
+  74% {
+    transform: translateX(-1px);
+  }
+}
+.tl-press-icon {
+  transform-origin: 50% 55%;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+.tl-pressable:active .tl-press-icon {
+  transform: scale(0.9) translateY(1px);
+  transition-duration: var(--motion-instant);
+}
+.tl-press-pop {
+  animation: tl-press-pop 300ms var(--ease-emphasis);
+}
+.tl-press-shake {
+  animation: tl-press-shake 260ms var(--ease-standard);
+}
+
 [data-motion='breathe'] {
   animation: tl-breathe var(--motion-breathe) var(--ease-standard) infinite;
 }
@@ -230,6 +283,20 @@
   [data-motion='breathe'],
   [data-motion='loop'],
   [data-motion='shine'] {
+    animation: none !important;
+  }
+  /* 点击反馈（1.10.0）：按下缩放与图标弹跳/抖动一并关闭，只保留状态变化 */
+  .tl-pressable:active {
+    scale: none !important;
+  }
+  .tl-press-icon {
+    transition: none !important;
+  }
+  .tl-pressable:active .tl-press-icon {
+    transform: none !important;
+  }
+  .tl-press-pop,
+  .tl-press-shake {
     animation: none !important;
   }
 }

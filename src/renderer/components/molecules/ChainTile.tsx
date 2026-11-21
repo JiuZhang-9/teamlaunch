@@ -5,7 +5,7 @@
  * 悬浮操作是「⋯」（重命名 / 记住窗口布局 / 删除——都放在外面那层菜单里，格子里只留入口）。
  * 键盘可达性沿用 CardGrid 的 roving tabindex（ref/tabIndex/onKeyDown 由父级注入）。
  */
-import { forwardRef, type KeyboardEvent, type MouseEvent } from 'react';
+import { forwardRef, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import { EllipsisVertical, ListChecks } from 'lucide-react';
 import type { SavedChain } from '../../bridge/types.ts';
 import type { Entry } from '../../../shared/schema/entry.ts';
@@ -46,6 +46,16 @@ export const ChainTile = forwardRef<HTMLButtonElement, ChainTileProps>(function 
 ) {
   const broken = entryCount === 0;
   const meta = iconEntry ? TYPE_META[iconEntry.type] : null;
+  const iconRef = useRef<HTMLSpanElement | null>(null);
+
+  /** 方案 C：打开成功时图标弹一下（与 EntryCard / FavoriteTile 同一套 keyframes）。 */
+  const playPop = () => {
+    const el = iconRef.current;
+    if (el === null) return;
+    el.classList.remove('tl-press-pop');
+    void el.offsetWidth;
+    el.classList.add('tl-press-pop');
+  };
   /** 没步骤时传一个空壳 + enabled=false：hook 内部不会发任何请求（保持 hook 调用顺序固定）。 */
   const iconUrl = useEntryIcon(iconEntry ?? EMPTY_ENTRY, iconEntry !== null && wantsEntryIcon(iconEntry));
   const emoji = iconEntry !== null && iconEntry.icon.kind === 'emoji' ? iconEntry.icon.char : null;
@@ -63,34 +73,42 @@ export const ChainTile = forwardRef<HTMLButtonElement, ChainTileProps>(function 
       aria-label={`连锁 ${chain.name}，${detail}`}
       title={broken ? `「${chain.name}」：${detail}` : `一键启动「${chain.name}」（${detail}）`}
       onClick={() => {
-        if (!broken) onLaunch();
+        if (!broken) {
+          playPop();
+          onLaunch();
+        }
       }}
-      onKeyDown={onKeyDown}
+      onKeyDown={(e) => {
+        if (!broken && (e.key === 'Enter' || e.key === ' ')) playPop();
+        onKeyDown(e);
+      }}
       className={[
-        'group relative flex w-full flex-col items-center gap-1.5 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--card-bg)] p-2 text-center transition-colors duration-[var(--motion-fast)]',
+        'group tl-pressable relative flex w-full flex-col items-center gap-1.5 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--card-bg)] p-2 text-center transition-[background-color,scale] duration-[var(--motion-fast)] active:scale-[0.97]',
         broken ? 'cursor-not-allowed opacity-60' : 'hover:bg-[var(--card-bg-hover)]',
         'focus-visible:shadow-[var(--ring-focus)]',
       ].join(' ')}
     >
-      {iconEntry !== null && meta !== null ? (
-        <IconFrame
-          tint={autoFallback ? `var(--identity-${tone}-bg)` : meta.tint}
-          fg={autoFallback ? `var(--identity-${tone}-fg)` : undefined}
-          shape={meta.shape}
-        >
-          {emoji ? (
-            <span aria-hidden className="grid place-items-center text-[26px] leading-none">{emoji}</span>
-          ) : iconUrl !== null ? (
-            <img src={iconUrl} alt="" aria-hidden className="h-10 w-10 shrink-0 object-contain" />
-          ) : (
-            <Monogram letter={iconEntry.name.slice(0, 1).toUpperCase()} />
-          )}
-        </IconFrame>
-      ) : (
-        <IconFrame tint="var(--bg-surface-2)" shape="app">
-          <ListChecks size={20} strokeWidth={2} aria-hidden />
-        </IconFrame>
-      )}
+      <span ref={iconRef} className="tl-press-icon relative inline-flex">
+        {iconEntry !== null && meta !== null ? (
+          <IconFrame
+            tint={autoFallback ? `var(--identity-${tone}-bg)` : meta.tint}
+            fg={autoFallback ? `var(--identity-${tone}-fg)` : undefined}
+            shape={meta.shape}
+          >
+            {emoji ? (
+              <span aria-hidden className="grid place-items-center text-[26px] leading-none">{emoji}</span>
+            ) : iconUrl !== null ? (
+              <img src={iconUrl} alt="" aria-hidden className="h-10 w-10 shrink-0 object-contain" />
+            ) : (
+              <Monogram letter={iconEntry.name.slice(0, 1).toUpperCase()} />
+            )}
+          </IconFrame>
+        ) : (
+          <IconFrame tint="var(--bg-surface-2)" shape="app">
+            <ListChecks size={20} strokeWidth={2} aria-hidden />
+          </IconFrame>
+        )}
+      </span>
       <span className="t-xs w-full truncate-1 text-[var(--fg)]">{chain.name}</span>
       <span className="t-2xs w-full truncate-1 text-[var(--meta)]">{detail}</span>
       {/* 悬浮才出现的「⋯」：与收藏格的悬浮星同一个位置与尺寸（常驻会让格子变吵）。 */}

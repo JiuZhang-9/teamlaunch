@@ -239,7 +239,7 @@ export function MainWindowShell() {
 
   /* ---------- 主窗口搜索（1.4.0）：与快捷窗口共用候选/打分/去重 ---------- */
   const programs = usePrograms();
-  const { favoriteIds, setFavoriteMany } = useFavorites();
+  const { favoriteIds, reorder: reorderFavorites } = useFavorites();
   const recent = useRecentOpens();
   /** 全部候选（团队 + 本机）：收藏/最近/剪贴板去重用。团队侧用已发布配置，不用编辑草稿。 */
   const allCandidates = useMemo(
@@ -1029,23 +1029,9 @@ export function MainWindowShell() {
     }
   }, [tab, setTab]);
 
-  /* 老连锁一次性迁入收藏（1.9.0 复测反馈"收藏的连锁在搜索里没看到"）：
-     1.9.0 之前保存的连锁没有收藏记录，只有升级后新保存的才会自动收藏——
-     升级后第一次跑把还没进收藏的连锁全部补进；之后用户手动取消的不再补回。
-     ref 守卫保证每个挂载周期最多跑一次：补收藏会广播 favorites，若依赖 favorites
-     重跑就会在"补→广播→重跑"之间打满渲染线程（实测冻住过）。 */
-  const chainMigrationRan = useRef(false);
-  useEffect(() => {
-    if (chainMigrationRan.current || settings.chainFavoritesMigrated || chains.length === 0) return;
-    chainMigrationRan.current = true;
-    const missing = chains
-      .map((c) => `${CHAIN_FAV_PREFIX}${c.id}`)
-      .filter((id) => !favoriteIds.includes(id));
-    if (missing.length > 0) void setFavoriteMany(missing, true);
-    void patch({ chainFavoritesMigrated: true });
-    /* 依赖刻意不含 favoriteIds/patch：ref 守卫下本 effect 每个挂载周期只跑一次，
-       补收藏的广播若反哺依赖会形成回环（实测把渲染线程打满过）。 */
-  }, [chains, settings.chainFavoritesMigrated]);
+  /* 1.10.0（用户拍板"取消连锁自动收藏"）：保存连锁不再自动写收藏，也不再补老连锁。
+     1.9.0 的 chainFavoritesMigrated 标记与补收藏逻辑整体退场；已经进了收藏的连锁记录保留，
+     用户在「连锁」格子的菜单里可以手动收藏 / 取消收藏。 */
 
   return (
     <div
@@ -1260,6 +1246,7 @@ export function MainWindowShell() {
                       programScanning={programs.scanning}
                       programError={programs.error}
                       teamUnavailable={!p.renderable && personal.groups.some((g) => g.entries.length > 0)}
+                      onReorderFavorites={reorderFavorites}
                     />
                   </div>
                 </>
@@ -1360,12 +1347,12 @@ export function MainWindowShell() {
           两条同名会让人分不清点哪条。保存的是"当前多选清单的顺序 + 当前间隔"。 */}
       {saveChainOpen && (
         <RenameDialog
-          title="收藏连锁"
-          detail={`把当前选中的 ${selected.length} 个入口按这个顺序存成一条连锁并加入收藏；主页「连锁」区可管理，搜索与快捷窗口的收藏里一键启动。`}
+          title="保存为连锁"
+          detail={`把当前选中的 ${selected.length} 个入口按这个顺序存成一条连锁；主页「连锁」区可管理，想放进搜索 / 快捷窗口的收藏时在「连锁」格子的菜单里点「收藏」。`}
           fieldLabel="连锁名称"
           placeholder="例如：开工三件套"
           initial=""
-          confirmLabel="收藏"
+          confirmLabel="保存"
           maxLength={40}
           validate={(next) => {
             if (next.trim().length === 0) return '名称不能为空';
@@ -1376,9 +1363,8 @@ export function MainWindowShell() {
             setSaveChainOpen(false);
             void saveChain(name, selected, settings.chainIntervalMs).then((r) => {
               if (r.ok && r.id) {
-                /* 保存即收藏（1.9.0 用户拍板）：连锁直接进收藏，搜索 / 快捷窗口里一键启动。 */
-                void setFavoriteMany([`${CHAIN_FAV_PREFIX}${r.id}`], true);
-                push({ title: `已收藏连锁「${name.trim()}」，主页「连锁」里可一键启动`, tone: 'success' });
+                /* 1.10.0：保存连锁不再自动加入收藏（用户拍板）——收藏是用户主动动作。 */
+                push({ title: `已保存连锁「${name.trim()}」，主页「连锁」里可一键启动`, tone: 'success' });
                 return;
               }
               push({ title: r.reason ?? '没能保存这条连锁', tone: 'warn' });
