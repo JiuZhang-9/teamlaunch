@@ -39,7 +39,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
 `docs/design-system/`｜分发与现场排障 `docs/DELIVERY.md`｜开发细节 `docs/DEVELOPMENT.md`｜
 决策与待办登记 `docs/decisions/OPEN-DECISIONS.md` + `docs/decisions/ADR-001..008`
 
-## 当前状态（2026-11-18，latest = v1.9.1 已发布）
+## 当前状态（2026-11-21，latest = v1.11.0 已发布）
 
 - v1.0.13 起逐版发布到 **v1.9.1**（latest = v1.9.1；自 1.1.0 起小修改按最后一位递增，
   大改按 minor 递增：1.2.0 起每块功能一个 minor）
@@ -99,7 +99,7 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   最近打开（不自动加入入口、不写 personal.json）；文件夹显示名称、网页显示标题（与添加入口同一
   pageTitle 逻辑）、连锁一条记录不拆步骤；设置·通用 + 「最近打开」标题行两处开关
   `recentIncludeUnlisted`（默认开、跨窗口同步）；记录模型抽 `shared/recent.ts` 并加 `verify:recent`
-- v1.10.0（2026-11-21，**已构建安装包，待用户实测后发版**）：用户六条反馈——
+- v1.10.0（2026-11-21，**随 v1.11.0 一起发布**——1.11.0 包含本批全部改动）：用户六条反馈——
   ① 搜索浮层收藏/最近**跟随实测列数只显示 1 行**（默认 1280 约 10 个，不再写死 8）；
   ② 收藏**拖拽排序**：主页 + 搜索浮层都能拖，显式 `sort` 0..n-1 落盘，快捷窗跟随；
   ③ 收藏顺序唯一口径 `favoriteIdsForDisplay`（主页/搜索/快捷窗不再各自 reverse）；
@@ -110,7 +110,8 @@ npm run verify:all && npm run verify:qa && npm run typecheck && npm run lint   #
   千问/夸克/Tabbit/360安全；判定只认 profile 内含 Bookmarks，避免 Electron 应用误报）；
   新增 `verify:bookmarks`，`verify:favorites` 扩排序断言。安装包
   `dist/installer/TeamLaunch-Setup-1.10.0.exe`（118,434,073，sha512 已对 latest.yml）
-- v1.11.0（2026-11-21，**已构建安装包，待用户实测后发版**）：搜索框**直接网页搜索**——
+- v1.11.0（2026-11-21，已发布；commit `f7e7cf2` + tag/Release v1.11.0 四件套，
+  exe 118,445,306；局域网镜像已同步 1.11.0 三件套）：搜索框**直接网页搜索**——
   主窗口/快捷窗口查询非空时，搜索框右侧「在浏览器中搜索」按钮 + `Alt+Enter` + 结果区底部
   吸底一行；用**目标浏览器自己的默认搜索引擎**（读 Preferences 的 `default_search_provider_data`；
   新版 Chrome 只有 `mirrored_template_url_data.keyword`，按内置 Bing/Google/百度/搜狗/360 映射），
